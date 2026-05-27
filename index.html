@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comercia · Plataforma de gestión para comercios</title>
+<meta name="description" content="Comercia es la plataforma todo-en-uno para gestionar compras, ventas, presupuestos y stock. Probá gratis 14 días.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
+<style>
+  :root{
+    --ink:#0a1929;
+    --ink-2:#142b44;
+    --bg:#f6f4ef;
+    --bg-warm:#efeae0;
+    --paper:#ffffff;
+    --line:#dcd5c5;
+    --accent:#1453d8;
+    --accent-hover:#0d3eb0;
+    --accent-soft:#e8efff;
+    --success:#0a8045;
+    --warning:#c2410c;
+    --text:#0a1929;
+    --text-soft:#4a5568;
+    --text-mute:#8a929d;
+    --serif:'Fraunces',serif;
+    --sans:'Inter',-apple-system,sans-serif;
+    --mono:'JetBrains Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:var(--sans);
+    background:var(--bg);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(20,83,216,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 100%, rgba(10,128,69,0.03) 0%, transparent 50%);
+    pointer-events:none;
+    z-index:0;
+  }
+  .landing{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+  .nav{padding:24px 48px;display:flex;align-items:center;justify-content:space-between}
+  .logo{font-family:var(--serif);font-size:28px;font-weight:600;letter-spacing:-0.02em;color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:10px}
+  .logo-dot{width:10px;height:10px;background:var(--accent);border-radius:50%;display:inline-block}
+  .nav-links{display:flex;gap:32px;align-items:center}
+  .nav-link{color:var(--text-soft);text-decoration:none;font-size:14px;font-weight:500;transition:color .2s;cursor:pointer}
+  .nav-link:hover{color:var(--ink)}
+  .btn{font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 22px;border:none;border-radius:8px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+  .btn-ghost{background:transparent;color:var(--ink)}
+  .btn-ghost:hover{background:rgba(10,25,41,.05)}
+  .btn-primary{background:var(--ink);color:#fff}
+  .btn-primary:hover{background:var(--accent)}
+  .btn-cta{background:var(--accent);color:#fff;font-size:15px;padding:14px 28px}
+  .btn-cta:hover{background:var(--accent-hover);transform:translateY(-1px)}
+  .btn-line{background:transparent;border:1.5px solid var(--ink);color:var(--ink)}
+  .btn-line:hover{background:var(--ink);color:#fff}
+
+  .hero{flex:1;display:flex;align-items:center;padding:60px 48px;max-width:1200px;width:100%;margin:0 auto}
+  .hero-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:80px;align-items:center;width:100%}
+  .hero-tag{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent);padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:24px}
+  .hero-tag-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+  h1.hero-title{font-family:var(--serif);font-weight:500;font-size:clamp(40px,5.5vw,68px);line-height:1.05;letter-spacing:-0.03em;color:var(--ink);margin-bottom:24px}
+  h1.hero-title em{font-style:italic;font-weight:600;color:var(--accent);font-variation-settings:"opsz" 144}
+  .hero-desc{font-size:18px;line-height:1.6;color:var(--text-soft);margin-bottom:36px;max-width:500px}
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap}
+  .hero-trust{margin-top:32px;font-size:13px;color:var(--text-mute);display:flex;align-items:center;gap:14px}
+  .hero-trust strong{color:var(--ink);font-weight:600}
+
+  .hero-visual{position:relative;aspect-ratio:1/1}
+  .mock-card{background:var(--paper);border-radius:16px;box-shadow:0 30px 60px -20px rgba(10,25,41,.18),0 10px 30px -10px rgba(10,25,41,.1);overflow:hidden}
+  .mock-main{position:relative;padding:24px}
+  .mock-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+  .mock-title{font-family:var(--serif);font-size:18px;font-weight:600;color:var(--ink)}
+  .mock-tag{background:var(--success);color:#fff;font-size:10px;padding:3px 10px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .mock-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+  .mock-stat{padding:14px;background:var(--bg-warm);border-radius:10px}
+  .mock-stat-lbl{font-size:10px;color:var(--text-mute);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
+  .mock-stat-val{font-family:var(--serif);font-size:24px;font-weight:600;color:var(--ink);line-height:1}
+  .mock-stat-delta{font-size:11px;color:var(--success);font-weight:600;margin-top:4px}
+  .mock-rows{display:flex;flex-direction:column;gap:8px}
+  .mock-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:12px}
+  .mock-row-name{font-weight:600;color:var(--ink)}
+  .mock-row-val{font-family:var(--mono);color:var(--text-soft)}
+  .floating-card{position:absolute;background:var(--paper);padding:14px 18px;border-radius:12px;box-shadow:0 20px 40px -10px rgba(10,25,41,.2);animation:floatY 4s ease-in-out infinite}
+  .floating-card.fc-top{top:-30px;right:-20px;animation-delay:0s}
+  .floating-card.fc-bot{bottom:-20px;left:-30px;animation-delay:2s}
+  @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  .fc-lbl{font-size:10px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .fc-val{font-family:var(--serif);font-size:18px;font-weight:600;color:var(--ink)}
+
+  .features-bar{background:var(--ink);color:#fff;padding:80px 48px;position:relative;z-index:1}
+  .features-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:48px}
+  .feature{border-left:1px solid rgba(255,255,255,.15);padding-left:24px}
+  .feature-num{font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.4);margin-bottom:10px}
+  .feature-title{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:8px;line-height:1.2}
+  .feature-desc{font-size:13px;color:rgba(255,255,255,.65);line-height:1.5}
+
+  .footer{padding:40px 48px;text-align:center;color:var(--text-mute);font-size:13px;position:relative;z-index:1}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(10,25,41,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:100;align-items:center;justify-content:center;padding:24px;animation:fadeIn .2s ease}
+  .modal-overlay.show{display:flex}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .modal{background:var(--paper);border-radius:20px;max-width:440px;width:100%;padding:36px;position:relative;box-shadow:0 40px 80px -20px rgba(10,25,41,.4);animation:slideUp .3s cubic-bezier(.4,0,.2,1)}
+  @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+  .modal-close{position:absolute;top:18px;right:18px;background:none;border:none;cursor:pointer;color:var(--text-mute);font-size:24px;line-height:1;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:all .15s}
+  .modal-close:hover{background:var(--bg);color:var(--ink)}
+  .modal-eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);font-weight:600;margin-bottom:8px}
+  .modal-title{font-family:var(--serif);font-size:30px;font-weight:500;line-height:1.1;letter-spacing:-0.02em;color:var(--ink);margin-bottom:8px}
+  .modal-subtitle{font-size:14px;color:var(--text-soft);margin-bottom:28px;line-height:1.5}
+  .form-group{margin-bottom:16px}
+  .form-label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:6px}
+  .form-input{width:100%;background:var(--bg);border:1.5px solid transparent;color:var(--ink);padding:13px 15px;border-radius:10px;font-size:14px;font-family:var(--sans);transition:all .15s}
+  .form-input:focus{outline:none;border-color:var(--accent);background:var(--paper);box-shadow:0 0 0 4px var(--accent-soft)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .btn-form{width:100%;background:var(--ink);color:#fff;padding:14px;border-radius:10px;font-size:15px;font-weight:600;margin-top:8px;cursor:pointer;border:none;font-family:var(--sans);transition:all .2s}
+  .btn-form:hover{background:var(--accent)}
+  .btn-form:disabled{opacity:.5;cursor:not-allowed}
+  .modal-foot{text-align:center;margin-top:20px;font-size:13px;color:var(--text-soft)}
+  .modal-foot a{color:var(--accent);text-decoration:none;font-weight:600;cursor:pointer}
+  .modal-foot a:hover{text-decoration:underline}
+  .alert{padding:11px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+  .alert.show{display:block}
+  .alert.error{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+  .alert.success{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+
+  .app{display:none;min-height:100vh}
+  .app.show{display:flex}
+  .app-shell{display:flex;width:100%;min-height:100vh}
+
+  /* SIDEBAR */
+  .sidebar{
+    width:240px;
+    background:var(--ink);
+    color:#fff;
+    flex-shrink:0;
+    display:flex;
+    flex-direction:column;
+    padding:20px 0;
+  }
+  .sidebar-logo{
+    font-family:var(--serif);
+    font-size:24px;
+    font-weight:600;
+    padding:0 24px 24px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .sidebar-logo .logo-dot{background:var(--accent)}
+  .sidebar-nav{padding:20px 12px;flex:1}
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:11px 14px;
+    color:rgba(255,255,255,.7);
+    text-decoration:none;
+    font-size:14px;
+    font-weight:500;
+    border-radius:8px;
+    cursor:pointer;
+    transition:all .15s;
+    margin-bottom:2px;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav-item.active{background:var(--accent);color:#fff}
+  .nav-item-icon{font-size:18px;width:20px;text-align:center}
+  .sidebar-foot{
+    padding:14px 18px;
+    border-top:1px solid rgba(255,255,255,.08);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .sidebar-foot .app-user-avatar{width:32px;height:32px;font-size:12px}
+  .sidebar-foot-info{flex:1;min-width:0}
+  .sidebar-foot-name{color:#fff;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sidebar-foot-biz{color:rgba(255,255,255,.5);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sidebar-logout{
+    background:none;
+    border:none;
+    color:rgba(255,255,255,.5);
+    cursor:pointer;
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:6px;
+    transition:all .15s;
+  }
+  .sidebar-logout:hover{background:rgba(255,255,255,.08);color:#fff}
+
+  /* MAIN CONTENT */
+  .main{
+    flex:1;
+    background:var(--bg);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .main-header{
+    background:var(--paper);
+    border-bottom:1px solid var(--line);
+    padding:18px 32px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .main-title{
+    font-family:var(--serif);
+    font-size:26px;
+    font-weight:500;
+    letter-spacing:-0.02em;
+    color:var(--ink);
+  }
+  .main-actions{display:flex;gap:10px;align-items:center}
+  .main-body{
+    flex:1;
+    padding:32px;
+    overflow-y:auto;
+  }
+
+  /* MODULE — placeholder */
+  .module{display:none}
+  .module.active{display:block}
+
+  /* PRODUCTS */
+  .stats-row{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+    gap:14px;
+    margin-bottom:24px;
+  }
+  .stat-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px;
+  }
+  .stat-label{
+    font-size:11px;
+    color:var(--text-mute);
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    margin-bottom:6px;
+    font-weight:600;
+  }
+  .stat-value{
+    font-family:var(--serif);
+    font-size:30px;
+    font-weight:600;
+    color:var(--ink);
+    line-height:1.1;
+  }
+  .toolbar{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .search-box{
+    flex:1;
+    min-width:240px;
+    position:relative;
+  }
+  .search-input{
+    width:100%;
+    background:var(--paper);
+    border:1.5px solid var(--line);
+    color:var(--ink);
+    padding:11px 14px 11px 38px;
+    border-radius:10px;
+    font-size:14px;
+    font-family:var(--sans);
+    transition:all .15s;
+  }
+  .search-input:focus{
+    outline:none;
+    border-color:var(--accent);
+    box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .search-icon{
+    position:absolute;
+    left:13px;
+    top:50%;
+    transform:translateY(-50%);
+    color:var(--text-mute);
+    font-size:14px;
+  }
+  .table-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+  }
+  .data-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .data-table thead{
+    background:#fafafa;
+    border-bottom:1px solid var(--line);
+  }
+  .data-table th{
+    text-align:left;
+    padding:12px 16px;
+    font-weight:600;
+    font-size:11px;
+    color:var(--text-soft);
+    letter-spacing:.05em;
+    text-transform:uppercase;
+  }
+  .data-table td{
+    padding:12px 16px;
+    border-top:1px solid var(--line);
+    color:var(--ink);
+  }
+  .data-table tbody tr:hover{background:#fafafa}
+  .data-table .code-cell{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--accent);
+    font-weight:600;
+  }
+  .data-table .price-cell{
+    font-family:var(--mono);
+    color:var(--success);
+    font-weight:600;
+  }
+  .empty-table{
+    padding:60px 20px;
+    text-align:center;
+    color:var(--text-mute);
+  }
+  .empty-table-icon{font-size:48px;margin-bottom:12px;opacity:.5}
+  .empty-table-title{font-family:var(--serif);font-size:22px;color:var(--ink);margin-bottom:6px}
+  .empty-table-desc{font-size:14px;margin-bottom:20px}
+  .btn-sm{padding:8px 14px;font-size:13px}
+  .badge-rubro{
+    display:inline-block;
+    background:var(--accent-soft);
+    color:var(--accent);
+    font-size:11px;
+    padding:2px 8px;
+    border-radius:6px;
+    font-weight:600;
+  }
+  .actions-cell{display:flex;gap:6px}
+  .icon-btn{
+    background:transparent;
+    border:none;
+    cursor:pointer;
+    padding:6px;
+    border-radius:6px;
+    color:var(--text-mute);
+    font-size:14px;
+    transition:all .15s;
+  }
+  .icon-btn:hover{background:var(--bg);color:var(--ink)}
+  .icon-btn.danger:hover{background:#fef2f2;color:#dc2626}
+  .pagination{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 16px;
+    border-top:1px solid var(--line);
+    background:#fafafa;
+    font-size:13px;
+    color:var(--text-soft);
+  }
+  .page-btns{display:flex;gap:6px}
+  .page-btn{
+    background:var(--paper);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:6px 12px;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:13px;
+    transition:all .15s;
+  }
+  .page-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .page-btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* IMPORT MODAL */
+  .import-area{
+    border:2px dashed var(--line);
+    border-radius:12px;
+    padding:40px 24px;
+    text-align:center;
+    cursor:pointer;
+    background:var(--bg);
+    transition:all .2s;
+    margin-bottom:16px;
+  }
+  .import-area:hover, .import-area.dragover{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .import-icon{font-size:36px;margin-bottom:10px}
+  .import-text{font-family:var(--serif);font-size:16px;font-weight:600;color:var(--ink);margin-bottom:4px}
+  .import-hint{font-size:13px;color:var(--text-mute)}
+  .import-log{
+    background:#0d1b2a;
+    color:#7fffaa;
+    font-family:var(--mono);
+    font-size:11px;
+    padding:12px;
+    border-radius:8px;
+    max-height:200px;
+    overflow-y:auto;
+    display:none;
+    margin-top:14px;
+  }
+  .import-log.show{display:block}
+  .import-progress{
+    background:var(--bg);
+    border-radius:6px;
+    height:6px;
+    overflow:hidden;
+    margin-top:10px;
+    display:none;
+  }
+  .import-progress.show{display:block}
+  .import-progress-fill{
+    background:linear-gradient(90deg, var(--accent), var(--success));
+    height:100%;
+    width:0%;
+    transition:width .3s;
+  }
+
+  /* Toast */
+  .toast{
+    position:fixed;
+    bottom:24px;
+    right:24px;
+    background:var(--ink);
+    color:#fff;
+    padding:14px 20px;
+    border-radius:10px;
+    font-size:14px;
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.3);
+    z-index:200;
+    transform:translateY(100px);
+    opacity:0;
+    transition:all .3s;
+  }
+  .toast.show{transform:translateY(0);opacity:1}
+  .toast.success{background:var(--success)}
+  .toast.error{background:#dc2626}
+
+  @media (max-width:900px){
+    .sidebar{width:64px}
+    .sidebar-logo{padding:0 16px 20px;font-size:0}
+    .sidebar-logo .logo-dot{width:14px;height:14px}
+    .nav-item{justify-content:center;padding:11px;font-size:0;gap:0}
+    .nav-item-icon{font-size:20px}
+    .sidebar-foot{padding:10px;flex-direction:column;gap:6px}
+    .sidebar-foot-info{display:none}
+    .main-header{padding:14px 18px}
+    .main-body{padding:18px}
+    .main-title{font-size:20px}
+  }
+
+  @media (max-width:900px){
+    .hero-grid{grid-template-columns:1fr;gap:40px}
+    .hero-visual{display:none}
+    .features-grid{grid-template-columns:1fr 1fr;gap:32px}
+    .nav{padding:18px 20px}
+    .hero{padding:30px 20px}
+    .features-bar{padding:48px 20px}
+  }
+  @media (max-width:520px){
+    .features-grid{grid-template-columns:1fr}
+    .nav-links{display:none}
+    h1.hero-title{font-size:42px}
+    .modal{padding:24px}
+    .modal-title{font-size:24px}
+    .form-row{grid-template-columns:1fr}
+    .welcome-title{font-size:32px}
+  }
+</style>
+</head>
+<body>
+
+<div class="landing" id="landing">
+  <nav class="nav">
+    <a href="#" class="logo"><span class="logo-dot"></span>Comercia</a>
+    <div class="nav-links">
+      <a href="#features" class="nav-link">Funcionalidades</a>
+      <a class="nav-link">Precios</a>
+      <a class="nav-link" onclick="openLogin()">Iniciar sesión</a>
+      <button class="btn btn-primary" onclick="openRegister()">Probar gratis</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <span class="hero-tag"><span class="hero-tag-dot"></span>14 días gratis · sin tarjeta</span>
+        <h1 class="hero-title">La gestión de tu negocio <em>en un solo lugar</em>.</h1>
+        <p class="hero-desc">Compras, ventas, presupuestos y stock. Comercia unifica todo lo que tu comercio necesita para crecer, sin complicaciones.</p>
+        <div class="hero-ctas">
+          <button class="btn btn-cta" onclick="openRegister()">Empezar ahora &rarr;</button>
+          <button class="btn btn-line" onclick="openLogin()">Ya tengo cuenta</button>
+        </div>
+        <div class="hero-trust"><strong>Hecho en Argentina</strong> &middot; para comercios reales</div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="mock-card mock-main">
+          <div class="mock-header">
+            <div class="mock-title">Resumen del día</div>
+            <span class="mock-tag">En vivo</span>
+          </div>
+          <div class="mock-stats">
+            <div class="mock-stat">
+              <div class="mock-stat-lbl">Ventas hoy</div>
+              <div class="mock-stat-val">$284.500</div>
+              <div class="mock-stat-delta">&uarr; +18%</div>
+            </div>
+            <div class="mock-stat">
+              <div class="mock-stat-lbl">Productos vendidos</div>
+              <div class="mock-stat-val">47</div>
+              <div class="mock-stat-delta">&uarr; +6</div>
+            </div>
+          </div>
+          <div class="mock-rows">
+            <div class="mock-row"><span class="mock-row-name">Taladro Bosch GSB-13</span><span class="mock-row-val">&times;3</span></div>
+            <div class="mock-row"><span class="mock-row-name">Sierra circular Stanley</span><span class="mock-row-val">&times;1</span></div>
+            <div class="mock-row"><span class="mock-row-name">Set llaves Allen</span><span class="mock-row-val">&times;5</span></div>
+          </div>
+        </div>
+        <div class="floating-card fc-top">
+          <div class="fc-lbl">Stock bajo</div>
+          <div class="fc-val">3 productos</div>
+        </div>
+        <div class="floating-card fc-bot">
+          <div class="fc-lbl">Margen mensual</div>
+          <div class="fc-val">42.8%</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features-bar" id="features">
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-num">01</div>
+        <h3 class="feature-title">Compras</h3>
+        <p class="feature-desc">Órdenes consolidadas por proveedor. Tu equipo arma la lista, vos generás el pedido.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">02</div>
+        <h3 class="feature-title">Ventas</h3>
+        <p class="feature-desc">Registrá cada venta con stock automático y reportes en tiempo real.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">03</div>
+        <h3 class="feature-title">Presupuestos</h3>
+        <p class="feature-desc">Generá presupuestos profesionales y enviálos por WhatsApp en segundos.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-num">04</div>
+        <h3 class="feature-title">Base de datos</h3>
+        <p class="feature-desc">Toda tu información segura y trazable. Acceso desde cualquier dispositivo.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">&copy; 2026 Comercia &middot; Hecho en Argentina</footer>
+</div>
+
+<div class="modal-overlay" id="modalRegister">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">14 días gratis &middot; sin tarjeta</div>
+    <h2 class="modal-title">Crear cuenta</h2>
+    <p class="modal-subtitle">Empezá a usar Comercia ahora mismo. Configurá tu negocio en menos de 5 minutos.</p>
+    <div class="alert error" id="regAlert"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Nombre del comercio</label>
+        <input class="form-input" type="text" id="regBusiness" placeholder="Ferretería López" autocomplete="organization">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rubro</label>
+        <select class="form-input" id="regRubro">
+          <option value="">Seleccioná...</option>
+          <option value="ferreteria">Ferretería</option>
+          <option value="repuestos">Repuestos / Autopartes</option>
+          <option value="farmacia">Farmacia</option>
+          <option value="veterinaria">Veterinaria</option>
+          <option value="petshop">Pet Shop</option>
+          <option value="libreria">Librería / Papelería</option>
+          <option value="pinturas">Pinturería</option>
+          <option value="construccion">Materiales construcción</option>
+          <option value="indumentaria">Indumentaria</option>
+          <option value="electricidad">Electricidad / Iluminación</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tu nombre</label>
+      <input class="form-input" type="text" id="regName" placeholder="Juan Pérez" autocomplete="name">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" type="email" id="regEmail" placeholder="vos@ejemplo.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Teléfono</label>
+        <input class="form-input" type="tel" id="regPhone" placeholder="+54 11 ..." autocomplete="tel">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input class="form-input" type="password" id="regPassword" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+    </div>
+    <div style="display:flex;justify-content:center;margin:18px 0 8px">
+      <div class="g-recaptcha" data-sitekey="6Lf8Lv4sAAAAAPnuAa2Z-Q9FCzbImtveN-Xm6eJN"></div>
+    </div>
+    <button class="btn-form" id="btnRegister" onclick="register()">Crear cuenta y empezar prueba</button>
+    <div class="modal-foot">¿Ya tenés cuenta? <a onclick="switchToLogin()">Iniciá sesión</a></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalLogin">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">Volver a entrar</div>
+    <h2 class="modal-title">Iniciar sesión</h2>
+    <p class="modal-subtitle">Ingresá tus datos para acceder a tu cuenta de Comercia.</p>
+    <div class="alert error" id="loginAlert"></div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="loginEmail" placeholder="vos@ejemplo.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input class="form-input" type="password" id="loginPassword" placeholder="Tu contraseña" autocomplete="current-password">
+    </div>
+    <button class="btn-form" id="btnLogin" onclick="login()">Entrar</button>
+    <div class="modal-foot">¿Sos nuevo? <a onclick="switchToRegister()">Creá tu cuenta gratis</a></div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <div class="app-shell">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo"><span class="logo-dot"></span>Comercia</div>
+      <nav class="sidebar-nav">
+        <a class="nav-item active" data-module="productos" onclick="navTo('productos')">
+          <span class="nav-item-icon">&#128230;</span><span>Productos</span>
+        </a>
+        <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
+          <span class="nav-item-icon">&#128722;</span><span>Pedidos</span>
+        </a>
+        <a class="nav-item" data-module="empleados" onclick="navTo('empleados')">
+          <span class="nav-item-icon">&#128101;</span><span>Empleados</span>
+        </a>
+        <a class="nav-item" data-module="configuracion" onclick="navTo('configuracion')">
+          <span class="nav-item-icon">&#9881;</span><span>Configuración</span>
+        </a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="app-user-avatar" id="appUserAvatar">&middot;</div>
+        <div class="sidebar-foot-info">
+          <div class="sidebar-foot-name" id="appUserName"></div>
+          <div class="sidebar-foot-biz" id="appUserBusiness"></div>
+        </div>
+        <button class="sidebar-logout" onclick="logout()" title="Cerrar sesión">&#x2192;</button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div id="emailVerifyBanner" style="display:none;background:#fef3c7;border-bottom:1px solid #fbbf24;padding:14px 32px;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+        <div style="font-size:14px;color:#78350f;display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px">&#9993;</span>
+          <span>Te enviamos un email para verificar tu cuenta. Revisá tu casilla (también en SPAM).</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="reenviarVerificacion()" class="btn btn-ghost" style="font-size:12px;padding:8px 14px;background:#fbbf24;color:#78350f">Reenviar email</button>
+          <button onclick="document.getElementById('emailVerifyBanner').style.display='none'" class="btn btn-ghost" style="font-size:12px;padding:8px 14px">&times;</button>
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO PRODUCTOS ═══ -->
+      <div class="module active" id="moduleProductos">
+        <header class="main-header">
+          <h1 class="main-title">Productos</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
+            <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
+          </div>
+        </header>
+        <div class="main-body">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-label">Productos totales</div>
+              <div class="stat-value" id="statTotalProductos">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Proveedores únicos</div>
+              <div class="stat-value" id="statProveedores">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Última actualización</div>
+              <div class="stat-value" id="statUltimaAct" style="font-size:16px;font-family:var(--sans);font-weight:600">Sin datos</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="search-box">
+              <span class="search-icon">&#128269;</span>
+              <input class="search-input" id="prodSearch" type="text" placeholder="Buscar por código, descripción o proveedor..." oninput="filterProductos()">
+            </div>
+          </div>
+
+          <div class="table-card">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Proveedor</th>
+                  <th>Rubro</th>
+                  <th style="text-align:right">Costo</th>
+                  <th style="text-align:right">Venta</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="prodTbody">
+                <tr><td colspan="7" class="empty-table">
+                  <div class="empty-table-icon">&#128230;</div>
+                  <div class="empty-table-title">Aún no tenés productos</div>
+                  <div class="empty-table-desc">Importá un Excel o agregá productos manualmente para empezar.</div>
+                  <div style="display:flex;gap:10px;justify-content:center">
+                    <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
+                    <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
+                  </div>
+                </td></tr>
+              </tbody>
+            </table>
+            <div class="pagination" id="prodPagination" style="display:none">
+              <div>Mostrando <span id="prodShowing">0</span> de <span id="prodTotal">0</span> productos</div>
+              <div class="page-btns">
+                <button class="page-btn" id="prodPrevBtn" onclick="prodPrevPage()">&larr; Anterior</button>
+                <button class="page-btn" id="prodNextBtn" onclick="prodNextPage()">Siguiente &rarr;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO PEDIDOS ═══ -->
+      <div class="module" id="modulePedidos">
+        <header class="main-header">
+          <h1 class="main-title">Pedidos</h1>
+        </header>
+        <div class="main-body">
+          <div class="table-card">
+            <div class="empty-table">
+              <div class="empty-table-icon">&#128722;</div>
+              <div class="empty-table-title">Módulo en construcción</div>
+              <div class="empty-table-desc">Próximamente podrás armar pedidos a tus proveedores.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO EMPLEADOS ═══ -->
+      <div class="module" id="moduleEmpleados">
+        <header class="main-header">
+          <h1 class="main-title">Empleados</h1>
+        </header>
+        <div class="main-body">
+          <div class="table-card">
+            <div class="empty-table">
+              <div class="empty-table-icon">&#128101;</div>
+              <div class="empty-table-title">Módulo en construcción</div>
+              <div class="empty-table-desc">Próximamente podrás invitar empleados a tu cuenta.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO CONFIGURACIÓN ═══ -->
+      <div class="module" id="moduleConfiguracion">
+        <header class="main-header">
+          <h1 class="main-title">Configuración</h1>
+        </header>
+        <div class="main-body">
+          <div class="table-card">
+            <div class="empty-table">
+              <div class="empty-table-icon">&#9881;</div>
+              <div class="empty-table-title">Módulo en construcción</div>
+              <div class="empty-table-desc">Próximamente podrás personalizar tu empresa.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL IMPORTAR EXCEL ═══════════════════ -->
+<div class="modal-overlay" id="modalImport">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">Importar productos</div>
+    <h2 class="modal-title">Subir Excel</h2>
+    <p class="modal-subtitle">Detectamos las columnas automáticamente. Esto va a reemplazar tu base actual de productos.</p>
+    <div class="alert error" id="impAlert"></div>
+    <div class="import-area" id="impArea" onclick="document.getElementById('impFileInput').click()">
+      <div class="import-icon">&#128190;</div>
+      <div class="import-text">Hacé clic para seleccionar el Excel</div>
+      <div class="import-hint">Formatos soportados: .xlsx, .xls</div>
+    </div>
+    <input type="file" id="impFileInput" accept=".xlsx,.xls" style="display:none">
+    <div id="impFileInfo" style="display:none;background:var(--bg);padding:12px;border-radius:8px;font-size:13px;margin-bottom:10px"></div>
+    <div class="import-progress" id="impProgress"><div class="import-progress-fill" id="impProgressFill"></div></div>
+    <div class="import-log" id="impLog"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button onclick="closeModals()" class="btn btn-ghost" style="flex:1">Cancelar</button>
+      <button onclick="procesarImport()" class="btn btn-primary" id="impBtn" disabled style="flex:1;opacity:.5">Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL PRODUCTO (Crear/Editar) ═══════════════════ -->
+<div class="modal-overlay" id="modalProduct">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow" id="prodModalEyebrow">Nuevo producto</div>
+    <h2 class="modal-title" id="prodModalTitle">Agregar producto</h2>
+    <p class="modal-subtitle">Completá los datos del producto.</p>
+    <div class="alert error" id="prodAlert"></div>
+    <input type="hidden" id="prodEditId">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Código *</label>
+        <input class="form-input" type="text" id="prodCodigo" placeholder="ABC-123">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cód. barras</label>
+        <input class="form-input" type="text" id="prodCodBarra" placeholder="">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descripción *</label>
+      <input class="form-input" type="text" id="prodDescripcion" placeholder="Taladro inalámbrico 18V">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Proveedor</label>
+        <input class="form-input" type="text" id="prodProveedor" placeholder="">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rubro</label>
+        <input class="form-input" type="text" id="prodRubro" placeholder="">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Costo</label>
+        <input class="form-input" type="number" id="prodCosto" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Venta</label>
+        <input class="form-input" type="number" id="prodVenta" placeholder="0" min="0" step="0.01">
+      </div>
+    </div>
+    <button class="btn-form" id="btnSaveProduct" onclick="saveProduct()">Guardar producto</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyDi6V39CMqYSJJili7OdXJNgaX1-3tKk90",
+  authDomain: "comercia-app-b1e9a.firebaseapp.com",
+  projectId: "comercia-app-b1e9a",
+  storageBucket: "comercia-app-b1e9a.firebasestorage.app",
+  messagingSenderId: "619317924513",
+  appId: "1:619317924513:web:8939e2c20f952e4738d6e0"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+function openRegister(){ closeModals(); document.getElementById('modalRegister').classList.add('show'); }
+function openLogin(){ closeModals(); document.getElementById('modalLogin').classList.add('show'); }
+function closeModals(){ document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('show')); hideAlerts(); }
+function switchToLogin(){ closeModals(); openLogin(); }
+function switchToRegister(){ closeModals(); openRegister(); }
+function hideAlerts(){ document.querySelectorAll('.alert').forEach(a=>a.classList.remove('show','error','success')); }
+function showAlert(id, msg, type){ var a=document.getElementById(id); a.textContent=msg; a.classList.add('show', type||'error'); }
+
+document.querySelectorAll('.modal-overlay').forEach(function(o){
+  o.addEventListener('click', function(e){ if(e.target===o) closeModals(); });
+});
+
+function generarEmpresaId(nombre){
+  var base = nombre.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-')
+    .replace(/^-|-$/g,'')
+    .substring(0,30);
+  var random = Math.random().toString(36).substring(2,7);
+  return base+'-'+random;
+}
+
+// Traduce códigos de error de Firebase a mensajes claros en español
+function traducirError(code){
+  var map = {
+    'auth/email-already-in-use': 'Ese email ya está registrado. Probá iniciar sesión.',
+    'auth/invalid-email': 'El email no es válido.',
+    'auth/weak-password': 'Contraseña muy débil. Usá al menos 8 caracteres.',
+    'auth/user-not-found': 'No existe una cuenta con ese email.',
+    'auth/wrong-password': 'Contraseña incorrecta.',
+    'auth/invalid-credential': 'Email o contraseña incorrectos.',
+    'auth/invalid-login-credentials': 'Email o contraseña incorrectos.',
+    'auth/too-many-requests': 'Demasiados intentos. Esperá unos minutos.',
+    'auth/network-request-failed': 'Sin conexión a internet. Verificá tu red.',
+    'auth/user-disabled': 'Esta cuenta fue suspendida. Contactá a soporte.',
+    'auth/operation-not-allowed': 'Operación no permitida. Contactá a soporte.',
+    'permission-denied': 'Sin permisos. Probá cerrar sesión e iniciar de nuevo.',
+    'unavailable': 'Servicio no disponible. Reintentá en unos segundos.'
+  };
+  return map[code] || 'Ocurrió un error. Reintentá o contactá a soporte.';
+}
+
+async function register(){
+  var business = document.getElementById('regBusiness').value.trim();
+  var rubro    = document.getElementById('regRubro').value;
+  var name     = document.getElementById('regName').value.trim();
+  var email    = document.getElementById('regEmail').value.trim().toLowerCase();
+  var phone    = document.getElementById('regPhone').value.trim();
+  var password = document.getElementById('regPassword').value;
+  hideAlerts();
+
+  // Validaciones
+  if(!business||!rubro||!name||!email||!phone||!password){
+    return showAlert('regAlert','Por favor completá todos los campos.');
+  }
+  if(name.length<2){ return showAlert('regAlert','Ingresá tu nombre completo.'); }
+  if(password.length<8){ return showAlert('regAlert','La contraseña debe tener al menos 8 caracteres.'); }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ return showAlert('regAlert','El email no es válido.'); }
+  if(phone.length<8){ return showAlert('regAlert','Ingresá un teléfono válido.'); }
+
+  // Verificar reCAPTCHA
+  if(typeof grecaptcha==='undefined' || !grecaptcha.getResponse()){
+    return showAlert('regAlert','Verificá que no sos un robot tildando la casilla.');
+  }
+
+  var btn=document.getElementById('btnRegister');
+  btn.disabled=true; btn.textContent='Creando cuenta...';
+
+  // 🚩 Marcar que hay un registro en curso — el listener auth no debe interferir
+  window._registrationInProgress = true;
+
+  var createdUid = null;
+  try{
+    // Paso 1: Crear usuario en Firebase Auth
+    var cred = await auth.createUserWithEmailAndPassword(email, password);
+    createdUid = cred.user.uid;
+
+    // Paso 2: Crear empresa en Firestore
+    var empresaId = generarEmpresaId(business);
+    var trialEnd  = new Date();
+    trialEnd.setDate(trialEnd.getDate()+14);
+
+    try{
+      await db.collection('empresas').doc(empresaId).set({
+        nombre: business,
+        rubro: rubro,
+        ownerUid: createdUid,
+        ownerEmail: email,
+        ownerName: name,
+        phone: phone,
+        estado: 'prueba',
+        pruebaHasta: trialEnd.toISOString(),
+        creadoEn: new Date().toISOString()
+      });
+    }catch(err){
+      // Si falló acá, hay que limpiar la cuenta huérfana
+      console.error('Falló crear empresa, limpiando:', err);
+      try{ await cred.user.delete(); }catch(e){}
+      throw new Error('No se pudo crear la empresa. Por favor reintentá.');
+    }
+
+    // Paso 3: Crear mapeo usuario -> empresa
+    try{
+      await db.collection('usuarios_global').doc(createdUid).set({
+        email: email,
+        nombre: name,
+        empresaId: empresaId,
+        rol: 'admin',
+        creadoEn: new Date().toISOString()
+      });
+    }catch(err){
+      // Si falló acá, limpiar empresa y cuenta
+      console.error('Falló crear usuario_global, limpiando:', err);
+      try{ await db.collection('empresas').doc(empresaId).delete(); }catch(e){}
+      try{ await cred.user.delete(); }catch(e){}
+      throw new Error('No se pudo completar el registro. Por favor reintentá.');
+    }
+
+    // Paso 4: Enviar email de verificación (no bloquea el login)
+    try{
+      await cred.user.sendEmailVerification();
+    }catch(err){
+      console.warn('No se pudo enviar email de verificación:', err);
+      // No es crítico, seguimos
+    }
+
+    // Todo OK
+    closeModals();
+    // Resetear el captcha por si se reusa el modal
+    if(typeof grecaptcha!=='undefined') grecaptcha.reset();
+
+    // 🚩 Limpiar bandera y disparar el listener manualmente para cargar la app
+    window._registrationInProgress = false;
+    if(auth.currentUser){
+      // Forzar reevaluación del estado para mostrar la app
+      cargarEmpresaUsuario(auth.currentUser);
+    }
+  }catch(err){
+    console.error('Error de registro:', err);
+    var msg = traducirError(err.code) || err.message || 'Error al crear la cuenta.';
+    showAlert('regAlert', msg);
+    if(typeof grecaptcha!=='undefined') grecaptcha.reset();
+    btn.disabled=false; btn.textContent='Crear cuenta y empezar prueba';
+    window._registrationInProgress = false;
+  }
+}
+
+async function reenviarVerificacion(){
+  var user = auth.currentUser;
+  if(!user){ return; }
+  try{
+    await user.sendEmailVerification();
+    alert('Email reenviado. Revisá tu casilla (puede estar en SPAM).');
+  }catch(err){
+    if(err.code==='auth/too-many-requests'){
+      alert('Esperá unos minutos antes de reenviar.');
+    } else {
+      alert('No se pudo reenviar: ' + traducirError(err.code));
+    }
+  }
+}
+
+async function login(){
+  var email    = document.getElementById('loginEmail').value.trim().toLowerCase();
+  var password = document.getElementById('loginPassword').value;
+  hideAlerts();
+  if(!email||!password) return showAlert('loginAlert','Completá email y contraseña.');
+  var btn=document.getElementById('btnLogin');
+  btn.disabled=true; btn.textContent='Entrando...';
+  try{
+    await auth.signInWithEmailAndPassword(email,password);
+    closeModals();
+  }catch(err){
+    showAlert('loginAlert', traducirError(err.code));
+    btn.disabled=false; btn.textContent='Entrar';
+  }
+}
+
+// Carga los datos de empresa del usuario y muestra la app
+async function cargarEmpresaUsuario(user){
+  var landing = document.getElementById('landing');
+  var app     = document.getElementById('app');
+  var banner  = document.getElementById('emailVerifyBanner');
+
+  try{
+    var doc = await db.collection('usuarios_global').doc(user.uid).get();
+
+    if(!doc.exists){
+      // Si hay un registro en curso, no hacer nada — todavía no se creó el documento
+      if(window._registrationInProgress){
+        console.log('Registro en curso, esperando que se cree usuarios_global...');
+        // Reintentar en 1 segundo
+        setTimeout(function(){ cargarEmpresaUsuario(user); }, 1000);
+        return;
+      }
+      // Cuenta HUÉRFANA real: existe en Auth pero no en Firestore
+      console.warn('Cuenta huérfana detectada para uid:', user.uid);
+      alert('Tu cuenta no está completa. Tenés que registrarte de nuevo. Vamos a cerrar sesión.');
+      try{ await user.delete(); }catch(e){
+        await auth.signOut();
+      }
+      return;
+    }
+
+    var u = doc.data();
+    var emp = await db.collection('empresas').doc(u.empresaId).get();
+    if(!emp.exists){
+      if(window._registrationInProgress){
+        setTimeout(function(){ cargarEmpresaUsuario(user); }, 1000);
+        return;
+      }
+      console.error('Empresa no encontrada para usuario:', u.empresaId);
+      alert('No encontramos los datos de tu empresa. Contactá a soporte.');
+      await auth.signOut();
+      return;
+    }
+    var empData = emp.data();
+
+    // Guardar contexto global
+    currentUser = user;
+    currentEmpresa = empData;
+    currentEmpresaId = u.empresaId;
+
+    // Mostrar app
+    landing.style.display='none';
+    app.classList.add('show');
+    document.getElementById('appUserName').textContent = u.nombre || user.email;
+    document.getElementById('appUserBusiness').textContent = empData ? empData.nombre : '';
+    document.getElementById('appUserAvatar').textContent = (u.nombre||user.email).charAt(0).toUpperCase();
+
+    // Cargar productos
+    cargarProductos();
+
+    // Mostrar banner de verificación si el email no está verificado
+    if(banner){
+      if(!user.emailVerified){
+        banner.style.display='flex';
+      } else {
+        banner.style.display='none';
+      }
+    }
+  }catch(err){
+    console.error('Error cargando datos de usuario:', err);
+    alert('Hubo un problema al cargar tus datos. Reintentá refrescando la página.');
+  }
+}
+
+auth.onAuthStateChanged(async function(user){
+  var landing = document.getElementById('landing');
+  var app     = document.getElementById('app');
+  var banner  = document.getElementById('emailVerifyBanner');
+
+  if(user){
+    // Si hay un registro en curso, esperar a que termine
+    if(window._registrationInProgress){
+      console.log('Auth state cambió durante registro, esperando...');
+      return;
+    }
+    await cargarEmpresaUsuario(user);
+  } else {
+    landing.style.display='flex';
+    app.classList.remove('show');
+    if(banner) banner.style.display='none';
+    currentUser = null;
+    currentEmpresa = null;
+    currentEmpresaId = null;
+    productos = [];
+    productosFiltered = [];
+  }
+});
+
+async function logout(){ await auth.signOut(); }
+
+// ═══════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════
+var currentUser = null;
+var currentEmpresa = null;
+var currentEmpresaId = null;
+var productos = [];
+var productosFiltered = [];
+var prodPage = 0;
+var prodPageSize = 50;
+var prodSearchTimer = null;
+
+// ═══════════════════════════════════════════════════════
+// NAVEGACIÓN ENTRE MÓDULOS
+// ═══════════════════════════════════════════════════════
+function navTo(modulo){
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  document.querySelectorAll('[data-module="'+modulo+'"]').forEach(function(n){ n.classList.add('active'); });
+  document.querySelectorAll('.module').forEach(function(m){ m.classList.remove('active'); });
+  var target = document.getElementById('module'+modulo.charAt(0).toUpperCase()+modulo.slice(1));
+  if(target) target.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════
+function toast(msg, tipo){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (tipo || '');
+  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO PRODUCTOS — Cargar y renderizar
+// ═══════════════════════════════════════════════════════
+async function cargarProductos(){
+  if(!currentEmpresaId) return;
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('productos').get();
+    productos = [];
+    snap.forEach(function(d){
+      var p = d.data();
+      p._id = d.id;
+      productos.push(p);
+    });
+    productos.sort(function(a,b){ return (a.descripcion||'').localeCompare(b.descripcion||''); });
+    productosFiltered = productos.slice();
+    prodPage = 0;
+    renderProductos();
+    actualizarStats();
+  }catch(err){
+    console.error('Error cargando productos:', err);
+    toast('Error al cargar productos','error');
+  }
+}
+
+function actualizarStats(){
+  document.getElementById('statTotalProductos').textContent = productos.length.toLocaleString('es-AR');
+  var provs = {};
+  for(var i=0;i<productos.length;i++) if(productos[i].proveedor) provs[productos[i].proveedor]=1;
+  document.getElementById('statProveedores').textContent = Object.keys(provs).length;
+
+  // Última actualización
+  var ult = null;
+  for(var i=0;i<productos.length;i++){
+    var u = productos[i].updatedAt;
+    if(u && (!ult || u > ult)) ult = u;
+  }
+  if(ult){
+    var d = new Date(ult);
+    document.getElementById('statUltimaAct').textContent = d.toLocaleDateString('es-AR') + ' ' + d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  } else {
+    document.getElementById('statUltimaAct').textContent = 'Sin datos';
+  }
+}
+
+function filterProductos(){
+  if(prodSearchTimer) clearTimeout(prodSearchTimer);
+  prodSearchTimer = setTimeout(function(){
+    var q = document.getElementById('prodSearch').value.trim().toLowerCase();
+    if(!q){ productosFiltered = productos.slice(); }
+    else {
+      productosFiltered = productos.filter(function(p){
+        return (p.codigo||'').toLowerCase().indexOf(q)>=0
+          || (p.descripcion||'').toLowerCase().indexOf(q)>=0
+          || (p.proveedor||'').toLowerCase().indexOf(q)>=0;
+      });
+    }
+    prodPage = 0;
+    renderProductos();
+  }, 200);
+}
+
+function renderProductos(){
+  var tbody = document.getElementById('prodTbody');
+  var pag = document.getElementById('prodPagination');
+
+  if(productos.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-table">'+
+      '<div class="empty-table-icon">&#128230;</div>'+
+      '<div class="empty-table-title">Aún no tenés productos</div>'+
+      '<div class="empty-table-desc">Importá un Excel o agregá productos manualmente para empezar.</div>'+
+      '<div style="display:flex;gap:10px;justify-content:center">'+
+        '<button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>'+
+        '<button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>'+
+      '</div></td></tr>';
+    pag.style.display = 'none';
+    return;
+  }
+
+  if(productosFiltered.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-table">'+
+      '<div class="empty-table-icon">&#128269;</div>'+
+      '<div class="empty-table-title">Sin resultados</div>'+
+      '<div class="empty-table-desc">Probá con otra búsqueda.</div></td></tr>';
+    pag.style.display = 'none';
+    return;
+  }
+
+  var start = prodPage * prodPageSize;
+  var end = Math.min(start + prodPageSize, productosFiltered.length);
+  var rows = '';
+  for(var i=start;i<end;i++){
+    var p = productosFiltered[i];
+    rows += '<tr>'+
+      '<td class="code-cell">'+eH(p.codigo||'')+'</td>'+
+      '<td>'+eH(p.descripcion||'-')+'</td>'+
+      '<td>'+(p.proveedor?eH(p.proveedor):'<span style="color:var(--text-mute)">-</span>')+'</td>'+
+      '<td>'+(p.rubro?'<span class="badge-rubro">'+eH(p.rubro)+'</span>':'<span style="color:var(--text-mute)">-</span>')+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+(p.precioCosto?fmtPeso(p.precioCosto):'<span style="color:var(--text-mute)">-</span>')+'</td>'+
+      '<td style="text-align:right" class="price-cell">'+(p.precioVenta?fmtPeso(p.precioVenta):'<span style="color:var(--text-mute);font-weight:400">-</span>')+'</td>'+
+      '<td><div class="actions-cell">'+
+        '<button class="icon-btn" onclick="editProduct(\''+escapeQ(p._id)+'\')" title="Editar">&#9998;</button>'+
+        '<button class="icon-btn danger" onclick="deleteProduct(\''+escapeQ(p._id)+'\')" title="Eliminar">&#128465;</button>'+
+      '</div></td>'+
+    '</tr>';
+  }
+  tbody.innerHTML = rows;
+
+  pag.style.display = 'flex';
+  document.getElementById('prodShowing').textContent = (start+1)+'-'+end;
+  document.getElementById('prodTotal').textContent = productosFiltered.length.toLocaleString('es-AR');
+  document.getElementById('prodPrevBtn').disabled = prodPage === 0;
+  document.getElementById('prodNextBtn').disabled = end >= productosFiltered.length;
+}
+
+function prodPrevPage(){
+  if(prodPage > 0){ prodPage--; renderProductos(); }
+}
+function prodNextPage(){
+  if((prodPage+1)*prodPageSize < productosFiltered.length){ prodPage++; renderProductos(); }
+}
+
+function eH(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function escapeQ(s){ return String(s).replace(/'/g, "\\'"); }
+function fmtPeso(n){ if(!n||n===0) return '-'; return '$'+Math.round(Number(n)).toLocaleString('es-AR'); }
+
+// ═══════════════════════════════════════════════════════
+// MODAL: AGREGAR/EDITAR PRODUCTO
+// ═══════════════════════════════════════════════════════
+function openProductModal(){
+  document.getElementById('prodModalEyebrow').textContent = 'Nuevo producto';
+  document.getElementById('prodModalTitle').textContent = 'Agregar producto';
+  document.getElementById('prodEditId').value = '';
+  document.getElementById('prodCodigo').value = '';
+  document.getElementById('prodCodBarra').value = '';
+  document.getElementById('prodDescripcion').value = '';
+  document.getElementById('prodProveedor').value = '';
+  document.getElementById('prodRubro').value = '';
+  document.getElementById('prodCosto').value = '';
+  document.getElementById('prodVenta').value = '';
+  hideAlerts();
+  closeModals();
+  document.getElementById('modalProduct').classList.add('show');
+}
+
+function editProduct(id){
+  var p = productos.find(function(x){ return x._id === id; });
+  if(!p) return;
+  document.getElementById('prodModalEyebrow').textContent = 'Editar producto';
+  document.getElementById('prodModalTitle').textContent = 'Editar';
+  document.getElementById('prodEditId').value = id;
+  document.getElementById('prodCodigo').value = p.codigo || '';
+  document.getElementById('prodCodBarra').value = p.codBarra || '';
+  document.getElementById('prodDescripcion').value = p.descripcion || '';
+  document.getElementById('prodProveedor').value = p.proveedor || '';
+  document.getElementById('prodRubro').value = p.rubro || '';
+  document.getElementById('prodCosto').value = p.precioCosto || '';
+  document.getElementById('prodVenta').value = p.precioVenta || '';
+  hideAlerts();
+  closeModals();
+  document.getElementById('modalProduct').classList.add('show');
+}
+
+async function saveProduct(){
+  var codigo      = document.getElementById('prodCodigo').value.trim();
+  var descripcion = document.getElementById('prodDescripcion').value.trim();
+  if(!codigo || !descripcion){
+    return showAlert('prodAlert','Código y descripción son obligatorios.');
+  }
+  var editId = document.getElementById('prodEditId').value;
+  var data = {
+    codigo: codigo,
+    codBarra: document.getElementById('prodCodBarra').value.trim(),
+    descripcion: descripcion,
+    proveedor: document.getElementById('prodProveedor').value.trim(),
+    rubro: document.getElementById('prodRubro').value.trim(),
+    precioCosto: Number(document.getElementById('prodCosto').value) || 0,
+    precioVenta: Number(document.getElementById('prodVenta').value) || 0,
+    updatedAt: new Date().toISOString()
+  };
+  var btn = document.getElementById('btnSaveProduct');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    var docId = editId || sanitizarId(codigo);
+    if(!editId) data.creadoEn = new Date().toISOString();
+    await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(docId).set(data, {merge: !!editId});
+    closeModals();
+    toast(editId ? 'Producto actualizado' : 'Producto creado', 'success');
+    await cargarProductos();
+  }catch(err){
+    console.error(err);
+    showAlert('prodAlert', 'Error al guardar: ' + (err.message || ''));
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar producto';
+  }
+}
+
+async function deleteProduct(id){
+  if(!confirm('¿Eliminar este producto?')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(id).delete();
+    toast('Producto eliminado', 'success');
+    await cargarProductos();
+  }catch(err){
+    toast('Error al eliminar', 'error');
+  }
+}
+
+function sanitizarId(codigo){
+  return String(codigo||'').trim()
+    .replace(/[\/\\]/g,'_').replace(/\./g,'_').replace(/__+/g,'_')
+    .replace(/\s+/g,'_').replace(/[#?\[\]*]/g,'_');
+}
+
+// ═══════════════════════════════════════════════════════
+// IMPORTAR EXCEL
+// ═══════════════════════════════════════════════════════
+var impFile = null;
+
+function openImportModal(){
+  impFile = null;
+  document.getElementById('impFileInfo').style.display = 'none';
+  document.getElementById('impLog').innerHTML = '';
+  document.getElementById('impLog').classList.remove('show');
+  document.getElementById('impProgress').classList.remove('show');
+  document.getElementById('impBtn').disabled = true;
+  document.getElementById('impBtn').style.opacity = '.5';
+  hideAlerts();
+  closeModals();
+  document.getElementById('modalImport').classList.add('show');
+}
+
+document.getElementById('impFileInput').addEventListener('change', function(e){
+  var f = e.target.files[0];
+  if(!f) return;
+  if(!f.name.match(/\.(xlsx|xls)$/i)){
+    return showAlert('impAlert','El archivo debe ser .xlsx o .xls');
+  }
+  impFile = f;
+  document.getElementById('impFileInfo').textContent = f.name + ' · ' + (f.size/1024/1024).toFixed(2) + ' MB';
+  document.getElementById('impFileInfo').style.display = 'block';
+  document.getElementById('impBtn').disabled = false;
+  document.getElementById('impBtn').style.opacity = '1';
+});
+
+function impLog(msg){
+  var log = document.getElementById('impLog');
+  log.classList.add('show');
+  var t = new Date().toLocaleTimeString();
+  log.innerHTML += '<div>['+t+'] '+msg+'</div>';
+  log.scrollTop = log.scrollHeight;
+}
+
+async function procesarImport(){
+  if(!impFile) return;
+  if(typeof XLSX === 'undefined'){ return showAlert('impAlert','Librería aún cargando, esperá unos segundos.'); }
+  if(!confirm('¿Confirmás importar?\n\nEsto va a REEMPLAZAR toda tu base actual de productos.\n\nEsta acción no se puede deshacer.')) return;
+
+  document.getElementById('impBtn').disabled = true;
+  document.getElementById('impProgress').classList.add('show');
+  hideAlerts();
+
+  var reader = new FileReader();
+  reader.onload = async function(e){
+    try{
+      impLog('Leyendo Excel...');
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, {type:'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var rowsRaw = XLSX.utils.sheet_to_json(sheet, {header:1, defval:null});
+
+      // Detectar fila de headers
+      var headerRowIdx = -1;
+      for(var i=0;i<Math.min(20, rowsRaw.length);i++){
+        var row = rowsRaw[i];
+        if(!row) continue;
+        var rowStr = row.join('|').toLowerCase();
+        if((rowStr.indexOf('cod')>=0 || rowStr.indexOf('codigo')>=0)
+           && rowStr.indexOf('producto')>=0
+           && (rowStr.indexOf('costo')>=0 || rowStr.indexOf('precio')>=0)){
+          headerRowIdx = i; break;
+        }
+      }
+      if(headerRowIdx < 0){
+        // Fallback: asumir primera fila
+        headerRowIdx = 0;
+      }
+      var headers = rowsRaw[headerRowIdx].map(function(h){return String(h||'').trim();});
+      impLog('Headers detectados: ' + headers.filter(function(h){return h;}).slice(0,8).join(', ') + '...');
+
+      var rows = [];
+      for(var i=headerRowIdx+1;i<rowsRaw.length;i++){
+        var r = rowsRaw[i];
+        if(!r || r.every(function(c){return c===null||c==='';})) continue;
+        var obj = {};
+        for(var j=0;j<headers.length;j++){
+          if(headers[j]) obj[headers[j]] = r[j];
+        }
+        rows.push(obj);
+      }
+      impLog('✓ ' + rows.length.toLocaleString('es-AR') + ' filas encontradas');
+
+      // Borrar base actual
+      impLog('Borrando base actual...');
+      await borrarColeccionProductos();
+      impLog('✓ Base anterior eliminada');
+
+      // Importar
+      impLog('Importando productos...');
+      var BATCH = 400, procesados = 0, omitidos = 0;
+      for(var i=0;i<rows.length;i+=BATCH){
+        var chunk = rows.slice(i, i+BATCH);
+        var batch = db.batch();
+        for(var j=0;j<chunk.length;j++){
+          var row = chunk[j];
+          var codigo = String(getField(row,['CODIGO','Cod Producto','Codigo','Cód Producto'])||'').trim();
+          if(!codigo){ omitidos++; continue; }
+          var codigoId = sanitizarId(codigo);
+          if(!codigoId){ omitidos++; continue; }
+          var costo = Number(getField(row,['COSTO','Costo']))||0;
+          var ventaPesos = Number(getField(row,['Precio De Venta Con Iva $','PRECIO VENTA $']))||0;
+          var ventaOrig = Number(getField(row,['Precio De Venta Con Iva','PRECIO VENTA','Precio Venta']))||0;
+          var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(codigoId);
+          batch.set(ref, {
+            codigo: codigo,
+            codBarra: String(getField(row,['COD BARRA','Cod Barra','Codigo Barra'])||'').trim(),
+            descripcion: String(getField(row,['PRODUCTO','Producto','Descripcion'])||'').trim(),
+            proveedor: String(getField(row,['PROVEEDOR','Proveedor'])||'').trim(),
+            rubro: String(getField(row,['RUBRO','Rubro'])||'').trim(),
+            subRubro: String(getField(row,['SUB RUBRO','Sub Rubro'])||'').trim(),
+            marca: String(getField(row,['MARCA','Marca'])||'').trim(),
+            precioCosto: costo,
+            precioVenta: ventaPesos || ventaOrig || 0,
+            moneda: String(getField(row,['MONEDA','Moneda'])||'PESOS').trim().toUpperCase(),
+            updatedAt: new Date().toISOString()
+          });
+          procesados++;
+        }
+        await batch.commit();
+        var pct = Math.min(100, Math.round((i+BATCH)/rows.length*100));
+        document.getElementById('impProgressFill').style.width = pct + '%';
+        if(i % (BATCH*4) === 0) impLog('Progreso: ' + procesados.toLocaleString('es-AR') + ' productos...');
+        await sleep(200);
+      }
+
+      impLog('✓ ' + procesados.toLocaleString('es-AR') + ' productos importados');
+      if(omitidos > 0) impLog('⚠ ' + omitidos + ' filas omitidas (sin código)');
+      toast('Importación exitosa: ' + procesados.toLocaleString('es-AR') + ' productos', 'success');
+      setTimeout(function(){
+        closeModals();
+        cargarProductos();
+      }, 1500);
+    }catch(err){
+      console.error(err);
+      impLog('✗ Error: ' + err.message);
+      showAlert('impAlert', 'Error: ' + err.message);
+      document.getElementById('impBtn').disabled = false;
+    }
+  };
+  reader.readAsArrayBuffer(impFile);
+}
+
+function getField(row, names){
+  var keys = Object.keys(row);
+  for(var n=0;n<names.length;n++){
+    var target = names[n].toLowerCase();
+    for(var k=0;k<keys.length;k++){
+      if(keys[k].toLowerCase().trim() === target) return row[keys[k]];
+    }
+  }
+  return null;
+}
+
+async function borrarColeccionProductos(){
+  var more = true;
+  while(more){
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('productos').limit(400).get();
+    if(snap.empty){ more = false; break; }
+    var batch = db.batch();
+    snap.docs.forEach(function(d){ batch.delete(d.ref); });
+    await batch.commit();
+    if(snap.docs.length < 400) more = false;
+  }
+}
+
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+// ═══════════════════════════════════════════════════════
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeModals(); });
+document.getElementById('regPassword').addEventListener('keydown', function(e){ if(e.key==='Enter') register(); });
+document.getElementById('loginPassword').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
+</script>
+
+</body>
+</html>
