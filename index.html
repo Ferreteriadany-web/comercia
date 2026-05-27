@@ -639,6 +639,54 @@
     .form-row{grid-template-columns:1fr}
     .welcome-title{font-size:32px}
   }
+  /* ═══ MÓDULO PEDIDOS ═══ */
+  .ped-qty-input{
+    width:70px;
+    background:var(--bg);
+    border:1.5px solid var(--line);
+    color:var(--ink);
+    padding:6px 10px;
+    border-radius:8px;
+    font-size:13px;
+    font-family:var(--mono);
+    text-align:right;
+    transition:all .15s;
+  }
+  .ped-qty-input:focus{
+    outline:none;
+    border-color:var(--accent);
+    background:var(--paper);
+    box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .ped-row-new{
+    animation:rowIn .2s ease;
+  }
+  @keyframes rowIn{
+    from{opacity:0;transform:translateY(-4px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .export-col-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 14px;
+    background:var(--bg);
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    cursor:grab;
+    transition:all .15s;
+    user-select:none;
+  }
+  .export-col-item:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .export-col-item.dragging{opacity:.4;border-style:dashed}
+  .export-col-check{
+    width:16px;height:16px;
+    accent-color:var(--accent);
+    cursor:pointer;
+  }
+  .export-col-label{flex:1;font-size:13px;font-weight:500;color:var(--ink)}
+  .export-col-drag{color:var(--text-mute);font-size:14px}
+
 </style>
 </head>
 <body>
@@ -931,18 +979,120 @@
       <!-- ═══ MÓDULO PEDIDOS ═══ -->
       <div class="module" id="modulePedidos">
         <header class="main-header">
-          <h1 class="main-title">Pedidos</h1>
+          <h1 class="main-title">Pedidos de Compra</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="limpiarPedido()">&#10005; Limpiar</button>
+            <button class="btn btn-primary btn-sm" onclick="exportarPedidoExcel()">&#128190; Exportar Excel</button>
+          </div>
         </header>
         <div class="main-body">
-          <div class="table-card">
-            <div class="empty-table">
-              <div class="empty-table-icon">&#128722;</div>
-              <div class="empty-table-title">Módulo en construcción</div>
-              <div class="empty-table-desc">Próximamente podrás armar pedidos a tus proveedores.</div>
+
+          <!-- TOOLBAR BÚSQUEDA -->
+          <div class="table-card" style="padding:20px;margin-bottom:16px">
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+              <div class="search-box" style="flex:1;min-width:260px">
+                <span class="search-icon">&#128269;</span>
+                <input class="search-input" id="pedSearch" type="text" placeholder="Buscar por código, descripción o proveedor..." autocomplete="off">
+                <div class="search-dropdown" id="pedDropdown"></div>
+              </div>
+              <select class="form-input" id="pedFiltroProveedor" style="width:200px;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px" onchange="filtrarPorProveedor()">
+                <option value="">Todos los proveedores</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="agregarDesdeSearch()">&#43; Agregar</button>
             </div>
           </div>
+
+          <!-- ANOTACIONES -->
+          <div class="table-card" style="padding:20px;margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:pointer" onclick="toggleAnotaciones()">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:18px">&#128203;</span>
+                <span style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--accent)">Anotaciones</span>
+              </div>
+              <span id="anotIcono" style="color:var(--text-mute);font-size:12px">&#9660;</span>
+            </div>
+            <div id="anotBody">
+              <textarea id="pedAnotaciones" class="form-input" rows="3" placeholder="Anotá pedidos especiales, recordatorios, observaciones..." style="resize:vertical;font-size:13px;line-height:1.5" oninput="guardarAnotaciones()"></textarea>
+              <div style="font-size:11px;color:var(--text-mute);margin-top:6px">Se guardan automáticamente en la nube por usuario.</div>
+            </div>
+          </div>
+
+          <!-- STATS -->
+          <div class="stats-row" style="margin-bottom:16px">
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <div class="stat-label">Items</div>
+                <div class="stat-icon">&#128230;</div>
+              </div>
+              <div class="stat-value" id="pedStatItems">0</div>
+            </div>
+            <div class="stat-card purple">
+              <div class="stat-card-head">
+                <div class="stat-label">Unidades</div>
+                <div class="stat-icon">&#128290;</div>
+              </div>
+              <div class="stat-value" id="pedStatUnidades">0</div>
+            </div>
+            <div class="stat-card orange">
+              <div class="stat-card-head">
+                <div class="stat-label">Proveedores</div>
+                <div class="stat-icon">&#127970;</div>
+              </div>
+              <div class="stat-value" id="pedStatProveedores">0</div>
+            </div>
+            <div class="stat-card success">
+              <div class="stat-card-head">
+                <div class="stat-label">Total costo</div>
+                <div class="stat-icon">&#36;</div>
+              </div>
+              <div class="stat-value" id="pedStatTotal" style="font-size:18px;font-family:var(--sans)">$0</div>
+            </div>
+          </div>
+
+          <!-- TABLA PEDIDO -->
+          <div class="table-card">
+            <table class="data-table" id="pedTabla">
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th>Proveedor</th>
+                  <th style="text-align:right">P. Costo</th>
+                  <th style="text-align:right">P. Venta</th>
+                  <th style="text-align:right;width:100px">Cantidad</th>
+                  <th style="width:40px"></th>
+                </tr>
+              </thead>
+              <tbody id="pedTbody">
+                <tr><td colspan="8" class="empty-table">
+                  <div class="empty-table-icon">&#128722;</div>
+                  <div class="empty-table-title">Pedido vacío</div>
+                  <div class="empty-table-desc">Buscá o escaneá un producto para comenzar.</div>
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+
         </div>
       </div>
+
+      <!-- MODAL EXPORTAR EXCEL -->
+      <div class="modal-overlay" id="modalExportPedido">
+        <div class="modal" style="max-width:480px">
+          <button class="modal-close" onclick="closeModals()">&times;</button>
+          <div class="modal-eyebrow">Personalizar exportación</div>
+          <h2 class="modal-title">Exportar pedido</h2>
+          <p class="modal-subtitle">Elegí qué columnas incluir y en qué orden aparecen en el Excel.</p>
+          <div id="exportColsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px"></div>
+          <div class="form-group">
+            <label class="form-label">Nombre del archivo</label>
+            <input class="form-input" type="text" id="exportNombreArchivo" placeholder="pedido-compra">
+          </div>
+          <button class="btn-form" onclick="confirmarExportarExcel()">&#128190; Descargar Excel</button>
+        </div>
+      </div>
+
 
       <!-- ═══ MÓDULO EMPLEADOS ═══ -->
       <div class="module" id="moduleEmpleados">
@@ -1365,6 +1515,7 @@ function navTo(modulo){
   document.querySelectorAll('.module').forEach(function(m){ m.classList.remove('active'); });
   var target = document.getElementById('module'+modulo.charAt(0).toUpperCase()+modulo.slice(1));
   if(target) target.classList.add('active');
+  if(modulo==='pedidos') initPedidos();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1395,6 +1546,10 @@ async function cargarProductos(){
     prodPage = 0;
     renderProductos();
     actualizarStats();
+    // Reiniciar pedidos con los nuevos productos
+    if(document.getElementById('modulePedidos').classList.contains('active') || pedItems.length===0){
+      poblarFiltroProveedores();
+    }
   }catch(err){
     console.error('Error cargando productos:', err);
     toast('Error al cargar productos','error');
@@ -1894,6 +2049,380 @@ function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeModals(); });
 document.getElementById('regPassword').addEventListener('keydown', function(e){ if(e.key==='Enter') register(); });
 document.getElementById('loginPassword').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO PEDIDOS
+// ═══════════════════════════════════════════════════════
+var pedItems = []; // [{producto, cantidad}]
+var _ddPedSel = -1;
+var _pedProvFiltro = '';
+
+// Inicializar al cargar la app
+function initPedidos(){
+  cargarAnotaciones();
+  poblarFiltroProveedores();
+  renderPedido();
+  bindPedSearch();
+}
+
+function poblarFiltroProveedores(){
+  var sel = document.getElementById('pedFiltroProveedor');
+  if(!sel) return;
+  var provs = {};
+  for(var i=0;i<productos.length;i++) if(productos[i].proveedor) provs[productos[i].proveedor]=1;
+  var opts = '<option value="">Todos los proveedores</option>';
+  Object.keys(provs).sort().forEach(function(p){
+    opts += '<option value="'+eH(p)+'">'+eH(p)+'</option>';
+  });
+  sel.innerHTML = opts;
+}
+
+function filtrarPorProveedor(){
+  _pedProvFiltro = document.getElementById('pedFiltroProveedor').value;
+  var inp = document.getElementById('pedSearch');
+  if(inp.value.trim()) showPedDropdown(inp.value);
+}
+
+// ── Anotaciones ─────────────────────────────────────
+function toggleAnotaciones(){
+  var body = document.getElementById('anotBody');
+  var icono = document.getElementById('anotIcono');
+  if(body.style.display === 'none'){
+    body.style.display = '';
+    icono.innerHTML = '&#9660;';
+  } else {
+    body.style.display = 'none';
+    icono.innerHTML = '&#9658;';
+  }
+}
+
+function guardarAnotaciones(){
+  if(!currentEmpresaId || !currentUser) return;
+  var txt = document.getElementById('pedAnotaciones').value;
+  // Debounce guardado
+  if(window._anotTimer) clearTimeout(window._anotTimer);
+  window._anotTimer = setTimeout(async function(){
+    try{
+      await db.collection('empresas').doc(currentEmpresaId)
+        .collection('usuarios_config').doc(currentUser.uid)
+        .set({anotaciones: txt, updatedAt: new Date().toISOString()}, {merge:true});
+    }catch(e){ console.warn('Error guardando anotaciones:', e); }
+  }, 800);
+}
+
+async function cargarAnotaciones(){
+  if(!currentEmpresaId || !currentUser) return;
+  try{
+    var doc = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('usuarios_config').doc(currentUser.uid).get();
+    if(doc.exists && doc.data().anotaciones){
+      document.getElementById('pedAnotaciones').value = doc.data().anotaciones;
+    }
+  }catch(e){}
+}
+
+// ── Búsqueda en pedidos ──────────────────────────────
+function smartSearchPed(query){
+  var q = query.trim().toLowerCase();
+  if(!q) return [];
+  var filtrados = _pedProvFiltro
+    ? productos.filter(function(p){ return (p.proveedor||'').toLowerCase() === _pedProvFiltro.toLowerCase(); })
+    : productos;
+  var exact = [], starts = [], contains = [];
+  for(var i=0;i<filtrados.length;i++){
+    var p = filtrados[i];
+    var code = (p.codigo||'').toLowerCase();
+    var desc = (p.descripcion||'').toLowerCase();
+    var prov = (p.proveedor||'').toLowerCase();
+    if(code === q){ exact.push(p); }
+    else if(code.indexOf(q)===0 || desc.indexOf(q)===0){ starts.push(p); }
+    else if(code.indexOf(q)>=0 || desc.indexOf(q)>=0 || prov.indexOf(q)>=0){ contains.push(p); }
+    if(exact.length+starts.length+contains.length>=40) break;
+  }
+  return exact.concat(starts).concat(contains).slice(0,25);
+}
+
+function showPedDropdown(query){
+  var dd = document.getElementById('pedDropdown');
+  if(!query.trim()){ dd.classList.remove('show'); return; }
+  var results = smartSearchPed(query);
+  if(results.length===0){
+    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>'+eH(query)+'</strong>"</div>';
+    dd.classList.add('show');
+    return;
+  }
+  var html = '<div class="dd-info"><span>'+results.length+' resultado'+(results.length!==1?'s':'')+'</span><span>&#8593;&#8595; navegar &middot; Enter agregar</span></div>';
+  for(var i=0;i<results.length;i++){
+    var p = results[i];
+    var yaEsta = pedItems.some(function(x){ return x.producto._id === p._id; });
+    html += '<div class="dd-item" id="pddi'+i+'" data-id="'+escapeQ(p._id)+'" onclick="agregarProductoPedido(\''+escapeQ(p._id)+'\')">'+
+      '<div class="dd-item-row1">'+
+        '<span class="dd-item-code">'+hl(p.codigo,query)+'</span>'+
+        '<span class="dd-item-prov">'+(p.proveedor?eH(p.proveedor.substring(0,35)):'')+'</span>'+
+        (yaEsta?'<span style="font-size:10px;background:var(--success-soft);color:var(--success);padding:1px 7px;border-radius:4px;font-weight:600">En pedido</span>':'')+'</div>'+
+      '<div class="dd-item-desc">'+hl((p.descripcion||'').substring(0,90),query)+'</div>'+
+      '<div class="dd-item-meta">'+
+        (p.precioCosto?'<span class="dd-meta-costo">Costo: '+fmtPeso(p.precioCosto)+'</span>':'')+
+        (p.precioVenta?'<span class="dd-meta-venta">Venta: '+fmtPeso(p.precioVenta)+'</span>':'')+
+      '</div>'+
+    '</div>';
+  }
+  dd.innerHTML = html;
+  dd.classList.add('show');
+  _ddPedSel = -1;
+}
+
+function hidePedDropdown(){
+  document.getElementById('pedDropdown').classList.remove('show');
+}
+
+function highlightPedSel(){
+  var dd = document.getElementById('pedDropdown');
+  var items = dd.querySelectorAll('.dd-item');
+  for(var i=0;i<items.length;i++){
+    if(i===_ddPedSel){ items[i].classList.add('active'); items[i].scrollIntoView({block:'nearest'}); }
+    else items[i].classList.remove('active');
+  }
+}
+
+function bindPedSearch(){
+  var inp = document.getElementById('pedSearch');
+  if(!inp) return;
+  var timer = null;
+  inp.addEventListener('input', function(){
+    if(timer) clearTimeout(timer);
+    var val = inp.value;
+    timer = setTimeout(function(){ showPedDropdown(val); }, 120);
+  });
+  inp.addEventListener('focus', function(){
+    if(inp.value.trim()) showPedDropdown(inp.value);
+  });
+  inp.addEventListener('keydown', function(e){
+    var dd = document.getElementById('pedDropdown');
+    if(!dd.classList.contains('show')) return;
+    var items = dd.querySelectorAll('.dd-item');
+    if(e.key==='ArrowDown'){ e.preventDefault(); if(_ddPedSel<items.length-1) _ddPedSel++; highlightPedSel(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); if(_ddPedSel>0) _ddPedSel--; highlightPedSel(); }
+    else if(e.key==='Escape'){ hidePedDropdown(); inp.blur(); }
+    else if(e.key==='Enter'){
+      e.preventDefault();
+      if(_ddPedSel>=0){
+        var id = items[_ddPedSel].getAttribute('data-id');
+        agregarProductoPedido(id);
+      } else {
+        agregarDesdeSearch();
+      }
+    }
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('#pedSearch') && !e.target.closest('#pedDropdown')) hidePedDropdown();
+  });
+}
+
+function agregarDesdeSearch(){
+  var inp = document.getElementById('pedSearch');
+  var dd = document.getElementById('pedDropdown');
+  var items = dd.querySelectorAll('.dd-item');
+  if(items.length===1){
+    agregarProductoPedido(items[0].getAttribute('data-id'));
+  } else if(_ddPedSel>=0 && _ddPedSel<items.length){
+    agregarProductoPedido(items[_ddPedSel].getAttribute('data-id'));
+  } else if(inp.value.trim()){
+    showPedDropdown(inp.value);
+  }
+}
+
+function agregarProductoPedido(id){
+  var p = productos.find(function(x){ return x._id===id; });
+  if(!p) return;
+  // Si ya está, incrementar cantidad
+  var existing = pedItems.find(function(x){ return x.producto._id===id; });
+  if(existing){
+    existing.cantidad++;
+    hidePedDropdown();
+    document.getElementById('pedSearch').value = '';
+    renderPedido();
+    actualizarStatsPedido();
+    toast('Cantidad actualizada a '+existing.cantidad, 'success');
+    return;
+  }
+  pedItems.push({ producto: p, cantidad: 1 });
+  hidePedDropdown();
+  document.getElementById('pedSearch').value = '';
+  renderPedido();
+  actualizarStatsPedido();
+  toast(p.descripcion ? p.descripcion.substring(0,30)+'... agregado' : 'Producto agregado', 'success');
+}
+
+function quitarItemPedido(idx){
+  pedItems.splice(idx, 1);
+  renderPedido();
+  actualizarStatsPedido();
+}
+
+function actualizarCantidad(idx, val){
+  var n = parseInt(val);
+  if(isNaN(n)||n<1) n=1;
+  pedItems[idx].cantidad = n;
+  actualizarStatsPedido();
+}
+
+function renderPedido(){
+  var tbody = document.getElementById('pedTbody');
+  if(pedItems.length===0){
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-table">'+
+      '<div class="empty-table-icon">&#128722;</div>'+
+      '<div class="empty-table-title">Pedido vacío</div>'+
+      '<div class="empty-table-desc">Buscá o escaneá un producto para comenzar.</div>'+
+    '</td></tr>';
+    return;
+  }
+  var rows = '';
+  for(var i=0;i<pedItems.length;i++){
+    var item = pedItems[i];
+    var p = item.producto;
+    rows += '<tr class="ped-row-new">'+
+      '<td style="color:var(--text-mute);font-size:12px">'+(i+1)+'</td>'+
+      '<td class="code-cell">'+eH(p.codigo||'')+'</td>'+
+      '<td>'+eH(p.descripcion||'-')+'</td>'+
+      '<td>'+(p.proveedor?eH(p.proveedor):'<span style="color:var(--text-mute)">-</span>')+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+(p.precioCosto?fmtPeso(p.precioCosto):'<span style="color:var(--text-mute)">-</span>')+'</td>'+
+      '<td style="text-align:right" class="price-cell">'+(p.precioVenta?fmtPeso(p.precioVenta):'<span style="color:var(--text-mute);font-weight:400">-</span>')+'</td>'+
+      '<td style="text-align:right">'+
+        '<input class="ped-qty-input" type="number" min="1" value="'+item.cantidad+'" '+
+          'onchange="actualizarCantidad('+i+',this.value)" '+
+          'oninput="actualizarCantidad('+i+',this.value)">'+
+      '</td>'+
+      '<td><button class="icon-btn danger" onclick="quitarItemPedido('+i+')" title="Quitar">&#128465;</button></td>'+
+    '</tr>';
+  }
+  tbody.innerHTML = rows;
+}
+
+function actualizarStatsPedido(){
+  var items = pedItems.length;
+  var unidades = pedItems.reduce(function(a,x){ return a+x.cantidad; }, 0);
+  var provs = {};
+  pedItems.forEach(function(x){ if(x.producto.proveedor) provs[x.producto.proveedor]=1; });
+  var total = pedItems.reduce(function(a,x){ return a+(x.producto.precioCosto||0)*x.cantidad; }, 0);
+  document.getElementById('pedStatItems').textContent = items;
+  document.getElementById('pedStatUnidades').textContent = unidades;
+  document.getElementById('pedStatProveedores').textContent = Object.keys(provs).length;
+  document.getElementById('pedStatTotal').textContent = total>0?fmtPeso(total):'$0';
+}
+
+function limpiarPedido(){
+  if(pedItems.length===0) return;
+  if(!confirm('¿Limpiar el pedido? Se borrarán todos los productos agregados.')) return;
+  pedItems = [];
+  renderPedido();
+  actualizarStatsPedido();
+  toast('Pedido limpiado');
+}
+
+// ── Exportar Excel ───────────────────────────────────
+var EXPORT_COLS = [
+  {key:'#',      label:'#',           checked:true},
+  {key:'codigo', label:'Código',      checked:true},
+  {key:'descripcion', label:'Producto', checked:true},
+  {key:'proveedor',   label:'Proveedor', checked:true},
+  {key:'precioCosto', label:'P. Costo', checked:true},
+  {key:'precioVenta', label:'P. Venta', checked:true},
+  {key:'cantidad',    label:'Cantidad',  checked:true},
+  {key:'subtotal',    label:'Subtotal',  checked:false},
+  {key:'rubro',       label:'Rubro',     checked:false},
+  {key:'codBarra',    label:'Cód. Barra',checked:false},
+];
+
+function exportarPedidoExcel(){
+  if(pedItems.length===0){ toast('El pedido está vacío','error'); return; }
+  renderExportCols();
+  var hoy = new Date();
+  var fecha = hoy.toLocaleDateString('es-AR').replace(/\//g,'-');
+  document.getElementById('exportNombreArchivo').value = 'pedido-compra-'+fecha;
+  closeModals();
+  document.getElementById('modalExportPedido').classList.add('show');
+}
+
+function renderExportCols(){
+  var list = document.getElementById('exportColsList');
+  list.innerHTML = '';
+  EXPORT_COLS.forEach(function(col, idx){
+    var div = document.createElement('div');
+    div.className = 'export-col-item';
+    div.draggable = true;
+    div.dataset.idx = idx;
+    div.innerHTML =
+      '<span class="export-col-drag">&#8801;</span>'+
+      '<input class="export-col-check" type="checkbox" id="excol'+idx+'" '+(col.checked?'checked':'')+
+        ' onchange="EXPORT_COLS['+idx+'].checked=this.checked">'+
+      '<label class="export-col-label" for="excol'+idx+'">'+eH(col.label)+'</label>';
+    // Drag & drop simple
+    div.addEventListener('dragstart', function(e){
+      e.dataTransfer.setData('text/plain', idx);
+      div.classList.add('dragging');
+    });
+    div.addEventListener('dragend', function(){ div.classList.remove('dragging'); });
+    div.addEventListener('dragover', function(e){ e.preventDefault(); });
+    div.addEventListener('drop', function(e){
+      e.preventDefault();
+      var fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      var toIdx = parseInt(div.dataset.idx);
+      if(fromIdx===toIdx) return;
+      var moved = EXPORT_COLS.splice(fromIdx, 1)[0];
+      EXPORT_COLS.splice(toIdx, 0, moved);
+      renderExportCols();
+    });
+    list.appendChild(div);
+  });
+}
+
+function confirmarExportarExcel(){
+  if(typeof XLSX==='undefined'){ toast('Librería no disponible','error'); return; }
+  var nombre = document.getElementById('exportNombreArchivo').value.trim() || 'pedido-compra';
+  var colsActivas = EXPORT_COLS.filter(function(c){ return c.checked; });
+  if(colsActivas.length===0){ toast('Seleccioná al menos una columna','error'); return; }
+
+  var headers = colsActivas.map(function(c){ return c.label; });
+  var dataRows = pedItems.map(function(item, i){
+    var p = item.producto;
+    var row = [];
+    colsActivas.forEach(function(col){
+      switch(col.key){
+        case '#':          row.push(i+1); break;
+        case 'codigo':     row.push(p.codigo||''); break;
+        case 'descripcion':row.push(p.descripcion||''); break;
+        case 'proveedor':  row.push(p.proveedor||''); break;
+        case 'precioCosto':row.push(p.precioCosto||0); break;
+        case 'precioVenta':row.push(p.precioVenta||0); break;
+        case 'cantidad':   row.push(item.cantidad); break;
+        case 'subtotal':   row.push((p.precioCosto||0)*item.cantidad); break;
+        case 'rubro':      row.push(p.rubro||''); break;
+        case 'codBarra':   row.push(p.codBarra||''); break;
+        default:           row.push('');
+      }
+    });
+    return row;
+  });
+
+  var wsData = [headers].concat(dataRows);
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  // Ancho automático de columnas
+  var colWidths = headers.map(function(h,ci){
+    var max = h.length;
+    dataRows.forEach(function(r){ var v=String(r[ci]||''); if(v.length>max) max=v.length; });
+    return { wch: Math.min(max+2, 50) };
+  });
+  ws['!cols'] = colWidths;
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
+  XLSX.writeFile(wb, nombre+'.xlsx');
+  closeModals();
+  toast('Excel descargado: '+nombre+'.xlsx', 'success');
+}
+
 </script>
 
 </body>
