@@ -1436,6 +1436,34 @@
     border-radius:50%;
     animation:syncSpin .7s linear infinite;
   }
+
+  /* Indicador sync del pedido compartido */
+  .ped-sync-ind{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:10px;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:99px;
+    letter-spacing:.03em;
+    font-family:var(--mono);
+    text-transform:uppercase;
+    color:rgba(255,255,255,.7);
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.12);
+  }
+  .ped-sync-ind.synced{color:rgba(34,197,94,.9);background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.25)}
+  .ped-sync-ind.saving{color:rgba(251,191,36,.9);background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.3)}
+  .ped-sync-ind.error{color:rgba(239,68,68,.9);background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.25)}
+  .ped-sync-dot{
+    display:inline-block;
+    width:8px;height:8px;
+    border-radius:50%;
+    background:currentColor;
+  }
+  .ped-sync-dot.saving{animation:pedDotPulse 1s ease-in-out infinite}
+  @keyframes pedDotPulse{0%,100%{opacity:.4}50%{opacity:1}}
   @keyframes syncSpin{to{transform:rotate(360deg)}}
 
   /* PEDIDOS */
@@ -3656,7 +3684,10 @@
       <!-- ═══ MÓDULO PEDIDOS ═══ -->
       <div class="module" id="modulePedidos">
         <header class="main-header">
-          <h1 class="main-title">Pedidos de Compra</h1>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <h1 class="main-title">Pedidos de Compra</h1>
+            <span class="ped-sync-ind" id="pedSyncIndicator"><span class="ped-sync-dot"></span> Cargando...</span>
+          </div>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="limpiarPedido()">&#10005; Limpiar</button>
             <button class="btn btn-primary btn-sm" onclick="exportarPedidoExcel()">&#128190; Exportar Excel</button>
@@ -4958,7 +4989,10 @@ auth.onAuthStateChanged(async function(user){
   }
 });
 
-async function logout(){ await auth.signOut(); }
+async function logout(){
+  try{ if(typeof detenerSyncPedido === 'function') detenerSyncPedido(); }catch(e){}
+  await auth.signOut();
+}
 
 // ═══════════════════════════════════════════════════════
 // ESTADO GLOBAL
@@ -7357,12 +7391,127 @@ var _ddPedSel = -1;
 var _pedProvFiltro = '';
 var _ultimosPedidos = {};  // {proveedor: {ultimoPedido, ultimoTotal, ultimaCantidad}}
 
+// Sync compartido del pedido (en tiempo real entre empleados)
+var _pedidoUnsubscribe = null;     // función para detener listener
+var _pedidoSaveDebounce = null;    // timer para debounce de saves
+var _pedidoLastSync = 0;           // timestamp último guardado nuestro (anti-eco)
+var _pedidoLocalUpdating = false;  // flag: estamos aplicando cambio local
+var _pedidoRemoteUpdating = false; // flag: estamos aplicando cambio remoto
+
 function initPedidos(){
   cargarAnotaciones();
   poblarFiltroProveedores();
   cargarUltimosPedidos();
+  iniciarSyncPedido();
   renderPedido();
   bindPedSearch();
+}
+
+// ── Sync compartido del pedido ──
+function iniciarSyncPedido(){
+  if(!currentEmpresaId || !db) return;
+  // Detener listener previo si existía
+  if(_pedidoUnsubscribe){
+    try{ _pedidoUnsubscribe(); }catch(e){}
+    _pedidoUnsubscribe = null;
+  }
+  var ref = db.collection('empresas').doc(currentEmpresaId)
+    .collection('estado').doc('pedido_actual');
+  _pedidoUnsubscribe = ref.onSnapshot(function(snap){
+    if(!snap.exists){
+      // Documento nuevo, no hay pedido compartido aún
+      return;
+    }
+    var data = snap.data();
+    // Anti-eco: si el cambio es nuestro y muy reciente, ignorar
+    if(data.updatedBy === (currentUser ? currentUser.uid : '') &&
+       data.updatedAt && Math.abs(new Date(data.updatedAt) - _pedidoLastSync) < 2000){
+      return;
+    }
+    // Aplicar el estado remoto
+    _pedidoRemoteUpdating = true;
+    try{
+      pedItems = (data.items || []).map(function(it){
+        // Reconstruir referencia al producto desde memoria (más fresca que la guardada)
+        var prodEnMemoria = productos.find(function(p){ return p._id === (it.productoId || (it.producto && it.producto._id)); });
+        return {
+          producto: prodEnMemoria || it.producto || { _id: it.productoId, descripcion: it.descripcion, codigo: it.codigo, precioCosto: it.precioCosto, proveedor: it.proveedor },
+          cantidad: it.cantidad || 1
+        };
+      });
+      renderPedido();
+      actualizarStatsPedido();
+      mostrarIndicadorSync('synced', data.updatedByEmail);
+    }finally{
+      _pedidoRemoteUpdating = false;
+    }
+  }, function(err){
+    console.error('Error sync pedido:', err);
+    mostrarIndicadorSync('error');
+  });
+}
+
+function detenerSyncPedido(){
+  if(_pedidoUnsubscribe){
+    try{ _pedidoUnsubscribe(); }catch(e){}
+    _pedidoUnsubscribe = null;
+  }
+}
+
+// Guarda el estado actual del pedido en Firestore (con debounce)
+function guardarPedidoCompartido(){
+  if(_pedidoRemoteUpdating) return; // no guardar si lo que cambió vino del remoto
+  if(!currentEmpresaId || !db || !currentUser) return;
+
+  // Debounce: esperar 500ms a que se acumulen los cambios
+  if(_pedidoSaveDebounce) clearTimeout(_pedidoSaveDebounce);
+  mostrarIndicadorSync('saving');
+  _pedidoSaveDebounce = setTimeout(async function(){
+    try{
+      // Serializar items (versión mínima — el producto se reconstruye desde memoria al recibir)
+      var itemsSerializados = pedItems.map(function(it){
+        var p = it.producto || {};
+        return {
+          productoId: p._id || '',
+          codigo: p.codigo || '',
+          descripcion: p.descripcion || '',
+          precioCosto: p.precioCosto || 0,
+          proveedor: p.proveedor || '',
+          cantidad: it.cantidad || 1
+        };
+      });
+      var ahora = new Date().toISOString();
+      _pedidoLastSync = new Date(ahora);
+      var ref = db.collection('empresas').doc(currentEmpresaId)
+        .collection('estado').doc('pedido_actual');
+      await ref.set({
+        items: itemsSerializados,
+        updatedAt: ahora,
+        updatedBy: currentUser.uid,
+        updatedByEmail: currentUser.email || ''
+      });
+      mostrarIndicadorSync('synced');
+    }catch(err){
+      console.error('Error guardando pedido:', err);
+      mostrarIndicadorSync('error');
+    }
+  }, 500);
+}
+
+function mostrarIndicadorSync(estado, byEmail){
+  var el = document.getElementById('pedSyncIndicator');
+  if(!el) return;
+  if(estado === 'saving'){
+    el.innerHTML = '<span class="ped-sync-dot saving"></span> Guardando...';
+    el.className = 'ped-sync-ind saving';
+  } else if(estado === 'synced'){
+    var byTxt = byEmail && byEmail !== (currentUser ? currentUser.email : '') ? ' por ' + byEmail.split('@')[0] : '';
+    el.innerHTML = '<span class="ped-sync-dot synced"></span> Sincronizado'+byTxt;
+    el.className = 'ped-sync-ind synced';
+  } else {
+    el.innerHTML = '<span class="ped-sync-dot error"></span> Error de sync';
+    el.className = 'ped-sync-ind error';
+  }
 }
 
 async function cargarUltimosPedidos(){
@@ -7590,6 +7739,7 @@ function agregarProductoPedido(id){
     document.getElementById('pedSearch').value = '';
     renderPedido();
     actualizarStatsPedido();
+    guardarPedidoCompartido();
     toast('Cantidad actualizada a '+existing.cantidad, 'success');
     return;
   }
@@ -7598,6 +7748,7 @@ function agregarProductoPedido(id){
   document.getElementById('pedSearch').value = '';
   renderPedido();
   actualizarStatsPedido();
+  guardarPedidoCompartido();
   toast(p.descripcion ? p.descripcion.substring(0,30)+'... agregado' : 'Producto agregado', 'success');
 }
 
@@ -7605,6 +7756,7 @@ function quitarItemPedido(idx){
   pedItems.splice(idx, 1);
   renderPedido();
   actualizarStatsPedido();
+  guardarPedidoCompartido();
 }
 
 function actualizarCantidad(idx, val){
@@ -7612,6 +7764,7 @@ function actualizarCantidad(idx, val){
   if(isNaN(n)||n<1) n=1;
   pedItems[idx].cantidad = n;
   actualizarStatsPedido();
+  guardarPedidoCompartido();
 }
 
 function renderPedido(){
@@ -7664,6 +7817,7 @@ function limpiarPedido(){
   pedItems = [];
   renderPedido();
   actualizarStatsPedido();
+  guardarPedidoCompartido();
   toast('Pedido limpiado');
 }
 
@@ -7899,6 +8053,7 @@ function confirmarVaciadoPedido(){
   _exportProveedorActual = null;
   renderPedido();
   actualizarStatsPedido();
+  guardarPedidoCompartido();
   closeModals();
   toast('Productos quitados del pedido', 'success');
 }
@@ -8195,6 +8350,10 @@ var METODOS_PAGO = [
   { value: 'otro',          label: 'Otro' }
 ];
 
+// Sync del carrito POS por usuario
+var _carritoSaveDebounce = null;
+var _carritoRestoringRemote = false;
+
 function initVentas(){
   bindVentasSearch();
   bindClienteSearch();
@@ -8202,6 +8361,10 @@ function initVentas(){
   if(clientes.length === 0) cargarClientes();
   poblarSelectorProveedorVentas();
   vGridPage = 0;
+  // Restaurar carrito guardado del usuario (si todavía no se cargó)
+  if(!_carritoYaRestaurado){
+    restaurarCarritoUsuario();
+  }
   renderGridVentas();
   renderCarrito();
   recalcularVenta();
@@ -8211,6 +8374,119 @@ function initVentas(){
     var inp = document.getElementById('vSearch');
     if(inp) inp.focus();
   }, 100);
+}
+
+var _carritoYaRestaurado = false;
+
+async function restaurarCarritoUsuario(){
+  if(!currentUser || !db) return;
+  try{
+    var ref = db.collection('usuarios_global').doc(currentUser.uid);
+    var doc = await ref.get();
+    if(!doc.exists) return;
+    var data = doc.data();
+    if(!data.carritoPos || !Array.isArray(data.carritoPos.items)) return;
+    if(data.carritoPos.items.length === 0) return;
+
+    // Si el carrito en memoria YA tiene cosas (poco probable acá), no pisamos
+    if(carritoVenta.length > 0) return;
+
+    // Esperar a que productos estén cargados
+    if(productos.length === 0){
+      // Reintentar en 1s
+      setTimeout(restaurarCarritoUsuario, 1000);
+      return;
+    }
+
+    _carritoRestoringRemote = true;
+    var restaurados = 0;
+    data.carritoPos.items.forEach(function(it){
+      var p = productos.find(function(x){ return x._id === it.productoId; });
+      if(p && p.precioVenta){
+        carritoVenta.push({
+          producto: p,
+          cantidad: it.cantidad || 1,
+          obra: it.obra || ''
+        });
+        restaurados++;
+      }
+    });
+    // Restaurar también cliente, modo y obra global si estaban
+    if(data.carritoPos.clienteId){
+      var c = clientes.find(function(x){ return x._id === data.carritoPos.clienteId; });
+      if(c){
+        clienteVenta = c;
+        // Refrescar UI del cliente seleccionado (sin disparar nuevo save)
+        try{
+          var box = document.getElementById('vClienteSeleccionado');
+          var nameEl = document.getElementById('vClienteSelNombre');
+          var docEl = document.getElementById('vClienteSelDoc');
+          var saldoEl = document.getElementById('vClienteSelSaldo');
+          var clrBtn = document.getElementById('vClienteClearBtn');
+          var inp = document.getElementById('vClienteSearch');
+          if(box && nameEl){
+            nameEl.textContent = (c.razonSocial||'') + (c.nombre?' '+c.nombre:'');
+            docEl.textContent = c.numDoc ? '· '+c.numDoc : '';
+            saldoEl.textContent = '';
+            if(c.tieneCC){
+              var saldo = c.saldoCC || 0;
+              saldoEl.innerHTML = saldo > 0.005
+                ? '· <span style="color:var(--danger);font-weight:700">Debe '+fmtPeso(saldo)+'</span>'
+                : '· <span style="color:var(--success);font-weight:700">Sin deuda</span>';
+            }
+            box.style.display = 'block';
+          }
+          if(inp) inp.placeholder = 'Cliente: ' + (c.razonSocial||'-') + ' (click X para quitar)';
+          if(clrBtn) clrBtn.style.display = 'block';
+        }catch(e){}
+      }
+    }
+    if(data.carritoPos.modo){
+      modoVenta = data.carritoPos.modo;
+    }
+    if(data.carritoPos.obraGlobal){
+      obraGlobalActual = data.carritoPos.obraGlobal;
+    }
+    _carritoRestoringRemote = false;
+    _carritoYaRestaurado = true;
+    if(restaurados > 0){
+      renderCarrito();
+      recalcularVenta();
+      toast('Carrito restaurado ('+restaurados+' producto'+(restaurados!==1?'s':'')+')', 'success');
+    }
+  }catch(err){
+    console.warn('No se pudo restaurar carrito:', err);
+    _carritoRestoringRemote = false;
+  }
+}
+
+function guardarCarritoUsuario(){
+  if(_carritoRestoringRemote) return;
+  if(!currentUser || !db) return;
+  if(_carritoSaveDebounce) clearTimeout(_carritoSaveDebounce);
+  _carritoSaveDebounce = setTimeout(async function(){
+    try{
+      var items = carritoVenta.map(function(it){
+        return {
+          productoId: (it.producto && it.producto._id) || '',
+          cantidad: it.cantidad || 1,
+          obra: it.obra || ''
+        };
+      });
+      var ref = db.collection('usuarios_global').doc(currentUser.uid);
+      await ref.set({
+        carritoPos: {
+          items: items,
+          clienteId: clienteVenta ? clienteVenta._id : '',
+          modo: modoVenta || 'factura',
+          obraGlobal: obraGlobalActual || '',
+          updatedAt: new Date().toISOString()
+        }
+      }, { merge: true });
+    }catch(err){
+      console.warn('No se pudo guardar carrito:', err);
+    }
+  }, 700);
 }
 
 function ventasTabSwitch(tab){
@@ -8246,6 +8522,7 @@ function cambiarModoVenta(modo){
 
   // Actualizar texto del título del carrito según modo
   actualizarTituloCarrito();
+  if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
 }
 
 function actualizarTituloCarrito(){
@@ -8496,6 +8773,7 @@ function agregarAlCarrito(id){
   }
   renderCarrito();
   recalcularVenta();
+  guardarCarritoUsuario();
   // Solo actualizamos el badge de la card específica para evitar re-render completo
   refrescarBadgeCard(id);
   setTimeout(function(){
@@ -8530,6 +8808,7 @@ function quitarDelCarrito(idx){
   carritoVenta.splice(idx, 1);
   renderCarrito();
   recalcularVenta();
+  guardarCarritoUsuario();
   if(id) refrescarBadgeCard(id);
 }
 
@@ -8540,6 +8819,7 @@ function cambiarCantidadCarrito(idx, val){
   var id = carritoVenta[idx].producto._id;
   renderCarrito();
   recalcularVenta();
+  guardarCarritoUsuario();
   refrescarBadgeCard(id);
 }
 
@@ -8548,6 +8828,7 @@ function incCarrito(idx){
   var id = carritoVenta[idx].producto._id;
   renderCarrito();
   recalcularVenta();
+  guardarCarritoUsuario();
   refrescarBadgeCard(id);
 }
 
@@ -8557,6 +8838,7 @@ function decCarrito(idx){
     var id = carritoVenta[idx].producto._id;
     renderCarrito();
     recalcularVenta();
+    guardarCarritoUsuario();
     refrescarBadgeCard(id);
   }
 }
@@ -8569,6 +8851,7 @@ function limpiarCarrito(){
   document.getElementById('vDescuentoPct').value = 0;
   renderCarrito();
   recalcularVenta();
+  guardarCarritoUsuario();
   // Re-render del grid para limpiar todos los badges
   renderGridVentas();
 }
@@ -8717,9 +9000,13 @@ function agregarItemAPedidoDesdeCarrito(idx){
   // Re-render carrito para actualizar el badge
   renderCarrito();
   // Si hay vista de pedido visible, también
-  if(typeof renderPedido === 'function' && document.getElementById('moduleOrden') && document.getElementById('moduleOrden').classList.contains('active')){
+  if(typeof renderPedido === 'function' && document.getElementById('modulePedidos') && document.getElementById('modulePedidos').classList.contains('active')){
     renderPedido();
     actualizarStatsPedido();
+  }
+  // Persistir compartido
+  if(typeof guardarPedidoCompartido === 'function'){
+    guardarPedidoCompartido();
   }
 }
 
@@ -9037,6 +9324,7 @@ function seleccionarClienteVenta(id){
 
   // Re-renderizar carrito para que aparezcan selectores de obra (si tiene obras)
   renderCarrito();
+  if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
 
   toast('Cliente: '+c.razonSocial, 'success');
 }
@@ -9058,6 +9346,7 @@ function quitarClienteVenta(){
   carritoVenta.forEach(function(item){ item.obra = ''; });
   hideClienteDropdown();
   renderCarrito();
+  if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
 }
 
 // ── Cobro ──
