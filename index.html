@@ -3063,35 +3063,248 @@
   .ticket-print-total{font-size:16px;font-weight:700;font-family:var(--sans)}
 
   /* RESPONSIVE */
-  @media (max-width:900px){
+
+  /* Hamburger + overlay mobile (ocultos en desktop) */
+  .mobile-menu-btn{
+    display:none;
+    position:fixed;
+    top:12px;
+    left:12px;
+    z-index:1100;
+    width:44px;
+    height:44px;
+    background:#16213e;
+    border:1px solid rgba(251,191,36,.4);
+    border-radius:var(--r-md);
+    cursor:pointer;
+    padding:0;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    box-shadow:0 4px 12px rgba(0,0,0,.3);
+    transition:all .15s;
+  }
+  .mobile-menu-btn:active{transform:scale(.95)}
+  .mobile-menu-btn span{
+    display:block;
+    width:22px;
+    height:2.5px;
+    background:#fbbf24;
+    border-radius:99px;
+    transition:all .25s;
+  }
+  .mobile-menu-btn.open span:nth-child(1){transform:translateY(7.5px) rotate(45deg)}
+  .mobile-menu-btn.open span:nth-child(2){opacity:0}
+  .mobile-menu-btn.open span:nth-child(3){transform:translateY(-7.5px) rotate(-45deg)}
+
+  .mobile-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.5);
+    z-index:999;
+    opacity:0;
+    transition:opacity .25s;
+  }
+  .mobile-overlay.show{display:block;opacity:1}
+
+  /* FAB carrito (oculto por defecto, visible solo en mobile dentro de Ventas) */
+  .mobile-cart-fab{display:none}
+  .mobile-cart-fab:active{transform:scale(.96)}
+  .mobile-cart-fab[data-count="0"]{display:none !important}
+  .mobile-cart-close{display:none}
+
+  /* Tablet (sidebar colapsada) */
+  @media (max-width:1100px) and (min-width:769px){
     .sidebar{width:64px}
     .sidebar-logo{padding:6px 14px 16px;font-size:0;justify-content:center}
     .sidebar-logo .logo-mark{width:24px;height:24px}
     .nav-item{justify-content:center;padding:9px;font-size:0;gap:0}
+    .nav-item span:not(.nav-item-icon){display:none}
     .nav-item-icon{font-size:17px}
     .sidebar-foot{padding:10px;flex-direction:column;gap:6px}
     .sidebar-foot-info{display:none}
+    .nav-group-header{justify-content:center;padding:9px;font-size:0;gap:0}
+    .nav-group-arrow,.nav-group-label{display:none}
     .main-header{padding:12px 16px}
     .main-body{padding:16px}
     .main-title{font-size:17px}
   }
-  @media (max-width:900px){
-    .hero-grid{grid-template-columns:1fr;gap:40px}
-    .hero-visual{display:none}
-    .features-grid{grid-template-columns:1fr 1fr;gap:28px}
-    .nav{padding:14px 18px}
-    .hero{padding:30px 18px}
-    .features-bar{padding:48px 18px}
-  }
-  @media (max-width:520px){
-    .features-grid{grid-template-columns:1fr}
-    .nav-links{gap:4px}
-    .nav-links .nav-link{display:none}
-    .nav-links .nav-link:last-of-type{display:inline-block}
-    h1.hero-title{font-size:36px}
-    .modal{padding:22px}
-    .modal-title{font-size:22px}
+
+  /* MOBILE REAL (≤ 768px) */
+  @media (max-width:768px){
+    .mobile-menu-btn{display:flex}
+
+    /* Sidebar como drawer deslizante */
+    .sidebar{
+      position:fixed;
+      top:0;
+      left:0;
+      bottom:0;
+      width:280px;
+      max-width:85vw;
+      transform:translateX(-100%);
+      transition:transform .28s ease;
+      z-index:1000;
+      box-shadow:8px 0 24px rgba(0,0,0,.3);
+    }
+    .sidebar.mobile-open{transform:translateX(0)}
+    .sidebar-toggle{display:none}
+
+    /* Main content sin offset */
+    .app-shell{display:block}
+    .app-main{margin-left:0;width:100%}
+
+    /* Headers más compactos */
+    .main-header{
+      padding:14px 14px 14px 64px;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:10px;
+    }
+    .main-header .main-actions{
+      width:100%;
+      flex-wrap:wrap;
+    }
+    .main-body{padding:12px}
+    .main-title{font-size:17px}
+
+    /* Tablas: scroll horizontal */
+    .table-card{overflow-x:auto}
+    .data-table{min-width:600px}
+
+    /* Modales: full screen */
+    .modal{
+      max-width:95vw !important;
+      max-height:92vh;
+      padding:18px;
+      margin:0;
+      overflow-y:auto;
+    }
+    .modal-title{font-size:19px}
     .form-row{grid-template-columns:1fr}
+
+    /* Stat cards: 2 columnas */
+    .stats-grid{grid-template-columns:1fr 1fr !important;gap:8px}
+    .stat-card{padding:14px 12px}
+    .stat-number{font-size:22px}
+    .stat-label{font-size:9px}
+
+    /* POS: layout 1 columna + bottom-sheet */
+    .ventas-layout{grid-template-columns:1fr !important;gap:12px}
+    .ventas-grid-col{display:block}
+
+    .ventas-cart{
+      position:fixed !important;
+      top:auto !important;
+      left:0;
+      right:0;
+      bottom:0;
+      transform:translateY(100%);
+      transition:transform .3s ease;
+      max-height:90vh;
+      border-radius:18px 18px 0 0;
+      z-index:900;
+      box-shadow:0 -8px 32px rgba(0,0,0,.25);
+    }
+    .ventas-cart.mobile-open{transform:translateY(0)}
+    .ventas-cart-items{max-height:50vh}
+
+    /* Botón flotante "Ver carrito" */
+    .mobile-cart-fab{
+      display:none; /* default */
+    }
+    #moduleVentas.active .mobile-cart-fab{
+      display:flex;
+      position:fixed;
+      bottom:18px;
+      right:18px;
+      z-index:800;
+      background:linear-gradient(135deg, var(--accent) 0%, var(--orange) 100%);
+      color:#1a1408;
+      border:none;
+      padding:14px 22px;
+      border-radius:99px;
+      font-weight:800;
+      font-size:13px;
+      gap:8px;
+      align-items:center;
+      box-shadow:0 8px 24px rgba(251,191,36,.4);
+      cursor:pointer;
+      transition:all .15s;
+      font-family:var(--sans);
+      letter-spacing:-0.005em;
+    }
+    .mobile-cart-count{
+      background:#fff;
+      color:var(--accent-text);
+      padding:2px 9px;
+      border-radius:99px;
+      font-size:11px;
+      font-weight:800;
+    }
+    .mobile-cart-close{
+      display:flex !important;
+      position:absolute;
+      top:10px;
+      right:10px;
+      width:34px;
+      height:34px;
+      background:var(--bg-2);
+      border:1px solid var(--line);
+      border-radius:50%;
+      align-items:center;
+      justify-content:center;
+      font-size:18px;
+      color:var(--text);
+      cursor:pointer;
+      z-index:10;
+    }
+
+    /* Search box ocupando todo el ancho */
+    .search-box{flex:1 1 100%}
+
+    /* Ocultar landing extra */
+    .hero-grid{grid-template-columns:1fr;gap:30px}
+    .hero-visual{display:none}
+    .features-grid{grid-template-columns:1fr;gap:16px}
+    .nav{padding:14px 16px}
+    .hero{padding:24px 16px}
+    .features-bar{padding:32px 16px}
+    h1.hero-title{font-size:30px}
+
+    /* Toolbar: stacked */
+    .toolbar{flex-direction:column;align-items:stretch;gap:8px}
+
+    /* CC layout: 1 columna */
+    .cc-layout{grid-template-columns:1fr !important;gap:12px}
+
+    /* Grid de productos POS: tarjetas más chicas */
+    .vgrid{grid-template-columns:repeat(2, 1fr) !important;gap:8px}
+    .vcard{padding:8px}
+    .vcard-img{height:80px}
+    .vcard-name{font-size:11px}
+    .vcard-price{font-size:13px}
+
+    /* Tabla productos: ocultar columnas no esenciales */
+    .data-table .col-hide-mobile{display:none}
+
+    /* Scanner modal: ocupar más */
+    .scanner-modal{max-width:96vw !important;padding:14px !important}
+    .scanner-modal #scannerReader{min-height:300px !important}
+
+    /* Botones más toqueables */
+    .btn{padding:10px 14px;font-size:13px}
+    .btn-sm{padding:7px 11px;font-size:12px}
+  }
+
+  @media (max-width:520px){
+    .vgrid{grid-template-columns:1fr 1fr !important}
+    .modal{padding:14px}
+    .modal-title{font-size:17px}
+    .main-title{font-size:15px}
+    .stat-number{font-size:20px}
   }
 </style>
 </head>
@@ -3265,6 +3478,13 @@
 </div>
 
 <div class="app" id="app">
+  <!-- Hamburger button (visible solo en mobile) -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileSidebar()" aria-label="Abrir menú">
+    <span></span><span></span><span></span>
+  </button>
+  <!-- Overlay (oscurece el fondo cuando sidebar mobile está abierto) -->
+  <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileSidebar()"></div>
+
   <div class="app-shell" id="appShell">
 
     <!-- SIDEBAR -->
@@ -3570,6 +3790,9 @@
               <!-- COLUMNA DERECHA — CARRITO -->
               <div class="ventas-cart">
 
+                <!-- Botón cerrar visible solo en mobile -->
+                <button class="mobile-cart-close" onclick="closeMobileCart()" aria-label="Cerrar carrito" style="display:none">&times;</button>
+
                 <!-- Segmented control: tipo de comprobante -->
                 <div class="cart-modo-tabs">
                   <button class="cart-modo-tab active" id="vtModoFactura" onclick="cambiarModoVenta('factura')">Factura</button>
@@ -3730,6 +3953,11 @@
             </div>
 
           </div>
+
+          <!-- FAB carrito (solo mobile) -->
+          <button class="mobile-cart-fab" id="mobileCartFab" data-count="0" onclick="toggleMobileCart()">
+            &#128722; Ver carrito <span class="mobile-cart-count">0</span>
+          </button>
 
         </div>
       </div>
@@ -4773,6 +5001,52 @@ function toggleSidebar(){
   localStorage.setItem('comercia-sidebar-collapsed', collapsed ? '1' : '0');
 }
 
+// ── Sidebar mobile (drawer deslizante) ──
+function toggleMobileSidebar(){
+  var sidebar = document.querySelector('.sidebar');
+  var overlay = document.getElementById('mobileOverlay');
+  var btn = document.getElementById('mobileMenuBtn');
+  if(!sidebar) return;
+  var isOpen = sidebar.classList.toggle('mobile-open');
+  if(overlay) overlay.classList.toggle('show', isOpen);
+  if(btn) btn.classList.toggle('open', isOpen);
+  // Bloquear scroll del body cuando está abierta
+  document.body.style.overflow = isOpen ? 'hidden' : '';
+}
+
+function closeMobileSidebar(){
+  var sidebar = document.querySelector('.sidebar');
+  var overlay = document.getElementById('mobileOverlay');
+  var btn = document.getElementById('mobileMenuBtn');
+  if(sidebar) sidebar.classList.remove('mobile-open');
+  if(overlay) overlay.classList.remove('show');
+  if(btn) btn.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── Carrito mobile (bottom sheet) ──
+function toggleMobileCart(){
+  var cart = document.querySelector('.ventas-cart');
+  if(!cart) return;
+  cart.classList.toggle('mobile-open');
+  document.body.style.overflow = cart.classList.contains('mobile-open') ? 'hidden' : '';
+}
+
+function closeMobileCart(){
+  var cart = document.querySelector('.ventas-cart');
+  if(cart) cart.classList.remove('mobile-open');
+  document.body.style.overflow = '';
+}
+
+function actualizarMobileCartFab(){
+  var fab = document.getElementById('mobileCartFab');
+  if(!fab) return;
+  var count = (typeof carritoVenta !== 'undefined' && carritoVenta) ? carritoVenta.length : 0;
+  fab.setAttribute('data-count', count);
+  var countEl = fab.querySelector('.mobile-cart-count');
+  if(countEl) countEl.textContent = count;
+}
+
 function aplicarPreferenciaSidebar(){
   var shell = document.getElementById('appShell');
   if(!shell) return;
@@ -5104,6 +5378,10 @@ function navTo(modulo){
   if(modulo==='clientes') initClientes();
   if(modulo==='ventas') initVentas();
   if(modulo==='ctacte') initCtaCte();
+  // En mobile, cerrar sidebar al navegar
+  if(window.innerWidth <= 768){
+    if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -8955,6 +9233,7 @@ function renderCarrito(){
     actualizarTituloCarrito();
     btnLimpiar.style.display = 'none';
     btnCobrar.disabled = true;
+    if(typeof actualizarMobileCartFab === 'function') actualizarMobileCartFab();
     return;
   }
 
@@ -9065,6 +9344,7 @@ function renderCarrito(){
     '</div>';
   });
   cont.innerHTML = html;
+  if(typeof actualizarMobileCartFab === 'function') actualizarMobileCartFab();
 }
 
 // Agregar item del carrito al pedido (desde el botón en el item)
@@ -9620,6 +9900,7 @@ async function confirmarVenta(){
 
     closeModals();
     toast('Venta '+nroTicket+' registrada \u00b7 '+fmtPeso(total), 'success');
+    if(typeof closeMobileCart === 'function') closeMobileCart();
 
     setTimeout(function(){ mostrarTicket(ventaData); }, 400);
 
