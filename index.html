@@ -1761,6 +1761,33 @@
   }
   .cart-item-obra-sel:focus{outline:none;border-color:var(--accent)}
   .cart-item-obra-sel.has-obra{background:var(--purple-soft);color:var(--purple);border-color:var(--purple)}
+  .cart-item-obra-add{
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    color:var(--purple);
+    font-size:12px;
+    line-height:1;
+    padding:2px 7px;
+    border-radius:var(--r-sm);
+    cursor:pointer;
+    font-weight:700;
+    flex-shrink:0;
+    transition:all .12s;
+    font-family:var(--sans);
+  }
+  .cart-item-obra-add:hover{
+    background:var(--purple);
+    color:#fff;
+    border-color:var(--purple);
+  }
+  .cart-item-obra-empty{
+    flex:1;
+    font-size:10px;
+    color:var(--text-mute);
+    font-family:var(--mono);
+    font-style:italic;
+    padding:2px 6px;
+  }
 
   /* Barra asignar todos */
   .cart-asignar-bar{
@@ -3777,10 +3804,14 @@
                     <button class="cc-tab" id="ccTabCobros" onclick="ccSwitchTab('cobros')">
                       Cobros <span class="cc-tab-count" id="ccCountCobros">0</span>
                     </button>
+                    <button class="cc-tab" id="ccTabHistorial" onclick="ccSwitchTab('historial')">
+                      Historial <span class="cc-tab-count" id="ccCountHistorial">0</span>
+                    </button>
                   </div>
 
                   <div id="ccTabContentPendientes"></div>
                   <div id="ccTabContentCobros" style="display:none"></div>
+                  <div id="ccTabContentHistorial" style="display:none"></div>
                 </div>
               </div>
             </section>
@@ -8460,13 +8491,23 @@ function renderCarrito(){
         optsHtml += '<option value="'+eH(obra)+'" '+sel+'>'+eH(obra)+'</option>';
       });
     }
-    var obraSelectorHtml = clienteTieneObras
-      ? '<div class="cart-item-obra">'+
-          '<select class="cart-item-obra-sel '+(obraActual?'has-obra':'')+'" onchange="asignarObraItem('+i+',this.value)">'+
+    var obraSelectorHtml = '';
+    if(clienteVenta){
+      // Mostrar siempre que haya cliente: si no tiene obras, mostrar solo el botón "+"
+      var hasObras = clienteVenta.obras && clienteVenta.obras.length > 0;
+      var selHtml = '';
+      if(hasObras){
+        selHtml = '<select class="cart-item-obra-sel '+(obraActual?'has-obra':'')+'" onchange="asignarObraItem('+i+',this.value)">'+
             optsHtml+
-          '</select>'+
-        '</div>'
-      : '';
+          '</select>';
+      } else {
+        selHtml = '<span class="cart-item-obra-empty">Sin obras configuradas</span>';
+      }
+      obraSelectorHtml = '<div class="cart-item-obra">'+
+        selHtml+
+        '<button class="cart-item-obra-add" onclick="crearObraDesdeCarrito('+i+')" title="Crear obra/persona nueva">+</button>'+
+      '</div>';
+    }
 
     html += '<div class="ventas-cart-item">'+
       '<div class="vci-info">'+
@@ -8498,6 +8539,51 @@ function asignarObraItem(idx, obra){
   if(carritoVenta[idx]){
     carritoVenta[idx].obra = obra || '';
     renderCarrito();
+  }
+}
+
+// Crear obra/persona nueva desde el carrito y asignarla al item
+async function crearObraDesdeCarrito(idx){
+  if(!clienteVenta){
+    toast('Primero seleccioná un cliente', 'error');
+    return;
+  }
+  var nombre = prompt('Nombre de la obra o persona:\n\n(Ej: "Obra Calle Falsa 123", "Juan García")');
+  if(!nombre) return;
+  nombre = nombre.trim();
+  if(!nombre){ return; }
+  if(nombre.length > 50){
+    toast('Máximo 50 caracteres', 'error');
+    return;
+  }
+
+  // Verificar duplicado
+  var obrasActuales = (clienteVenta.obras || []).slice();
+  if(obrasActuales.some(function(o){ return o.toLowerCase() === nombre.toLowerCase(); })){
+    toast('Esa obra ya existe', 'error');
+    // Igual la asignamos al item
+    asignarObraItem(idx, nombre);
+    return;
+  }
+
+  obrasActuales.push(nombre);
+  try{
+    var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(clienteVenta._id);
+    await cliRef.update({ obras: obrasActuales, updatedAt: new Date().toISOString() });
+    clienteVenta.obras = obrasActuales;
+    clienteVenta.updatedAt = new Date().toISOString();
+    // Actualizar también en la lista global de clientes
+    var cInList = clientes.find(function(x){ return x._id === clienteVenta._id; });
+    if(cInList){ cInList.obras = obrasActuales; }
+    // Guardar en cache
+    try{ await idbGuardarClientes(currentEmpresaId, [clienteVenta]); }catch(e){}
+    // Asignar al item
+    if(carritoVenta[idx]) carritoVenta[idx].obra = nombre;
+    renderCarrito();
+    toast('Obra creada y asignada: '+nombre, 'success');
+  }catch(err){
+    console.error('Error creando obra:', err);
+    toast('Error al crear obra: '+(err.message||''), 'error');
   }
 }
 
@@ -9265,15 +9351,54 @@ function ccDeseleccionar(){
 
 async function cargarMovimientosCtaCte(clienteId){
   if(!currentEmpresaId) return [];
+
+  // 1) Movimientos de cuenta corriente (ventas con cta_cte, pagos, cierres)
   var snap = await db.collection('empresas').doc(currentEmpresaId)
     .collection('cuentas_corrientes').doc(clienteId)
     .collection('movimientos')
     .orderBy('fecha', 'desc').limit(1000).get();
   var movs = [];
+  var ventaIdsEnCC = {}; // para no duplicar
   snap.forEach(function(d){
     var m = d.data();
     m._id = d.id;
     movs.push(m);
+    if(m.tipo === 'venta' && m.ventaId) ventaIdsEnCC[m.ventaId] = true;
+  });
+
+  // 2) Ventas del cliente que NO están en cuenta corriente (pagadas con efectivo, etc.)
+  // Las traemos para mostrar el historial completo, pero las marcamos como 'venta_pagada'
+  // para no sumar al saldo deudor.
+  try{
+    var snapV = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('ventas')
+      .where('cliente.id', '==', clienteId)
+      .orderBy('fecha', 'desc').limit(500).get();
+    snapV.forEach(function(d){
+      var v = d.data();
+      if(ventaIdsEnCC[d.id]) return; // ya está en CC
+      // Construir un "movimiento" virtual de venta pagada
+      var metodos = (v.pagos || []).map(function(p){ return p.metodo; }).filter(function(m,i,arr){ return arr.indexOf(m)===i; });
+      movs.push({
+        _id: 'venta_' + d.id,
+        tipo: 'venta_pagada',
+        fecha: v.fecha,
+        monto: v.total || 0,
+        ventaId: d.id,
+        numero: v.numero || '',
+        items: v.items || [],
+        descripcion: 'Pagada (' + metodos.join(', ') + ')',
+        metodo: metodos.join(', '),
+        modo: v.modo || ''
+      });
+    });
+  }catch(err){
+    console.warn('No se pudieron cargar ventas históricas del cliente:', err);
+  }
+
+  // Ordenar todo por fecha desc
+  movs.sort(function(a,b){
+    return new Date(b.fecha) - new Date(a.fecha);
   });
   return movs;
 }
@@ -9281,26 +9406,33 @@ async function cargarMovimientosCtaCte(clienteId){
 function ccRenderDetalle(cliente){
   // Calcular totales desde movimientos
   var totalComprado = 0, totalPagado = 0;
-  var pendientes = [];
-  var cobros = [];
+  var pendientes = [];   // ventas con cuenta corriente (afectan saldo)
+  var cobros = [];       // pagos y cierres
+  var historial = [];    // ventas pagadas al contado (no afectan saldo)
   ccMovimientos.forEach(function(m){
     if(m.tipo === 'venta'){
       totalComprado += (m.monto || 0);
       pendientes.push(m);
+    } else if(m.tipo === 'venta_pagada'){
+      historial.push(m);
     } else if(m.tipo === 'pago' || m.tipo === 'cierre'){
       totalPagado += (m.monto || 0);
       cobros.push(m);
     }
   });
+  // Total comprado HISTÓRICO (incluye pagadas)
+  var totalCompradoHistorico = totalComprado + historial.reduce(function(s,m){ return s + (m.monto||0); }, 0);
   var saldoCalculado = totalComprado - totalPagado;
 
   // Mostrar el saldo del cliente (que ya viene denormalizado) o el calculado
   var saldoMostrar = (cliente.saldoCC != null) ? cliente.saldoCC : saldoCalculado;
   document.getElementById('ccDetailSaldo').textContent = fmtPeso(Math.max(0, saldoMostrar));
-  document.getElementById('ccDetailComprado').textContent = fmtPeso(totalComprado);
+  document.getElementById('ccDetailComprado').textContent = fmtPeso(totalCompradoHistorico);
   document.getElementById('ccDetailPagado').textContent = fmtPeso(totalPagado);
   document.getElementById('ccCountPendientes').textContent = pendientes.length;
   document.getElementById('ccCountCobros').textContent = cobros.length;
+  var countHist = document.getElementById('ccCountHistorial');
+  if(countHist) countHist.textContent = historial.length;
 
   // Habilitar/deshabilitar cerrar cuenta
   var btnCerrar = document.getElementById('ccBtnCerrar');
@@ -9312,29 +9444,40 @@ function ccRenderDetalle(cliente){
     btnCerrar.style.opacity = '1';
   }
 
+  // Helper para renderizar tarjetas de venta
+  function buildVentaCard(m, tipo){
+    var fecha = new Date(m.fecha);
+    var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    var itemsCount = m.items ? m.items.reduce(function(a,i){ return a + (i.cantidad||1); }, 0) : 0;
+    var modoLbl = '';
+    if(m.modo === 'remito') modoLbl = '<span style="font-size:9px;background:var(--purple-soft);color:var(--purple);padding:1px 6px;border-radius:99px;margin-left:6px;font-weight:600">REMITO</span>';
+    else if(m.modo === 'presupuesto') modoLbl = '<span style="font-size:9px;background:var(--orange-soft);color:var(--orange);padding:1px 6px;border-radius:99px;margin-left:6px;font-weight:600">PRESUP.</span>';
+    var pagoBadge = '';
+    if(tipo === 'pagada' && m.metodo){
+      pagoBadge = '<span style="font-size:9px;background:var(--success-soft);color:var(--success);padding:1px 6px;border-radius:99px;margin-left:6px;font-weight:600">PAGADA · '+eH(m.metodo.toUpperCase())+'</span>';
+    } else if(tipo === 'pendiente'){
+      pagoBadge = '<span style="font-size:9px;background:var(--danger-soft);color:var(--danger);padding:1px 6px;border-radius:99px;margin-left:6px;font-weight:600">CTA CTE</span>';
+    }
+    return '<div class="cc-mov-card" onclick="ccVerVenta(\''+escapeQ(m.ventaId||'')+'\')">'+
+      '<div class="cc-mov-row1">'+
+        '<div>'+
+          '<span class="cc-mov-num">'+eH(m.numero||m._id)+'</span>'+
+          pagoBadge + modoLbl +
+          '<span class="cc-mov-fecha" style="margin-left:8px">'+fechaStr+'</span>'+
+        '</div>'+
+        '<span class="cc-mov-monto '+(tipo==='pendiente'?'venta':'')+'">'+fmtPeso(m.monto)+'</span>'+
+      '</div>'+
+      (itemsCount > 0 ? '<div class="cc-mov-meta"><span>'+itemsCount+' ítem'+(itemsCount!==1?'s':'')+'</span>'+
+        (m.descripcion?'<span>'+eH(m.descripcion.substring(0,60))+'</span>':'')+'</div>' : '')+
+    '</div>';
+  }
+
   // Render pendientes
   var contPend = document.getElementById('ccTabContentPendientes');
   if(pendientes.length === 0){
     contPend.innerHTML = '<div class="cc-empty-movs">Sin ventas pendientes</div>';
   } else {
-    var html = '';
-    pendientes.forEach(function(m){
-      var fecha = new Date(m.fecha);
-      var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-      var itemsCount = m.items ? m.items.reduce(function(a,i){ return a + (i.cantidad||1); }, 0) : 0;
-      html += '<div class="cc-mov-card" onclick="ccVerVenta(\''+escapeQ(m.ventaId||'')+'\')">'+
-        '<div class="cc-mov-row1">'+
-          '<div>'+
-            '<span class="cc-mov-num">'+eH(m.numero||m._id)+'</span>'+
-            '<span class="cc-mov-fecha" style="margin-left:8px">'+fechaStr+'</span>'+
-          '</div>'+
-          '<span class="cc-mov-monto venta">'+fmtPeso(m.monto)+'</span>'+
-        '</div>'+
-        (itemsCount > 0 ? '<div class="cc-mov-meta"><span>'+itemsCount+' ítem'+(itemsCount!==1?'s':'')+'</span>'+
-          (m.descripcion?'<span>'+eH(m.descripcion.substring(0,60))+'</span>':'')+'</div>' : '')+
-      '</div>';
-    });
-    contPend.innerHTML = html;
+    contPend.innerHTML = pendientes.map(function(m){ return buildVentaCard(m,'pendiente'); }).join('');
   }
 
   // Render cobros
@@ -9362,6 +9505,16 @@ function ccRenderDetalle(cliente){
     contCob.innerHTML = html2;
   }
 
+  // Render historial (todas las ventas pagadas al contado)
+  var contHist = document.getElementById('ccTabContentHistorial');
+  if(contHist){
+    if(historial.length === 0){
+      contHist.innerHTML = '<div class="cc-empty-movs">Sin compras pagadas al contado</div>';
+    } else {
+      contHist.innerHTML = historial.map(function(m){ return buildVentaCard(m,'pagada'); }).join('');
+    }
+  }
+
   ccSwitchTab(ccTabActual);
 }
 
@@ -9369,8 +9522,13 @@ function ccSwitchTab(tab){
   ccTabActual = tab;
   document.getElementById('ccTabPendientes').classList.toggle('active', tab==='pendientes');
   document.getElementById('ccTabCobros').classList.toggle('active', tab==='cobros');
+  var tabHist = document.getElementById('ccTabHistorial');
+  if(tabHist) tabHist.classList.toggle('active', tab==='historial');
+
   document.getElementById('ccTabContentPendientes').style.display = tab==='pendientes' ? '' : 'none';
   document.getElementById('ccTabContentCobros').style.display = tab==='cobros' ? '' : 'none';
+  var contHist = document.getElementById('ccTabContentHistorial');
+  if(contHist) contHist.style.display = tab==='historial' ? '' : 'none';
 }
 
 function ccVerVenta(ventaId){
