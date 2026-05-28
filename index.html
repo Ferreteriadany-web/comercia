@@ -2391,6 +2391,87 @@
     color:#000;
     border-color:var(--accent);
   }
+
+  /* SHARE ACTIONS GRID (post-venta) */
+  .share-actions-title{
+    margin-top:20px;
+    margin-bottom:10px;
+    font-size:13px;
+    font-weight:700;
+    color:var(--text);
+    letter-spacing:-0.01em;
+    text-align:center;
+    padding-top:14px;
+    border-top:1px dashed var(--line);
+  }
+  .share-actions-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:8px;
+    margin-bottom:6px;
+  }
+  @media (max-width:520px){
+    .share-actions-grid{grid-template-columns:repeat(2, 1fr);gap:6px}
+  }
+  .share-btn{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:14px 8px;
+    background:var(--paper);
+    border:1.5px solid var(--line);
+    border-radius:var(--r-md);
+    cursor:pointer;
+    transition:all .15s;
+    font-family:var(--sans);
+    color:var(--text);
+    min-height:80px;
+  }
+  .share-btn:hover:not(:disabled){
+    transform:translateY(-2px);
+    box-shadow:var(--shadow-md);
+  }
+  .share-btn:active:not(:disabled){transform:translateY(0)}
+  .share-btn:disabled{
+    opacity:.5;
+    cursor:not-allowed;
+    background:var(--bg-2);
+  }
+  .share-btn-icon{font-size:26px;line-height:1}
+  .share-btn-label{
+    font-size:11px;
+    font-weight:700;
+    text-align:center;
+    letter-spacing:-0.005em;
+    line-height:1.2;
+  }
+  .share-btn-badge{
+    position:absolute;
+    top:4px;
+    right:4px;
+    font-size:8px;
+    background:var(--orange);
+    color:#fff;
+    padding:1px 6px;
+    border-radius:99px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+  }
+  /* Colores por acción */
+  .share-btn-whatsapp:hover:not(:disabled){border-color:#25D366;background:#25D36610}
+  .share-btn-whatsapp .share-btn-icon{color:#25D366}
+  .share-btn-email:hover:not(:disabled){border-color:#EA4335;background:#EA433510}
+  .share-btn-email .share-btn-icon{color:#EA4335}
+  .share-btn-print:hover:not(:disabled){border-color:var(--purple);background:var(--purple-soft)}
+  .share-btn-print .share-btn-icon{color:var(--purple)}
+  .share-btn-ticket:hover:not(:disabled){border-color:var(--text);background:var(--bg-2)}
+  .share-btn-pdf:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+  .share-btn-pdf .share-btn-icon{color:var(--accent-text)}
+  .share-btn-afip{background:repeating-linear-gradient(45deg,var(--bg-2),var(--bg-2) 6px,var(--paper) 6px,var(--paper) 12px)}
   .barcode-type-select{
     background:var(--bg);
     border:1px solid var(--line);
@@ -4760,14 +4841,44 @@
 
 <!-- ═══════════════════ MODAL DETALLE VENTA (Ticket) ═══════════════════ -->
 <div class="modal-overlay" id="modalDetalleVenta">
-  <div class="modal" style="max-width:480px;max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-width:560px;max-height:92vh;overflow-y:auto">
     <button class="modal-close" onclick="closeModals()">&times;</button>
     <div class="modal-eyebrow" id="vDetEyebrow">Ticket</div>
     <h2 class="modal-title" id="vDetTitle">Venta</h2>
     <div id="vDetBody"></div>
-    <div style="display:flex;gap:10px;margin-top:18px">
+
+    <!-- Grid de acciones para compartir -->
+    <div class="share-actions-title">¿Qué querés hacer?</div>
+    <div class="share-actions-grid">
+      <button class="share-btn share-btn-whatsapp" onclick="compartirVentaWhatsApp()">
+        <span class="share-btn-icon">&#128241;</span>
+        <span class="share-btn-label">WhatsApp</span>
+      </button>
+      <button class="share-btn share-btn-email" onclick="compartirVentaEmail()">
+        <span class="share-btn-icon">&#9993;</span>
+        <span class="share-btn-label">Email</span>
+      </button>
+      <button class="share-btn share-btn-print" onclick="imprimirVentaA4()">
+        <span class="share-btn-icon">&#128196;</span>
+        <span class="share-btn-label">Imprimir A4</span>
+      </button>
+      <button class="share-btn share-btn-ticket" onclick="imprimirTicketActual()">
+        <span class="share-btn-icon">&#128424;</span>
+        <span class="share-btn-label">Ticket térmico</span>
+      </button>
+      <button class="share-btn share-btn-pdf" onclick="descargarVentaPDF()">
+        <span class="share-btn-icon">&#128190;</span>
+        <span class="share-btn-label">Descargar PDF</span>
+      </button>
+      <button class="share-btn share-btn-afip" onclick="facturarEnAfip()" id="btnFacturarAfip" disabled title="Requiere certificado digital de AFIP (próximamente)">
+        <span class="share-btn-icon">&#127981;</span>
+        <span class="share-btn-label">Facturar AFIP</span>
+        <span class="share-btn-badge">Próximamente</span>
+      </button>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cerrar</button>
-      <button class="btn btn-line" onclick="imprimirTicketActual()" style="flex:1">&#128424; Imprimir</button>
     </div>
   </div>
 </div>
@@ -10126,8 +10237,259 @@ function imprimirTicketActual(){
     '.ticket-print-sep{border-top:1px dashed #999;margin:10px 0}'+
     '.ticket-print-total{font-size:16px;font-weight:700;font-family:Arial,sans-serif}'+
     '</style></head><body>'+html+
+    '<div style="margin-top:24px;padding-top:10px;border-top:1px dashed #999;text-align:center;font-size:9px;color:#888">Generado por COMERCIA · Gestión inteligente</div>'+
     '<script>window.onload=function(){window.print();}<\/script></body></html>');
   w.document.close();
+}
+
+// ═══════════════════════════════════════════════════════
+// COMPARTIR VENTAS — WHATSAPP, EMAIL, PRINT A4, PDF
+// ═══════════════════════════════════════════════════════
+
+// Genera texto plano del ticket (para WhatsApp, mailto, etc.)
+function generarTextoVenta(v){
+  if(!v) return '';
+  var fecha = new Date(v.fecha);
+  var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  var modoLbl = (v.modo || 'ticket').toUpperCase();
+  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
+
+  var txt = '*' + empresaNombre + '*\n';
+  txt += modoLbl + ' N° ' + v.numero + '\n';
+  txt += fechaStr + '\n';
+  txt += '────────────────\n';
+
+  if(v.cliente){
+    txt += 'Cliente: ' + v.cliente.razonSocial + (v.cliente.nombre?' '+v.cliente.nombre:'') + '\n';
+    if(v.cliente.numDoc) txt += 'Doc: ' + v.cliente.numDoc + '\n';
+  } else {
+    txt += 'Cliente: Consumidor Final\n';
+  }
+  txt += '────────────────\n';
+
+  // Items
+  v.items.forEach(function(it){
+    txt += '• ' + (it.descripcion || it.codigo || '-');
+    txt += ' x' + it.cantidad;
+    txt += ' = ' + fmtPeso(it.subtotal) + '\n';
+  });
+  txt += '────────────────\n';
+
+  // Totales
+  txt += 'Subtotal neto: ' + fmtPeso(v.neto || 0) + '\n';
+  txt += 'IVA (' + (v.ivaPct||0) + '%): ' + fmtPeso(v.ivaMonto || 0) + '\n';
+  if(v.descuentoPct > 0){
+    txt += 'Descuento (' + v.descuentoPct + '%): -' + fmtPeso(v.descuentoMonto) + '\n';
+  }
+  txt += '*TOTAL: ' + fmtPeso(v.total) + '*\n';
+  txt += '────────────────\n';
+
+  // Pagos
+  if(v.pagos && v.pagos.length > 0){
+    v.pagos.forEach(function(p){
+      var lbl = (METODOS_PAGO.find(function(m){return m.value===p.metodo;}) || {label:p.metodo}).label;
+      txt += lbl + ': ' + fmtPeso(p.monto) + '\n';
+    });
+  }
+
+  // Observaciones
+  if(v.observaciones){
+    txt += '\nNotas: ' + v.observaciones + '\n';
+  }
+
+  // Promo Comercia
+  txt += '\n────────────────\n';
+  txt += '_Generado con COMERCIA_\n';
+  txt += '_Gestión inteligente para tu comercio_\n';
+
+  return txt;
+}
+
+// WHATSAPP — abre wa.me con el mensaje pre-armado
+function compartirVentaWhatsApp(){
+  if(!_ventaActualVer) return;
+  var v = _ventaActualVer;
+  var texto = generarTextoVenta(v);
+  var tel = '';
+  // Si hay cliente con teléfono, incluirlo
+  if(v.cliente && v.cliente.telefono){
+    tel = v.cliente.telefono.replace(/[^0-9]/g, '');
+    // Si no empieza con código país, agregar 54 (Argentina)
+    if(tel.length === 10 && tel.charAt(0) !== '5'){
+      tel = '54' + tel;
+    } else if(tel.length === 8 || tel.length === 9){
+      // No tiene código de área completo
+      tel = '';
+    }
+  }
+  var url = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(texto);
+  window.open(url, '_blank');
+  toast('Abriendo WhatsApp...', 'success');
+}
+
+// EMAIL — abre mailto con el cuerpo armado
+function compartirVentaEmail(){
+  if(!_ventaActualVer) return;
+  var v = _ventaActualVer;
+  var emailDestino = '';
+  if(v.cliente && v.cliente.email){
+    emailDestino = v.cliente.email;
+  }
+  var modoLbl = (v.modo || 'ticket').toUpperCase();
+  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
+  var asunto = modoLbl + ' N° ' + v.numero + ' - ' + empresaNombre;
+  var cuerpo = generarTextoVenta(v);
+  // Quitar asteriscos de Markdown (mailto no los renderiza)
+  cuerpo = cuerpo.replace(/\*/g, '').replace(/_/g, '');
+  var url = 'mailto:' + emailDestino + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
+  window.location.href = url;
+  toast('Abriendo cliente de correo...', 'success');
+}
+
+// IMPRIMIR EN A4 — formato profesional con marca Comercia
+function imprimirVentaA4(){
+  if(!_ventaActualVer) return;
+  var v = _ventaActualVer;
+  var html = construirHtmlVentaA4(v);
+  var w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(function(){
+    try{ w.print(); }catch(e){}
+  }, 500);
+}
+
+// DESCARGAR PDF — abre el A4 con prompt para guardar como PDF
+function descargarVentaPDF(){
+  if(!_ventaActualVer) return;
+  var v = _ventaActualVer;
+  var html = construirHtmlVentaA4(v);
+  var w = window.open('', '_blank', 'width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+  // El usuario hace "Guardar como PDF" desde el diálogo de impresión
+  setTimeout(function(){
+    try{
+      w.document.title = (v.modo||'venta') + '-' + v.numero;
+      w.print();
+    }catch(e){}
+  }, 500);
+  toast('En el diálogo elegí "Guardar como PDF"', 'success');
+}
+
+// Construye el HTML para imprimir en A4 (con marca Comercia)
+function construirHtmlVentaA4(v){
+  var fecha = new Date(v.fecha);
+  var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  var modoLbl = (v.modo || 'ticket').toUpperCase();
+  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
+
+  // Items HTML
+  var itemsRows = v.items.map(function(it){
+    return '<tr>'+
+      '<td>'+eH(it.codigo||'')+'</td>'+
+      '<td>'+eH(it.descripcion||'-')+'</td>'+
+      '<td style="text-align:center">'+it.cantidad+'</td>'+
+      '<td style="text-align:right">'+fmtPeso(it.precioUnit)+'</td>'+
+      '<td style="text-align:right;font-weight:600">'+fmtPeso(it.subtotal)+'</td>'+
+      (it.obra?'<td style="font-size:10px;color:#666">'+eH(it.obra)+'</td>':'<td></td>')+
+    '</tr>';
+  }).join('');
+
+  // Pagos
+  var pagosHtml = '';
+  if(v.pagos && v.pagos.length > 0){
+    pagosHtml = v.pagos.map(function(p){
+      var lbl = (METODOS_PAGO.find(function(m){return m.value===p.metodo;}) || {label:p.metodo}).label;
+      return '<div class="pago-row"><span>'+eH(lbl)+'</span><span>'+fmtPeso(p.monto)+'</span></div>';
+    }).join('');
+  }
+
+  // Cliente
+  var clienteHtml = v.cliente
+    ? '<div><strong>Cliente:</strong> '+eH(v.cliente.razonSocial)+(v.cliente.nombre?' '+eH(v.cliente.nombre):'')+'</div>'+
+      (v.cliente.numDoc?'<div><strong>'+(v.cliente.tipoDoc||'CUIT')+':</strong> '+eH(v.cliente.numDoc)+'</div>':'')+
+      (v.cliente.direccion?'<div><strong>Dirección:</strong> '+eH(v.cliente.direccion)+'</div>':'')+
+      (v.cliente.catFiscal?'<div><strong>Cat. Fiscal:</strong> '+eH(v.cliente.catFiscal)+'</div>':'')
+    : '<div><strong>Cliente:</strong> Consumidor Final</div>';
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+modoLbl+' '+v.numero+'</title>'+
+'<style>'+
+'@page{size:A4;margin:18mm}'+
+'*{box-sizing:border-box}'+
+'body{font-family:Arial,Helvetica,sans-serif;color:#1a1a23;margin:0;padding:0;font-size:13px;line-height:1.45}'+
+'.doc-wrap{max-width:780px;margin:0 auto}'+
+'.doc-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:3px solid #fbbf24}'+
+'.empresa-block{flex:1}'+
+'.empresa-nombre{font-size:24px;font-weight:800;color:#1a1a23;letter-spacing:-0.01em;margin-bottom:2px}'+
+'.empresa-meta{font-size:11px;color:#666}'+
+'.tipo-block{text-align:right;padding-left:20px}'+
+'.tipo-letra{display:inline-block;font-size:32px;font-weight:900;border:3px solid #1a1a23;padding:4px 22px;background:#fff;letter-spacing:0.05em}'+
+'.tipo-label{font-size:10px;font-weight:700;color:#666;margin-top:4px;letter-spacing:0.06em}'+
+'.doc-numero{font-size:18px;font-weight:700;margin-top:10px;font-family:Consolas,monospace}'+
+'.doc-fecha{font-size:11px;color:#666;font-family:Consolas,monospace}'+
+'.cliente-block{margin:18px 0;padding:12px 16px;background:#fafaf8;border-left:3px solid #fbbf24;border-radius:3px}'+
+'.cliente-block div{margin-bottom:3px}'+
+'.items-title{font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}'+
+'table{width:100%;border-collapse:collapse;margin-bottom:14px}'+
+'th{background:#1a1a23;color:#fff;padding:9px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-bottom:2px solid #fbbf24}'+
+'td{padding:7px 8px;border-bottom:1px solid #e5e7eb;font-size:12px}'+
+'tr:nth-child(even) td{background:#fafaf8}'+
+'.totales-block{display:flex;justify-content:flex-end;margin-top:6px}'+
+'.totales-tabla{min-width:300px;font-size:12px}'+
+'.totales-tabla div{display:flex;justify-content:space-between;padding:4px 0}'+
+'.totales-tabla .total-row{border-top:2px solid #1a1a23;margin-top:6px;padding-top:8px;font-size:16px;font-weight:800;color:#1a1a23}'+
+'.pagos-block{margin-top:16px;padding:10px 14px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:3px}'+
+'.pago-row{display:flex;justify-content:space-between;padding:2px 0;font-size:12px}'+
+'.obs-block{margin-top:14px;padding:10px;background:#fef3c7;border-left:3px solid #fbbf24;border-radius:3px;font-size:11px}'+
+'.footer-brand{margin-top:30px;padding-top:14px;border-top:1px dashed #ccc;text-align:center}'+
+'.footer-brand-name{font-family:Impact,Arial Black,sans-serif;font-size:22px;letter-spacing:0.08em;color:#1a1a23;margin-bottom:2px}'+
+'.footer-brand-tag{font-size:10px;color:#666;font-style:italic;margin-bottom:6px}'+
+'.footer-brand-desc{font-size:9px;color:#999}'+
+'@media print{body{margin:0}.doc-wrap{max-width:100%}}'+
+'</style></head><body><div class="doc-wrap">'+
+'<div class="doc-header">'+
+  '<div class="empresa-block">'+
+    '<div class="empresa-nombre">'+eH(empresaNombre)+'</div>'+
+    '<div class="empresa-meta">Gestión profesional</div>'+
+  '</div>'+
+  '<div class="tipo-block">'+
+    '<div class="tipo-letra">'+modoLbl.charAt(0)+'</div>'+
+    '<div class="tipo-label">'+modoLbl+'</div>'+
+    '<div class="doc-numero">N° '+eH(v.numero)+'</div>'+
+    '<div class="doc-fecha">'+fechaStr+'</div>'+
+  '</div>'+
+'</div>'+
+'<div class="cliente-block">'+clienteHtml+'</div>'+
+'<div class="items-title">Detalle</div>'+
+'<table><thead><tr>'+
+  '<th style="width:14%">Código</th>'+
+  '<th>Descripción</th>'+
+  '<th style="width:8%;text-align:center">Cant.</th>'+
+  '<th style="width:14%;text-align:right">P. Unit.</th>'+
+  '<th style="width:16%;text-align:right">Subtotal</th>'+
+  '<th style="width:14%">Obra</th>'+
+'</tr></thead><tbody>'+itemsRows+'</tbody></table>'+
+'<div class="totales-block"><div class="totales-tabla">'+
+  '<div><span>Subtotal neto:</span><span>'+fmtPeso(v.neto||0)+'</span></div>'+
+  '<div><span>IVA ('+(v.ivaPct||0)+'%):</span><span>'+fmtPeso(v.ivaMonto||0)+'</span></div>'+
+  (v.descuentoPct>0?'<div><span>Descuento ('+v.descuentoPct+'%):</span><span>-'+fmtPeso(v.descuentoMonto)+'</span></div>':'')+
+  '<div class="total-row"><span>TOTAL:</span><span>'+fmtPeso(v.total)+'</span></div>'+
+'</div></div>'+
+(pagosHtml ? '<div class="pagos-block"><div class="items-title" style="color:#15803d;margin-bottom:4px">Forma de pago</div>'+pagosHtml+'</div>' : '')+
+(v.observaciones ? '<div class="obs-block"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
+'<div class="footer-brand">'+
+  '<div class="footer-brand-name">COMERCIA</div>'+
+  '<div class="footer-brand-tag">Gestión inteligente para tu comercio</div>'+
+  '<div class="footer-brand-desc">Este comprobante fue generado con Comercia · Sistema de gestión para comercios</div>'+
+'</div>'+
+'</div><script>window.onload=function(){window.print();}<\/script></body></html>';
+}
+
+// AFIP — placeholder (requiere certificado digital + backend)
+function facturarEnAfip(){
+  if(!_ventaActualVer) return;
+  toast('La facturación con AFIP requiere certificado digital. Próximamente.', 'error');
 }
 
 
