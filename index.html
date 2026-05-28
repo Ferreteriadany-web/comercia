@@ -10481,20 +10481,32 @@ var EXCEL_THEME = {
   success:    'FF22C55E',
   danger:     'FFDC2626',
   border:     'FFE5E7EB',
-  white:      'FFFFFFFF'
+  white:      'FFFFFFFF',
+  purple:     'FF8B5CF6',
+  // Fuentes
+  fontTitle:  'Impact',     // fuente llamativa para títulos grandes (Windows/Mac default)
+  fontBody:   'Calibri'
+};
+
+// Datos de marca Comercia (centralizados para fácil cambio)
+var COMERCIA_BRAND = {
+  name: 'COMERCIA',
+  tagline: 'Gestión inteligente para tu comercio',
+  footer: 'Generado por Comercia · Plataforma de gestión',
+  description: 'Comercia es una plataforma multi-tenant diseñada para comercios argentinos que necesitan organizar productos, ventas, cuentas corrientes y proveedores en un solo lugar.'
 };
 
 function applyTitleRow(row, text, mergeRange){
   row.values = [text];
-  row.height = 32;
-  row.font = { name:'Calibri', size:18, bold:true, color:{argb:EXCEL_THEME.text} };
+  row.height = 38;
+  row.font = { name:EXCEL_THEME.fontTitle, size:24, bold:true, color:{argb:EXCEL_THEME.text} };
   row.alignment = { vertical:'middle', horizontal:'left', indent:1 };
 }
 
 function applySubtitleRow(row, text){
   row.values = [text];
   row.height = 18;
-  row.font = { name:'Calibri', size:10, italic:true, color:{argb:EXCEL_THEME.textSoft} };
+  row.font = { name:EXCEL_THEME.fontBody, size:10, italic:true, color:{argb:EXCEL_THEME.textSoft} };
   row.alignment = { vertical:'middle', horizontal:'left', indent:1 };
 }
 
@@ -10502,7 +10514,7 @@ function applyHeaderRow(row, headers){
   row.values = headers;
   row.height = 26;
   row.eachCell(function(cell){
-    cell.font = { name:'Calibri', size:11, bold:true, color:{argb:EXCEL_THEME.white} };
+    cell.font = { name:EXCEL_THEME.fontBody, size:11, bold:true, color:{argb:EXCEL_THEME.white} };
     cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.text} };
     cell.alignment = { vertical:'middle', horizontal:'center' };
     cell.border = {
@@ -10520,7 +10532,7 @@ function applyZebra(ws, fromRow, toRow, fromCol, toCol){
     for(var c=fromCol; c<=toCol; c++){
       var cell = ws.getRow(r).getCell(c);
       cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:bgColor} };
-      cell.font = cell.font || { name:'Calibri', size:10, color:{argb:EXCEL_THEME.text} };
+      cell.font = cell.font || { name:EXCEL_THEME.fontBody, size:10, color:{argb:EXCEL_THEME.text} };
       cell.border = {
         top:{style:'hair', color:{argb:EXCEL_THEME.border}},
         bottom:{style:'hair', color:{argb:EXCEL_THEME.border}},
@@ -10535,7 +10547,7 @@ function applyTotalRow(row, fromCol, toCol){
   row.height = 24;
   for(var c=fromCol; c<=toCol; c++){
     var cell = row.getCell(c);
-    cell.font = { name:'Calibri', size:11, bold:true, color:{argb:EXCEL_THEME.white} };
+    cell.font = { name:EXCEL_THEME.fontBody, size:11, bold:true, color:{argb:EXCEL_THEME.white} };
     cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.text} };
     cell.border = {
       top:{style:'medium', color:{argb:EXCEL_THEME.primary}},
@@ -10544,12 +10556,217 @@ function applyTotalRow(row, fromCol, toCol){
   }
 }
 
+// ═══════════════════════════════════════════════════════
+// BRANDING DE COMERCIA EN LOS EXCEL
+// ═══════════════════════════════════════════════════════
+
+// Header con marca grande arriba de una hoja. Devuelve la siguiente fila libre.
+// `numCols` es la cantidad de columnas a abarcar para el merge.
+function addComerciaBrandHeader(ws, numCols){
+  numCols = numCols || ws.columns.length || 4;
+  // Fila 1: marca COMERCIA grande
+  ws.mergeCells(1, 1, 1, numCols);
+  var row1 = ws.getRow(1);
+  row1.height = 48;
+  row1.getCell(1).value = COMERCIA_BRAND.name;
+  row1.getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 32,
+    bold: true,
+    color: { argb: EXCEL_THEME.text }
+  };
+  row1.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
+  row1.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+  row1.getCell(1).border = {
+    top: { style:'medium', color:{argb:EXCEL_THEME.text} },
+    bottom: { style:'thick', color:{argb:EXCEL_THEME.accent} }
+  };
+
+  // Fila 2: tagline
+  ws.mergeCells(2, 1, 2, numCols);
+  var row2 = ws.getRow(2);
+  row2.height = 20;
+  row2.getCell(1).value = COMERCIA_BRAND.tagline;
+  row2.getCell(1).font = {
+    name: EXCEL_THEME.fontBody,
+    size: 11,
+    italic: true,
+    color: { argb: EXCEL_THEME.textSoft }
+  };
+  row2.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+  row2.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+
+  // Fila 3: separador vacío
+  ws.getRow(3).height = 6;
+
+  return 4; // siguiente fila libre
+}
+
+// Footer con pie de página en cada hoja (Excel "Page Setup > Header/Footer")
+function addComerciaFooter(ws){
+  if(!ws.headerFooter) ws.headerFooter = {};
+  ws.headerFooter.oddFooter = '&L&8&I' + COMERCIA_BRAND.footer + '&C&8Página &P de &N&R&8' + new Date().toLocaleDateString('es-AR');
+  ws.headerFooter.evenFooter = ws.headerFooter.oddFooter;
+  // Y agregar también un footer en la última fila visible al imprimir
+  // (esto va al final del rango de datos)
+}
+
+// Hoja extra "Acerca de Comercia"
+function addComerciaInfoSheet(wb){
+  var ws = wb.addWorksheet('Acerca de Comercia', {
+    properties: { tabColor: { argb: EXCEL_THEME.primary } },
+    pageSetup: { paperSize: 9, orientation: 'portrait', margins: {left:0.7,right:0.7,top:0.7,bottom:0.7,header:0.3,footer:0.3} }
+  });
+  ws.columns = [{ width: 80 }];
+
+  // Marca grande
+  ws.mergeCells('A1:A1');
+  ws.getRow(1).height = 80;
+  ws.getRow(1).getCell(1).value = COMERCIA_BRAND.name;
+  ws.getRow(1).getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 56,
+    bold: true,
+    color: { argb: EXCEL_THEME.text }
+  };
+  ws.getRow(1).getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
+  ws.getRow(1).getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+  ws.getRow(1).getCell(1).border = {
+    bottom: { style:'thick', color:{argb:EXCEL_THEME.accent} }
+  };
+
+  // Tagline
+  ws.getRow(2).height = 28;
+  ws.getRow(2).getCell(1).value = COMERCIA_BRAND.tagline;
+  ws.getRow(2).getCell(1).font = {
+    name: EXCEL_THEME.fontBody,
+    size: 14,
+    italic: true,
+    color: { argb: EXCEL_THEME.textSoft }
+  };
+  ws.getRow(2).getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+
+  ws.addRow([]);
+  ws.addRow([]);
+
+  // ¿Qué es Comercia?
+  var titleRow = ws.addRow(['¿QUÉ ES COMERCIA?']);
+  titleRow.height = 28;
+  titleRow.getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 16,
+    bold: true,
+    color: { argb: EXCEL_THEME.white }
+  };
+  titleRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.text} };
+  titleRow.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+  var descRow = ws.addRow([COMERCIA_BRAND.description]);
+  descRow.height = 60;
+  descRow.getCell(1).font = { name: EXCEL_THEME.fontBody, size: 12, color: { argb: EXCEL_THEME.text } };
+  descRow.getCell(1).alignment = { vertical:'top', horizontal:'left', indent:1, wrapText:true };
+
+  ws.addRow([]);
+
+  // Features
+  var featTitle = ws.addRow(['CARACTERÍSTICAS']);
+  featTitle.height = 28;
+  featTitle.getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 16,
+    bold: true,
+    color: { argb: EXCEL_THEME.white }
+  };
+  featTitle.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.accent} };
+  featTitle.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+  var features = [
+    '• Gestión de productos con sincronización automática',
+    '• Punto de venta (POS) con búsqueda y filtros por proveedor',
+    '• Facturas, remitos y presupuestos',
+    '• Cuentas corrientes con sistema de obras y personas',
+    '• Cobros distribuidos por obra',
+    '• Importación masiva desde Excel',
+    '• Reportes y exportación a Excel personalizada',
+    '• Multi-empresa con roles y permisos',
+    '• Etiquetas con código de barras (A4 y térmicas)',
+    '• Historial completo de movimientos'
+  ];
+  features.forEach(function(f){
+    var r = ws.addRow([f]);
+    r.height = 22;
+    r.getCell(1).font = { name: EXCEL_THEME.fontBody, size: 11, color: { argb: EXCEL_THEME.text } };
+    r.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:2 };
+  });
+
+  ws.addRow([]);
+
+  // Generado info
+  var infoTitle = ws.addRow(['ESTE REPORTE']);
+  infoTitle.height = 26;
+  infoTitle.getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 14,
+    bold: true,
+    color: { argb: EXCEL_THEME.white }
+  };
+  infoTitle.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.purple} };
+  infoTitle.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+  var fechaInfo = ws.addRow(['Generado el ' + new Date().toLocaleString('es-AR')]);
+  fechaInfo.getCell(1).font = { name: EXCEL_THEME.fontBody, size: 10, color: { argb: EXCEL_THEME.textSoft } };
+  fechaInfo.getCell(1).alignment = { horizontal:'left', indent:2 };
+
+  if(currentEmpresa){
+    var empInfo = ws.addRow(['Empresa: ' + (currentEmpresa.nombre||'-')]);
+    empInfo.getCell(1).font = { name: EXCEL_THEME.fontBody, size: 10, color: { argb: EXCEL_THEME.textSoft } };
+    empInfo.getCell(1).alignment = { horizontal:'left', indent:2 };
+  }
+
+  if(currentUser){
+    var usrInfo = ws.addRow(['Usuario: ' + (currentUser.email||'-')]);
+    usrInfo.getCell(1).font = { name: EXCEL_THEME.fontBody, size: 10, color: { argb: EXCEL_THEME.textSoft } };
+    usrInfo.getCell(1).alignment = { horizontal:'left', indent:2 };
+  }
+
+  ws.addRow([]);
+  ws.addRow([]);
+
+  // Marca final
+  var footRow = ws.addRow(['Powered by COMERCIA']);
+  footRow.height = 32;
+  footRow.getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 14,
+    bold: true,
+    color: { argb: EXCEL_THEME.accent }
+  };
+  footRow.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+
+  // Aplicar footer a esta hoja también
+  addComerciaFooter(ws);
+}
+
 function dataValidation_currency(ws, rangeStr){
   ws.getCell(rangeStr).numFmt = '"$"#,##0.00';
 }
 
 // Helper: descarga workbook en navegador
+// Aplica automáticamente footer Comercia en cada hoja + hoja "Acerca de Comercia"
 async function downloadExcelJSWorkbook(wb, fileName){
+  // 1. Agregar footer a TODAS las hojas existentes
+  wb.eachSheet(function(ws){
+    addComerciaFooter(ws);
+  });
+  // 2. Agregar hoja "Acerca de Comercia" al final (si no existe ya)
+  var tieneAcerca = false;
+  wb.eachSheet(function(ws){
+    if(ws.name === 'Acerca de Comercia') tieneAcerca = true;
+  });
+  if(!tieneAcerca){
+    try{ addComerciaInfoSheet(wb); }catch(e){ console.warn('No se pudo agregar hoja Acerca:', e); }
+  }
+
   var buf = await wb.xlsx.writeBuffer();
   var blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   var url = URL.createObjectURL(blob);
