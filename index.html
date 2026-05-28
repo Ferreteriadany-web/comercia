@@ -1788,31 +1788,73 @@
     font-style:italic;
     padding:2px 6px;
   }
+  .cart-item-obra-tag{
+    display:inline-block;
+    margin-top:4px;
+    padding:2px 8px;
+    background:var(--purple-soft);
+    color:var(--purple);
+    font-size:10px;
+    font-family:var(--mono);
+    font-weight:600;
+    border-radius:99px;
+    border:1px solid var(--purple);
+    align-self:flex-start;
+  }
 
   /* Barra asignar todos */
-  .cart-asignar-bar{
-    display:none;
-    align-items:center;
-    gap:6px;
-    padding:6px 12px;
-    background:var(--purple-soft);
+  /* === Selector global de obra en carrito === */
+  .cart-obra-global{
+    padding:10px 12px;
+    background:linear-gradient(135deg, var(--purple-soft) 0%, rgba(168,85,247,.08) 100%);
     border-bottom:1px solid var(--line);
-    font-size:11px;
-    color:var(--purple);
+    border-top:1px solid var(--purple);
+    display:flex;
+    flex-direction:column;
+    gap:6px;
   }
-  .cart-asignar-bar.show{display:flex}
-  .cart-asignar-bar-label{font-family:var(--mono);font-weight:600;flex-shrink:0}
-  .cart-asignar-bar-sel{
+  .cart-obra-global-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .cart-obra-global-icon{
+    font-size:15px;
+    flex-shrink:0;
+    line-height:1;
+  }
+  .cart-obra-global-sel{
     flex:1;
     background:var(--paper);
     border:1px solid var(--purple);
     color:var(--text);
-    font-size:11px;
-    padding:3px 8px;
+    font-size:12px;
+    font-weight:600;
+    padding:6px 10px;
     border-radius:var(--r-sm);
-    font-family:var(--mono);
+    font-family:var(--sans);
     min-width:0;
+    cursor:pointer;
   }
+  .cart-obra-global-sel:focus{outline:none;box-shadow:0 0 0 2px var(--purple-soft)}
+  .cart-obra-global-sel option[value="__crear__"]{
+    color:var(--purple);
+    font-weight:700;
+  }
+  .cart-obra-toggle-ind{
+    align-self:flex-end;
+    background:transparent;
+    border:none;
+    color:var(--purple);
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:underline;
+    font-family:var(--sans);
+    padding:2px 4px;
+  }
+  .cart-obra-toggle-ind:hover{color:var(--text)}
+  .cart-obra-toggle-ind.active{color:var(--text);text-decoration:none;background:var(--purple);color:#fff;padding:2px 8px;border-radius:var(--r-sm)}
 
   .cc-detail-actions{
     padding:10px 20px;
@@ -3421,11 +3463,14 @@
                   <button class="btn btn-ghost btn-sm" onclick="limpiarCarrito()" id="vBtnLimpiar" style="display:none">Limpiar</button>
                 </div>
 
-                <div class="cart-asignar-bar" id="cartAsignarBar">
-                  <span class="cart-asignar-bar-label">&#127959; Asignar todo a:</span>
-                  <select class="cart-asignar-bar-sel" id="cartAsignarSel" onchange="asignarObraTodos(this.value)">
-                    <option value="">Sin asignar</option>
-                  </select>
+                <div class="cart-obra-global" id="cartObraGlobal" style="display:none">
+                  <div class="cart-obra-global-row">
+                    <span class="cart-obra-global-icon">&#127959;</span>
+                    <select class="cart-obra-global-sel" id="cartObraGlobalSel" onchange="onObraGlobalChange(this.value)">
+                      <option value="">Sin obra asignada</option>
+                    </select>
+                  </div>
+                  <button class="cart-obra-toggle-ind" id="cartObraToggleInd" onclick="toggleAsignarIndividual()" type="button">Asignar individual</button>
                 </div>
 
                 <div class="ventas-cart-items" id="vCartItems">
@@ -4484,6 +4529,33 @@
     <div style="display:flex;gap:10px;margin-top:18px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
       <button class="btn-form" onclick="ccConfirmarCierre()" id="ccBtnConfirmarCierre" disabled style="flex:2;background:var(--danger);border-color:var(--danger);color:#fff;opacity:.5">Sí, borrar y cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL CREAR OBRA RÁPIDO (desde POS) ═══════════════════ -->
+<div class="modal-overlay" id="modalCrearObraQuick">
+  <div class="modal" style="max-width:440px;border-top-color:var(--purple)">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow" style="color:var(--purple)">&#127959; Nueva obra/persona</div>
+    <h2 class="modal-title">Crear obra</h2>
+    <p class="modal-subtitle">Para el cliente <strong id="quickObraClienteNombre"></strong></p>
+
+    <div class="alert error" id="quickObraAlert"></div>
+
+    <div class="form-group">
+      <label class="form-label">Nombre de la obra o persona</label>
+      <input class="form-input" type="text" id="quickObraInput" placeholder="Ej: Obra Calle Falsa 123, Juan García..." autocomplete="off" maxlength="50" onkeydown="if(event.key==='Enter'){event.preventDefault();confirmarCrearObraQuick()}">
+      <div style="font-size:10px;color:var(--text-mute);margin-top:4px;font-family:var(--mono)">Hasta 50 caracteres. Podés usar nombres, alias o cualquier identificador.</div>
+    </div>
+
+    <div style="background:var(--purple-soft);border:1px solid var(--purple);border-radius:var(--r-md);padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--purple)">
+      <strong>Tip:</strong> al crearla se aplicará automáticamente a toda la venta. Si querés mezclar obras en una misma venta, usá "Asignar individual" después.
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" onclick="confirmarCrearObraQuick()" id="btnConfirmarCrearObraQuick" style="flex:2;background:var(--purple);border-color:var(--purple);color:#fff">Crear y asignar</button>
     </div>
   </div>
 </div>
@@ -8045,6 +8117,10 @@ var ventas = [];
 var carritoVenta = [];
 var clienteVenta = null;
 var modoVenta = 'factura';
+// Estado del selector de obra del carrito
+var obraGlobalActual = '';     // obra que aplica por defecto a toda la venta
+var _asignarIndividual = false; // si está en true, se ven selectores por-item
+var _crearObraContext = null;  // {targetIdx: number|null}  → si se crea, ¿se aplica al global o a un item?
 var pagosVenta = [{ metodo: 'efectivo', monto: 0 }];
 var _vDdSel = -1;
 var _ventaActualVer = null;
@@ -8362,7 +8438,9 @@ function agregarAlCarrito(id){
   if(existing){
     existing.cantidad++;
   } else {
-    carritoVenta.push({ producto: p, cantidad: 1 });
+    // Si NO está modo individual, los nuevos items heredan la obra global
+    var obraInicial = (!_asignarIndividual && obraGlobalActual) ? obraGlobalActual : '';
+    carritoVenta.push({ producto: p, cantidad: 1, obra: obraInicial });
   }
   renderCarrito();
   recalcularVenta();
@@ -8464,25 +8542,39 @@ function renderCarrito(){
   btnLimpiar.style.display = '';
   btnCobrar.disabled = false;
 
-  // Construir opciones de obra basadas en el cliente
-  var obrasOpts = '<option value="">Sin asignar</option>';
-  if(clienteVenta && clienteVenta.obras && clienteVenta.obras.length > 0){
-    clienteVenta.obras.forEach(function(obra){
-      obrasOpts += '<option value="'+eH(obra)+'">'+eH(obra)+'</option>';
-    });
-  }
+  // ── Selector GLOBAL de obra en el carrito ──
+  var globalBar = document.getElementById('cartObraGlobal');
+  var globalSel = document.getElementById('cartObraGlobalSel');
+  var toggleBtn = document.getElementById('cartObraToggleInd');
   var clienteTieneObras = clienteVenta && clienteVenta.obras && clienteVenta.obras.length > 0;
 
-  // Mostrar/ocultar la barra "Asignar todos" según haya obras
-  var asignarBar = document.getElementById('cartAsignarBar');
-  if(asignarBar){
-    if(clienteTieneObras){
-      asignarBar.classList.add('show');
-      // Poblar el selector
-      var selBar = document.getElementById('cartAsignarSel');
-      if(selBar) selBar.innerHTML = obrasOpts;
+  if(globalBar){
+    if(clienteVenta){
+      globalBar.style.display = '';
+      // Poblar selector global con obras + "+ Crear obra"
+      var globalOpts = '<option value="">Sin obra asignada</option>';
+      if(clienteTieneObras){
+        clienteVenta.obras.forEach(function(obra){
+          var sel = (obra === obraGlobalActual) ? 'selected' : '';
+          globalOpts += '<option value="'+eH(obra)+'" '+sel+'>'+eH(obra)+'</option>';
+        });
+      }
+      globalOpts += '<option value="__crear__">+ Crear obra nueva...</option>';
+      globalSel.innerHTML = globalOpts;
+      // Set valor actual
+      if(obraGlobalActual && clienteVenta.obras && clienteVenta.obras.indexOf(obraGlobalActual) >= 0){
+        globalSel.value = obraGlobalActual;
+      } else {
+        globalSel.value = '';
+      }
+      // Toggle individual
+      if(toggleBtn){
+        toggleBtn.style.display = clienteTieneObras ? '' : 'none';
+        toggleBtn.classList.toggle('active', _asignarIndividual);
+        toggleBtn.textContent = _asignarIndividual ? 'Modo individual ON' : 'Asignar individual';
+      }
     } else {
-      asignarBar.classList.remove('show');
+      globalBar.style.display = 'none';
     }
   }
 
@@ -8491,31 +8583,27 @@ function renderCarrito(){
     var p = item.producto;
     var subt = (p.precioVenta||0) * item.cantidad;
     var obraActual = item.obra || '';
-    // Construir opciones con la actual seleccionada
-    var optsHtml = '';
-    if(clienteTieneObras){
-      optsHtml = '<option value="">Sin asignar</option>';
+
+    // Mostrar selector por-item SOLO si modo individual está activo Y el cliente tiene obras
+    var obraSelectorHtml = '';
+    if(clienteVenta && _asignarIndividual && clienteTieneObras){
+      var optsHtml = '<option value="">Sin asignar</option>';
       clienteVenta.obras.forEach(function(obra){
         var sel = (obra === obraActual) ? 'selected' : '';
         optsHtml += '<option value="'+eH(obra)+'" '+sel+'>'+eH(obra)+'</option>';
       });
-    }
-    var obraSelectorHtml = '';
-    if(clienteVenta){
-      // Mostrar siempre que haya cliente: si no tiene obras, mostrar solo el botón "+"
-      var hasObras = clienteVenta.obras && clienteVenta.obras.length > 0;
-      var selHtml = '';
-      if(hasObras){
-        selHtml = '<select class="cart-item-obra-sel '+(obraActual?'has-obra':'')+'" onchange="asignarObraItem('+i+',this.value)">'+
-            optsHtml+
-          '</select>';
-      } else {
-        selHtml = '<span class="cart-item-obra-empty">Sin obras configuradas</span>';
-      }
+      optsHtml += '<option value="__crear__">+ Crear obra...</option>';
       obraSelectorHtml = '<div class="cart-item-obra">'+
-        selHtml+
-        '<button class="cart-item-obra-add" onclick="crearObraDesdeCarrito('+i+')" title="Crear obra/persona nueva">+</button>'+
-      '</div>';
+          '<select class="cart-item-obra-sel '+(obraActual?'has-obra':'')+'" onchange="onObraItemChange('+i+',this.value)">'+
+            optsHtml+
+          '</select>'+
+        '</div>';
+    } else if(item.obra && !_asignarIndividual){
+      // Muestra discreta de la obra asignada cuando NO está modo individual
+      // (sólo si difiere del global)
+      if(item.obra !== obraGlobalActual){
+        obraSelectorHtml = '<div class="cart-item-obra-tag">&#127959; '+eH(item.obra)+'</div>';
+      }
     }
 
     html += '<div class="ventas-cart-item">'+
@@ -8544,36 +8632,91 @@ function renderCarrito(){
   cont.innerHTML = html;
 }
 
-function asignarObraItem(idx, obra){
+// ── Selector GLOBAL de obra del carrito ──
+function onObraGlobalChange(val){
+  if(val === '__crear__'){
+    // Reset al valor anterior mientras se abre el modal
+    var sel = document.getElementById('cartObraGlobalSel');
+    if(sel) sel.value = obraGlobalActual || '';
+    abrirCrearObraQuick(null); // null = aplica al global
+    return;
+  }
+  obraGlobalActual = val || '';
+  // Si NO está modo individual, aplicar a todos los items del carrito
+  if(!_asignarIndividual){
+    carritoVenta.forEach(function(item){
+      item.obra = obraGlobalActual;
+    });
+  }
+  renderCarrito();
+  if(obraGlobalActual){
+    toast('Obra "'+obraGlobalActual+'" aplicada a la venta','success');
+  }
+}
+
+// Selector por-item (solo activo en modo individual)
+function onObraItemChange(idx, val){
+  if(val === '__crear__'){
+    var sel = document.querySelectorAll('.cart-item-obra-sel')[idx];
+    if(sel) sel.value = carritoVenta[idx].obra || '';
+    abrirCrearObraQuick(idx);
+    return;
+  }
   if(carritoVenta[idx]){
-    carritoVenta[idx].obra = obra || '';
+    carritoVenta[idx].obra = val || '';
     renderCarrito();
   }
 }
 
-// Crear obra/persona nueva desde el carrito y asignarla al item
-async function crearObraDesdeCarrito(idx){
+// Toggle "Asignar individual" — muestra/oculta selectores por-item
+function toggleAsignarIndividual(){
+  _asignarIndividual = !_asignarIndividual;
+  if(!_asignarIndividual){
+    // Al volver al modo global, aplicar la obra global a todo
+    carritoVenta.forEach(function(item){
+      item.obra = obraGlobalActual;
+    });
+    toast('Modo individual desactivado — todo asignado a la obra global','success');
+  } else {
+    toast('Modo individual activo — podés asignar obra a cada producto','success');
+  }
+  renderCarrito();
+}
+
+// ── Modal "Crear obra rápido" (sin prompt feo) ──
+function abrirCrearObraQuick(targetIdx){
   if(!clienteVenta){
     toast('Primero seleccioná un cliente', 'error');
     return;
   }
-  var nombre = prompt('Nombre de la obra o persona:\n\n(Ej: "Obra Calle Falsa 123", "Juan García")');
-  if(!nombre) return;
-  nombre = nombre.trim();
-  if(!nombre){ return; }
-  if(nombre.length > 50){
-    toast('Máximo 50 caracteres', 'error');
-    return;
-  }
+  _crearObraContext = { targetIdx: targetIdx };
+  document.getElementById('quickObraClienteNombre').textContent = clienteVenta.razonSocial || '-';
+  document.getElementById('quickObraInput').value = '';
+  hideAlerts();
+  closeModals();
+  document.getElementById('modalCrearObraQuick').classList.add('show');
+  setTimeout(function(){
+    var inp = document.getElementById('quickObraInput');
+    if(inp) inp.focus();
+  }, 100);
+}
 
-  // Verificar duplicado
+async function confirmarCrearObraQuick(){
+  var inp = document.getElementById('quickObraInput');
+  var nombre = (inp.value || '').trim();
+  if(!nombre){ return showAlert('quickObraAlert','Ingresá un nombre.'); }
+  if(nombre.length > 50){ return showAlert('quickObraAlert','Máximo 50 caracteres.'); }
+  if(!clienteVenta){ return; }
+
   var obrasActuales = (clienteVenta.obras || []).slice();
   if(obrasActuales.some(function(o){ return o.toLowerCase() === nombre.toLowerCase(); })){
-    toast('Esa obra ya existe', 'error');
-    // Igual la asignamos al item
-    asignarObraItem(idx, nombre);
-    return;
+    // Si ya existe, no fallar: aplicar igual
+    return showAlert('quickObraAlert','Esa obra ya existe — elegila del selector.');
   }
+
+  var btn = document.getElementById('btnConfirmarCrearObraQuick');
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
 
   obrasActuales.push(nombre);
   try{
@@ -8581,27 +8724,53 @@ async function crearObraDesdeCarrito(idx){
     await cliRef.update({ obras: obrasActuales, updatedAt: new Date().toISOString() });
     clienteVenta.obras = obrasActuales;
     clienteVenta.updatedAt = new Date().toISOString();
-    // Actualizar también en la lista global de clientes
     var cInList = clientes.find(function(x){ return x._id === clienteVenta._id; });
     if(cInList){ cInList.obras = obrasActuales; }
-    // Guardar en cache
     try{ await idbGuardarClientes(currentEmpresaId, [clienteVenta]); }catch(e){}
-    // Asignar al item
-    if(carritoVenta[idx]) carritoVenta[idx].obra = nombre;
+
+    // Aplicar según contexto
+    var ctx = _crearObraContext || {targetIdx: null};
+    if(ctx.targetIdx === null){
+      // Aplicar al global
+      obraGlobalActual = nombre;
+      if(!_asignarIndividual){
+        carritoVenta.forEach(function(item){ item.obra = nombre; });
+      }
+    } else {
+      // Aplicar solo al item
+      if(carritoVenta[ctx.targetIdx]){
+        carritoVenta[ctx.targetIdx].obra = nombre;
+      }
+    }
+    closeModals();
     renderCarrito();
-    toast('Obra creada y asignada: '+nombre, 'success');
+    toast('Obra "'+nombre+'" creada y asignada', 'success');
   }catch(err){
     console.error('Error creando obra:', err);
-    toast('Error al crear obra: '+(err.message||''), 'error');
+    showAlert('quickObraAlert', 'Error: '+(err.message||''));
+    btn.disabled = false;
+    btn.textContent = 'Crear y asignar';
+    // Revertir
+    obrasActuales.pop();
   }
+  btn.disabled = false;
+  btn.textContent = 'Crear y asignar';
 }
 
+// Alias de compatibilidad (otras partes del código aún las llaman)
+function asignarObraItem(idx, obra){
+  if(carritoVenta[idx]){
+    carritoVenta[idx].obra = obra || '';
+    renderCarrito();
+  }
+}
 function asignarObraTodos(obra){
-  carritoVenta.forEach(function(item){
-    item.obra = obra || '';
-  });
+  obraGlobalActual = obra || '';
+  carritoVenta.forEach(function(item){ item.obra = obraGlobalActual; });
   renderCarrito();
-  if(obra) toast('Obra asignada a '+carritoVenta.length+' items','success');
+}
+function crearObraDesdeCarrito(idx){
+  abrirCrearObraQuick(idx);
 }
 
 function recalcularVenta(){
@@ -8735,6 +8904,11 @@ function seleccionarClienteVenta(id){
   if(!c) return;
   clienteVenta = c;
 
+  // Reset estado de obras al cambiar cliente
+  obraGlobalActual = '';
+  _asignarIndividual = false;
+  carritoVenta.forEach(function(item){ item.obra = ''; });
+
   // Actualizar UI del buscador
   var inp = document.getElementById('vClienteSearch');
   if(inp) inp.value = '';
@@ -8778,6 +8952,8 @@ function seleccionarClienteVenta(id){
 
 function quitarClienteVenta(){
   clienteVenta = null;
+  obraGlobalActual = '';
+  _asignarIndividual = false;
   var inp = document.getElementById('vClienteSearch');
   if(inp){
     inp.value = '';
