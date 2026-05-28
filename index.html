@@ -10362,84 +10362,221 @@ async function ccExportarExcelObra(obraKey, obraNombre){
   if(!c) return;
 
   // Filtrar movimientos relacionados con esta obra
+  // Incluye: ventas que aportaron a esta obra, ventas pagadas en items asignados a esta obra,
+  // pagos/cierres dirigidos a esta obra
   var movs = ccMovimientos.filter(function(m){
-    if(m.tipo === 'venta') return m.subtotalesPorObra && m.subtotalesPorObra[obraKey] > 0;
-    if(m.tipo === 'pago' || m.tipo === 'cierre') return m.obra === obraKey || (obraKey === OBRA_GENERAL_KEY && !m.obra);
+    if(m.tipo === 'venta'){
+      // Match por subtotalesPorObra (sistema nuevo)
+      if(m.subtotalesPorObra && m.subtotalesPorObra[obraKey] > 0) return true;
+      // Match por items con obra asignada (legado / venta pagada)
+      if(m.items && m.items.some(function(it){
+        return (it.obra === obraKey) || (obraKey === OBRA_GENERAL_KEY && !it.obra);
+      })) return true;
+      return false;
+    }
+    if(m.tipo === 'venta_pagada'){
+      // Ventas históricas que no están en CC pero pueden tener items con obra
+      if(m.items && m.items.some(function(it){
+        return (it.obra === obraKey) || (obraKey === OBRA_GENERAL_KEY && !it.obra);
+      })) return true;
+      return false;
+    }
+    if(m.tipo === 'pago' || m.tipo === 'cierre'){
+      return m.obra === obraKey || (obraKey === OBRA_GENERAL_KEY && !m.obra);
+    }
     return false;
   });
 
+  // Helper para calcular monto correspondiente a esta obra de una venta
+  function montoObraDeVenta(m){
+    if(m.subtotalesPorObra && m.subtotalesPorObra[obraKey] > 0){
+      return m.subtotalesPorObra[obraKey];
+    }
+    // Fallback: sumar subtotales de items que matchean
+    if(m.items){
+      return m.items.reduce(function(s, it){
+        var match = (it.obra === obraKey) || (obraKey === OBRA_GENERAL_KEY && !it.obra);
+        return match ? s + (it.subtotal || 0) : s;
+      }, 0);
+    }
+    return 0;
+  }
+
   var totalComprado = 0, totalPagado = 0;
   movs.forEach(function(m){
-    if(m.tipo === 'venta') totalComprado += (m.subtotalesPorObra[obraKey] || 0);
-    else totalPagado += (m.monto || 0);
+    if(m.tipo === 'venta' || m.tipo === 'venta_pagada'){
+      totalComprado += montoObraDeVenta(m);
+    } else {
+      totalPagado += (m.monto || 0);
+    }
   });
 
   var wb = new ExcelJS.Workbook();
   wb.creator = 'Comercia';
   wb.created = new Date();
 
-  // Hoja 1: Resumen
+  // ── HOJA 1: RESUMEN ─────────────────────────────────
   var ws1 = wb.addWorksheet('Resumen', {
-    properties: { tabColor: { argb: EXCEL_THEME.primary } }
+    properties: { tabColor: { argb: EXCEL_THEME.primary } },
+    pageSetup: { paperSize: 9, orientation: 'portrait', margins: {left:0.5,right:0.5,top:0.5,bottom:0.5,header:0.3,footer:0.3} }
   });
-  ws1.columns = [{ width: 28 }, { width: 45 }];
+  ws1.columns = [{ width: 30 }, { width: 50 }];
 
+  // Marca COMERCIA arriba
   ws1.mergeCells('A1:B1');
-  applyTitleRow(ws1.getRow(1), (currentEmpresa ? currentEmpresa.nombre : 'COMERCIA').toUpperCase());
-  ws1.getRow(1).getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
+  var rowMarca1 = ws1.getRow(1);
+  rowMarca1.height = 44;
+  rowMarca1.getCell(1).value = COMERCIA_BRAND.name;
+  rowMarca1.getCell(1).font = { name: EXCEL_THEME.fontTitle, size:30, bold:true, color:{argb:EXCEL_THEME.text} };
+  rowMarca1.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
+  rowMarca1.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+  rowMarca1.getCell(1).border = { bottom:{style:'thick', color:{argb:EXCEL_THEME.accent}} };
 
   ws1.mergeCells('A2:B2');
-  applySubtitleRow(ws1.getRow(2), 'CIERRE DE OBRA — ' + (obraNombre === 'general' ? 'CUENTA GENERAL' : obraNombre.toUpperCase()));
-  ws1.getRow(2).getCell(1).font.color = {argb:EXCEL_THEME.danger};
-  ws1.getRow(2).getCell(1).font.bold = true;
+  var rowMarca2 = ws1.getRow(2);
+  rowMarca2.height = 18;
+  rowMarca2.getCell(1).value = COMERCIA_BRAND.tagline;
+  rowMarca2.getCell(1).font = { name:EXCEL_THEME.fontBody, size:10, italic:true, color:{argb:EXCEL_THEME.textSoft} };
+  rowMarca2.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+  rowMarca2.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+
+  // Título del reporte
+  ws1.mergeCells('A3:B3');
+  var rowTitle = ws1.getRow(3);
+  rowTitle.height = 36;
+  rowTitle.getCell(1).value = 'CIERRE DE OBRA';
+  rowTitle.getCell(1).font = { name:EXCEL_THEME.fontTitle, size:20, bold:true, color:{argb:EXCEL_THEME.white} };
+  rowTitle.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.danger} };
+  rowTitle.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+
+  ws1.mergeCells('A4:B4');
+  var rowSubtitle = ws1.getRow(4);
+  rowSubtitle.height = 22;
+  rowSubtitle.getCell(1).value = obraNombre === 'general' ? 'CUENTA GENERAL (SIN OBRA)' : 'OBRA: ' + obraNombre.toUpperCase();
+  rowSubtitle.getCell(1).font = { name:EXCEL_THEME.fontBody, size:11, bold:true, color:{argb:EXCEL_THEME.text} };
+  rowSubtitle.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+  rowSubtitle.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
 
   ws1.addRow([]);
 
+  // Datos del cierre
   [
     ['Cliente', (c.razonSocial||'') + (c.nombre ? ' ('+c.nombre+')' : '')],
     ['Documento', (c.tipoDoc||'CUIT') + ' ' + (c.numDoc||'-')],
     ['Obra cerrada', obraNombre === 'general' ? 'Cuenta general (sin obra)' : obraNombre],
     ['Generado', new Date().toLocaleString('es-AR')],
-    ['', ''],
-    ['Total comprado en esta obra', totalComprado],
-    ['Total pagado en esta obra', totalPagado],
-    ['Saldo final de la obra', totalComprado - totalPagado]
+    ['Usuario', currentUser ? currentUser.email : '-'],
+    ['', '']
   ].forEach(function(pair){
     var row = ws1.addRow(pair);
-    row.getCell(1).font = { name:'Calibri', size:10, bold:true, color:{argb:EXCEL_THEME.textSoft} };
-    if(typeof pair[1] === 'number'){
-      row.getCell(2).numFmt = '"$"#,##0.00';
-      row.getCell(2).alignment = { horizontal:'right' };
-      row.getCell(2).font = { name:'Calibri', size:11, bold:true };
-    }
+    row.height = 20;
+    row.getCell(1).font = { name:EXCEL_THEME.fontBody, size:10, bold:true, color:{argb:EXCEL_THEME.textSoft} };
+    row.getCell(1).alignment = { vertical:'middle', indent:1 };
+    row.getCell(2).font = { name:EXCEL_THEME.fontBody, size:11, color:{argb:EXCEL_THEME.text} };
+    row.getCell(2).alignment = { vertical:'middle' };
   });
 
-  // Hoja 2: Movimientos
+  // Bloque TOTALES
+  ws1.mergeCells('A' + (ws1.lastRow.number + 1) + ':B' + (ws1.lastRow.number + 1));
+  var totHeaderRow = ws1.addRow(['']);
+  ws1.mergeCells('A' + totHeaderRow.number + ':B' + totHeaderRow.number);
+  totHeaderRow.getCell(1).value = 'TOTALES DE LA OBRA';
+  totHeaderRow.height = 28;
+  totHeaderRow.getCell(1).font = { name:EXCEL_THEME.fontTitle, size:14, bold:true, color:{argb:EXCEL_THEME.white} };
+  totHeaderRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.text} };
+  totHeaderRow.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+
+  [
+    ['Total comprado en esta obra', totalComprado, EXCEL_THEME.text],
+    ['Total pagado en esta obra', totalPagado, EXCEL_THEME.success],
+    ['Saldo final de la obra', totalComprado - totalPagado, (totalComprado - totalPagado) > 0.005 ? EXCEL_THEME.danger : EXCEL_THEME.success]
+  ].forEach(function(triple){
+    var row = ws1.addRow([triple[0], triple[1]]);
+    row.height = 24;
+    row.getCell(1).font = { name:EXCEL_THEME.fontBody, size:11, bold:true };
+    row.getCell(1).alignment = { vertical:'middle', indent:1 };
+    row.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+    row.getCell(2).font = { name:EXCEL_THEME.fontBody, size:13, bold:true, color:{argb:triple[2]} };
+    row.getCell(2).numFmt = '"$"#,##0.00';
+    row.getCell(2).alignment = { vertical:'middle', horizontal:'right' };
+    row.getCell(2).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+  });
+
+  // Aviso si no hay movimientos
+  if(movs.length === 0){
+    ws1.addRow([]);
+    ws1.mergeCells('A' + (ws1.lastRow.number + 1) + ':B' + (ws1.lastRow.number + 1));
+    var avisoRow = ws1.addRow(['']);
+    ws1.mergeCells('A' + avisoRow.number + ':B' + avisoRow.number);
+    avisoRow.getCell(1).value = '⚠ No se encontraron movimientos asociados a esta obra';
+    avisoRow.height = 40;
+    avisoRow.getCell(1).font = { name:EXCEL_THEME.fontBody, size:11, bold:true, color:{argb:EXCEL_THEME.danger}, italic:true };
+    avisoRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+    avisoRow.getCell(1).alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+  }
+
+  // ── HOJA 2: MOVIMIENTOS ────────────────────────────
   var ws2 = wb.addWorksheet('Movimientos', {
     properties: { tabColor: { argb: EXCEL_THEME.accent } },
-    views: [{ state: 'frozen', ySplit: 4 }]
+    views: [{ state: 'frozen', ySplit: 5 }],
+    pageSetup: { paperSize: 9, orientation: 'landscape', margins: {left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.3,footer:0.3} }
   });
   ws2.columns = [
-    { header:'Fecha', width:11 },
-    { header:'Hora', width:8 },
-    { header:'Tipo', width:9 },
-    { header:'Número', width:12 },
-    { header:'Detalle', width:32 },
-    { header:'Monto', width:14 }
+    { width:12 },
+    { width:9 },
+    { width:11 },
+    { width:14 },
+    { width:38 },
+    { width:16 }
   ];
-  ws2.mergeCells('A1:F1');
-  applyTitleRow(ws2.getRow(1), 'MOVIMIENTOS DE LA OBRA');
-  ws2.getRow(1).getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
-  ws2.mergeCells('A2:F2');
-  applySubtitleRow(ws2.getRow(2), obraNombre === 'general' ? 'Cuenta general' : obraNombre);
-  ws2.addRow([]);
-  applyHeaderRow(ws2.getRow(4), ['Fecha','Hora','Tipo','Número','Detalle','Monto']);
 
+  // Marca arriba de la hoja de movimientos
+  ws2.mergeCells('A1:F1');
+  var marcaMov = ws2.getRow(1);
+  marcaMov.height = 36;
+  marcaMov.getCell(1).value = COMERCIA_BRAND.name;
+  marcaMov.getCell(1).font = { name:EXCEL_THEME.fontTitle, size:22, bold:true, color:{argb:EXCEL_THEME.text} };
+  marcaMov.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
+  marcaMov.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+
+  // Título de la sección
+  ws2.mergeCells('A2:F2');
+  var rowTit2 = ws2.getRow(2);
+  rowTit2.height = 30;
+  rowTit2.getCell(1).value = 'MOVIMIENTOS DE LA OBRA';
+  rowTit2.getCell(1).font = { name:EXCEL_THEME.fontTitle, size:16, bold:true, color:{argb:EXCEL_THEME.text} };
+  rowTit2.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+  rowTit2.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+  rowTit2.getCell(1).border = { bottom:{style:'medium', color:{argb:EXCEL_THEME.accent}} };
+
+  // Subtítulo
+  ws2.mergeCells('A3:F3');
+  var rowSub2 = ws2.getRow(3);
+  rowSub2.height = 20;
+  rowSub2.getCell(1).value = (obraNombre === 'general' ? 'Cuenta general' : obraNombre) + ' · ' + movs.length + ' movimiento' + (movs.length!==1?'s':'');
+  rowSub2.getCell(1).font = { name:EXCEL_THEME.fontBody, size:10, italic:true, color:{argb:EXCEL_THEME.textSoft} };
+  rowSub2.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+
+  // Fila vacía separadora
+  ws2.addRow([]);
+
+  // Header de la tabla
+  applyHeaderRow(ws2.getRow(5), ['Fecha','Hora','Tipo','Número','Detalle','Monto']);
+
+  // Datos
   var sorted = movs.slice().sort(function(a,b){ return new Date(a.fecha) - new Date(b.fecha); });
   sorted.forEach(function(m){
     var fecha = new Date(m.fecha);
-    var tipo = m.tipo === 'venta' ? 'VENTA' : (m.tipo === 'cierre' ? 'CIERRE' : 'COBRO');
-    var monto = m.tipo === 'venta' ? (m.subtotalesPorObra[obraKey] || 0) : (m.monto || 0);
+    var tipo;
+    if(m.tipo === 'venta') tipo = 'VENTA (CTA CTE)';
+    else if(m.tipo === 'venta_pagada') tipo = 'VENTA (PAGADA)';
+    else if(m.tipo === 'cierre') tipo = 'CIERRE';
+    else tipo = 'COBRO';
+
+    var monto;
+    if(m.tipo === 'venta' || m.tipo === 'venta_pagada') monto = montoObraDeVenta(m);
+    else monto = m.monto || 0;
+
     var r = ws2.addRow([
       fecha.toLocaleDateString('es-AR'),
       fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}),
@@ -10448,11 +10585,43 @@ async function ccExportarExcelObra(obraKey, obraNombre){
       m.descripcion || '',
       monto
     ]);
+    r.height = 19;
     r.getCell(6).numFmt = '"$"#,##0.00';
     r.getCell(6).alignment = { horizontal:'right' };
+    r.getCell(2).alignment = { horizontal:'center' };
+    r.getCell(3).alignment = { horizontal:'center' };
+    // Color tipo
+    if(m.tipo === 'venta') r.getCell(3).font = { bold:true, color:{argb:EXCEL_THEME.danger} };
+    else if(m.tipo === 'venta_pagada') r.getCell(3).font = { bold:true, color:{argb:EXCEL_THEME.success} };
+    else r.getCell(3).font = { bold:true, color:{argb:EXCEL_THEME.accent} };
   });
+
   if(sorted.length > 0){
-    applyZebra(ws2, 5, 4+sorted.length, 1, 6);
+    applyZebra(ws2, 6, 5+sorted.length, 1, 6);
+    // Fila total
+    var totRow = ws2.addRow(['', '', '', '', 'TOTAL', { formula: 'SUM(F6:F'+(5+sorted.length)+')' }]);
+    applyTotalRow(totRow, 1, 6);
+    totRow.getCell(5).alignment = { horizontal:'right' };
+    totRow.getCell(6).numFmt = '"$"#,##0.00';
+    totRow.getCell(6).alignment = { horizontal:'right' };
+    // Autofiltro
+    ws2.autoFilter = {
+      from: { row:5, column:1 },
+      to:   { row:5+sorted.length, column:6 }
+    };
+  } else {
+    // Mensaje de no hay datos
+    ws2.mergeCells('A6:F6');
+    var emptyRow = ws2.getRow(6);
+    emptyRow.height = 60;
+    emptyRow.getCell(1).value = '⚠ No se encontraron movimientos asociados a esta obra.\nEsto puede ocurrir si los movimientos previos no tenían obra asignada en sus items.';
+    emptyRow.getCell(1).font = { name:EXCEL_THEME.fontBody, size:11, italic:true, color:{argb:EXCEL_THEME.textSoft} };
+    emptyRow.getCell(1).alignment = { vertical:'middle', horizontal:'center', wrapText:true };
+    emptyRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+    emptyRow.getCell(1).border = {
+      top: { style:'thin', color:{argb:EXCEL_THEME.border} },
+      bottom: { style:'thin', color:{argb:EXCEL_THEME.border} }
+    };
   }
 
   var nombreCli = (c.razonSocial||'cliente').replace(/[^a-z0-9]/gi,'_').substring(0,20);
