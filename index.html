@@ -2751,6 +2751,58 @@
   }
   .vci-remove:hover{background:var(--danger-soft);color:var(--danger)}
 
+  /* Fila "Agregar al pedido" dentro del item del carrito */
+  .vci-pedido-row{
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .vci-pedido-btn{
+    background:transparent;
+    color:var(--orange);
+    border:1px solid var(--orange);
+    font-size:11px;
+    font-weight:600;
+    padding:4px 10px;
+    border-radius:var(--r-sm);
+    cursor:pointer;
+    transition:all .12s;
+    font-family:var(--sans);
+    letter-spacing:-0.005em;
+  }
+  .vci-pedido-btn:hover{
+    background:var(--orange);
+    color:#fff;
+  }
+  .vci-pedido-qty{
+    width:54px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--text);
+    font-size:11px;
+    padding:3px 6px;
+    border-radius:var(--r-sm);
+    text-align:center;
+    font-family:var(--mono);
+  }
+  .vci-pedido-qty:focus{outline:none;border-color:var(--orange)}
+  .vci-ped-badge{
+    margin-left:auto;
+    background:var(--orange-soft);
+    color:var(--orange);
+    font-size:10px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:99px;
+    border:1px solid var(--orange);
+    font-family:var(--mono);
+    white-space:nowrap;
+  }
+
   .ventas-cart-foot{
     border-top:1px solid var(--line);
     padding:12px 16px;
@@ -8606,6 +8658,20 @@ function renderCarrito(){
       }
     }
 
+    // Estado: ¿está en pedido?
+    var enPedido = pedItems.find(function(x){ return x.producto._id === p._id; });
+    var enPedidoCant = enPedido ? enPedido.cantidad : 0;
+    var pedBadge = enPedido
+      ? '<span class="vci-ped-badge" title="Ya en pedido">&#128722; En pedido: '+enPedido.cantidad+'</span>'
+      : '';
+    var pedActionHtml = '<div class="vci-pedido-row">'+
+        '<button class="vci-pedido-btn" onclick="agregarItemAPedidoDesdeCarrito('+i+')" title="Agregar este producto a la orden de compra">'+
+          '&#43; '+ (enPedido ? 'sumar al pedido' : 'al pedido') +
+        '</button>'+
+        '<input type="number" class="vci-pedido-qty" id="vciPedQty'+i+'" min="1" value="'+(enPedido ? 1 : item.cantidad)+'" title="Cantidad a agregar al pedido">'+
+        pedBadge+
+      '</div>';
+
     html += '<div class="ventas-cart-item">'+
       '<div class="vci-info">'+
         '<div class="vci-desc" title="'+eH(p.descripcion||'')+'">'+eH(p.descripcion||'-')+'</div>'+
@@ -8627,9 +8693,34 @@ function renderCarrito(){
         '</div>'+
       '</div>'+
       obraSelectorHtml+
+      pedActionHtml+
     '</div>';
   });
   cont.innerHTML = html;
+}
+
+// Agregar item del carrito al pedido (desde el botón en el item)
+function agregarItemAPedidoDesdeCarrito(idx){
+  var item = carritoVenta[idx];
+  if(!item) return;
+  var qtyInput = document.getElementById('vciPedQty'+idx);
+  var cant = qtyInput ? Math.max(1, parseInt(qtyInput.value) || 1) : 1;
+
+  var existing = pedItems.find(function(x){ return x.producto._id === item.producto._id; });
+  if(existing){
+    existing.cantidad += cant;
+    toast(item.producto.descripcion ? item.producto.descripcion.substring(0,30)+'... +'+cant+' (total: '+existing.cantidad+')' : '+'+cant+' (total: '+existing.cantidad+')', 'success');
+  } else {
+    pedItems.push({ producto: item.producto, cantidad: cant });
+    toast(item.producto.descripcion ? item.producto.descripcion.substring(0,30)+'... agregado al pedido ('+cant+')' : 'Agregado al pedido ('+cant+')', 'success');
+  }
+  // Re-render carrito para actualizar el badge
+  renderCarrito();
+  // Si hay vista de pedido visible, también
+  if(typeof renderPedido === 'function' && document.getElementById('moduleOrden') && document.getElementById('moduleOrden').classList.contains('active')){
+    renderPedido();
+    actualizarStatsPedido();
+  }
 }
 
 // ── Selector GLOBAL de obra del carrito ──
@@ -10577,12 +10668,21 @@ async function ccExportarExcelObra(obraKey, obraNombre){
     if(m.tipo === 'venta' || m.tipo === 'venta_pagada') monto = montoObraDeVenta(m);
     else monto = m.monto || 0;
 
+    // Generar detalle si está vacío
+    var detalle = m.descripcion || '';
+    if(!detalle && m.items && m.items.length > 0){
+      var primero = m.items[0].descripcion || m.items[0].codigo || '';
+      if(m.items.length === 1) detalle = primero.substring(0, 80);
+      else detalle = primero.substring(0, 50) + ' + ' + (m.items.length - 1) + ' más';
+    }
+    if(!detalle && m.metodo) detalle = 'Método: ' + m.metodo;
+
     var r = ws2.addRow([
       fecha.toLocaleDateString('es-AR'),
       fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'}),
       tipo,
       m.numero || '',
-      m.descripcion || '',
+      detalle,
       monto
     ]);
     r.height = 19;
@@ -11140,7 +11240,16 @@ async function ccExportarExcel(esCierre){
       num = m.numero || '';
       debe = m.monto || 0;
       acumulado += (m.monto || 0);
-      detalle = (m.items && m.items.length>0) ? (m.items.length + ' item' + (m.items.length!==1?'s':'')) : '';
+      // Usar descripción si la tiene, sino generar desde items
+      if(m.descripcion){
+        detalle = m.descripcion;
+      } else if(m.items && m.items.length > 0){
+        var primeroV = m.items[0].descripcion || m.items[0].codigo || '';
+        if(m.items.length === 1) detalle = primeroV.substring(0, 80);
+        else detalle = primeroV.substring(0, 50) + ' + ' + (m.items.length - 1) + ' más';
+      } else {
+        detalle = '';
+      }
     } else if(m.tipo === 'cierre'){
       tipo = 'CIERRE';
       num = '';
@@ -11406,6 +11515,18 @@ async function registrarVentaEnCtaCte(cliente, ventaData, montoCtaCte){
     prorrateoPorObra[OBRA_GENERAL_KEY] = montoCtaCte;
   }
 
+  // Generar descripción legible desde items
+  var descripcionAuto = '';
+  if(ventaData.items && ventaData.items.length > 0){
+    var primero = ventaData.items[0].descripcion || ventaData.items[0].codigo || '';
+    var totalItems = ventaData.items.length;
+    if(totalItems === 1){
+      descripcionAuto = primero.substring(0, 80);
+    } else {
+      descripcionAuto = primero.substring(0, 50) + ' + ' + (totalItems - 1) + ' más';
+    }
+  }
+
   var movData = {
     tipo: 'venta',
     fecha: ventaData.fecha || ahora.toISOString(),
@@ -11413,7 +11534,7 @@ async function registrarVentaEnCtaCte(cliente, ventaData, montoCtaCte){
     ventaId: ventaData._id,
     numero: ventaData.numero,
     items: ventaData.items || [],
-    descripcion: '',
+    descripcion: descripcionAuto,
     subtotalesPorObra: prorrateoPorObra,
     vendedorUid: ventaData.vendedorUid || '',
     vendedorEmail: ventaData.vendedorEmail || '',
