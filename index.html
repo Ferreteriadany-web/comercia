@@ -901,7 +901,7 @@
     background:var(--paper);
     border:1px solid var(--line);
     color:var(--text);
-    padding:9px 12px 9px 36px;
+    padding:9px 44px 9px 36px;
     border-radius:var(--r-md);
     font-size:13px;
     font-family:var(--sans);
@@ -921,6 +921,34 @@
     transform:translateY(-50%);
     color:var(--text-mute);
     font-size:13px;
+  }
+  .search-scan-btn{
+    position:absolute;
+    right:6px;
+    top:50%;
+    transform:translateY(-50%);
+    width:34px;
+    height:30px;
+    background:var(--purple-soft);
+    border:1px solid var(--purple);
+    color:var(--purple);
+    border-radius:var(--r-sm);
+    font-size:16px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    line-height:1;
+    padding:0;
+    transition:all .12s;
+  }
+  .search-scan-btn:hover{
+    background:var(--purple);
+    color:#fff;
+    transform:translateY(-50%) scale(1.05);
+  }
+  .search-scan-btn:active{
+    transform:translateY(-50%) scale(0.95);
   }
 
   /* DROPDOWN */
@@ -2323,9 +2351,12 @@
   /* Código de barras */
   .barcode-row{
     display:grid;
-    grid-template-columns:1fr 110px auto;
+    grid-template-columns:1fr 110px auto auto;
     gap:6px;
     align-items:stretch;
+  }
+  @media (max-width:520px){
+    .barcode-row{grid-template-columns:1fr 1fr;}
   }
   .barcode-preview{
     margin-top:8px;
@@ -2343,6 +2374,22 @@
     font-family:var(--mono);
     font-size:11px;
     padding:14px;
+  }
+
+  /* SCANNER MODAL */
+  .scanner-modal #scannerReader video{
+    width:100% !important;
+    max-height:70vh;
+    object-fit:cover;
+    border-radius:var(--r-md);
+  }
+  .scanner-modal #scannerReader{
+    border:3px solid var(--purple);
+  }
+  #scannerTorchBtn.active{
+    background:var(--accent);
+    color:#000;
+    border-color:var(--accent);
   }
   .barcode-type-select{
     background:var(--bg);
@@ -3321,6 +3368,7 @@
             <div class="search-box">
               <span class="search-icon">&#128269;</span>
               <input class="search-input" id="prodSearch" type="text" placeholder="Buscar por código, descripción o proveedor..." autocomplete="off">
+              <button class="search-scan-btn" onclick="scanParaProductos()" title="Escanear código con cámara">&#128247;</button>
               <div class="search-dropdown" id="prodDropdown"></div>
             </div>
           </div>
@@ -3487,6 +3535,7 @@
                     <div class="search-box" style="flex:1;min-width:240px">
                       <span class="search-icon">&#128269;</span>
                       <input class="search-input" id="vSearch" type="text" placeholder="Buscar producto por código, descripción o escanear código de barras..." autocomplete="off">
+                      <button class="search-scan-btn" onclick="scanParaPOS()" title="Escanear código con cámara">&#128247;</button>
                     </div>
                     <select class="form-input" id="vProvSelect" onchange="vSeleccionarProveedor(this.value)" style="width:240px;flex-shrink:0">
                       <option value="">Todos los proveedores</option>
@@ -3704,6 +3753,7 @@
               <div class="search-box" style="flex:1;min-width:260px">
                 <span class="search-icon">&#128269;</span>
                 <input class="search-input" id="pedSearch" type="text" placeholder="Buscar por código, descripción o proveedor..." autocomplete="off">
+                <button class="search-scan-btn" onclick="scanParaPedido()" title="Escanear código con cámara">&#128247;</button>
                 <div class="search-dropdown" id="pedDropdown"></div>
               </div>
               <select class="form-input" id="pedFiltroProveedor" style="width:200px" onchange="filtrarPorProveedor()">
@@ -4148,11 +4198,12 @@
     <div class="form-section-title">Código de barras</div>
     <div class="form-group" style="margin-bottom:6px">
       <div class="barcode-row">
-        <input class="form-input" type="text" id="prodCodBarra" placeholder="Vacío o generar" oninput="prodBarcodeRender()">
+        <input class="form-input" type="text" id="prodCodBarra" placeholder="Escaneá o tipeá el código" oninput="prodBarcodeRender()">
         <select class="barcode-type-select" id="prodBarcodeTipo" onchange="prodBarcodeRender()">
           <option value="EAN13">EAN-13</option>
           <option value="CODE128" selected>Code-128</option>
         </select>
+        <button type="button" class="btn btn-line btn-sm" onclick="scanCodBarraProducto()" title="Escanear con cámara">&#128247; Escanear</button>
         <button type="button" class="btn btn-line btn-sm" onclick="prodBarcodeGenerar()" title="Generar automático">&#9889; Generar</button>
       </div>
       <div class="barcode-preview" id="prodBarcodePreview"></div>
@@ -4647,6 +4698,35 @@
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL ESCANER DE CÓDIGO DE BARRAS ═══════════════════ -->
+<div class="modal-overlay" id="modalScanner">
+  <div class="modal scanner-modal" style="max-width:560px;border-top-color:var(--purple);padding:18px">
+    <button class="modal-close" onclick="cerrarScanner()">&times;</button>
+    <div class="modal-eyebrow" style="color:var(--purple)">&#128247; Escáner de código</div>
+    <h2 class="modal-title" id="scannerTitle" style="margin-bottom:8px">Escanear código de barras</h2>
+    <p class="modal-subtitle" id="scannerSubtitle" style="margin-bottom:12px">Apuntá la cámara al código del producto.</p>
+
+    <div id="scannerReader" style="width:100%;border-radius:var(--r-md);overflow:hidden;background:#000;min-height:260px;position:relative">
+      <div id="scannerLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-family:var(--mono);text-align:center;padding:20px">
+        Iniciando cámara...<br><span style="font-size:11px;opacity:.7">Permití el acceso cuando lo pida el navegador</span>
+      </div>
+    </div>
+
+    <div id="scannerError" class="alert error" style="margin-top:10px;display:none"></div>
+
+    <div style="display:flex;gap:10px;margin-top:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-line btn-sm" id="scannerSwitchCam" onclick="scannerSwitchCamera()" style="display:none">&#128260; Cambiar cámara</button>
+      <button class="btn btn-line btn-sm" id="scannerTorchBtn" onclick="scannerToggleTorch()" style="display:none">&#128161; Linterna</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-sm" onclick="cerrarScanner()">Cancelar</button>
+    </div>
+
+    <div id="scannerLastDetected" style="display:none;margin-top:10px;padding:8px 12px;background:var(--success-soft);border:1px solid var(--success);border-radius:var(--r-md);font-size:12px;color:var(--success);font-family:var(--mono)">
+      <strong>Detectado:</strong> <span id="scannerLastCode"></span>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -4657,6 +4737,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -11866,6 +11947,307 @@ async function registrarVentaEnCtaCte(cliente, ventaData, montoCtaCte){
   cliente.ultimoMovimientoCC = ahora.toISOString();
   cliente.updatedAt = ahora.toISOString();
   await idbGuardarClientes(currentEmpresaId, [cliente]);
+}
+
+// ═══════════════════════════════════════════════════════
+// ESCÁNER DE CÓDIGO DE BARRAS (cámara del cel/PC)
+// ═══════════════════════════════════════════════════════
+var _scannerInstance = null;
+var _scannerCameras = [];
+var _scannerCurrentCam = 0;
+var _scannerCallback = null;
+var _scannerLastCode = '';
+var _scannerLastTime = 0;
+var _scannerTorchOn = false;
+
+// Abre el modal scanner. callback recibe el código escaneado.
+// opts: { title, subtitle, autoClose, continuous }
+//   autoClose: cerrar al detectar primer código (default true)
+//   continuous: seguir escaneando después de detectar (default !autoClose)
+function abrirScanner(callback, opts){
+  opts = opts || {};
+  if(typeof Html5Qrcode === 'undefined'){
+    toast('Librería de escáner cargando... esperá unos segundos', 'error');
+    return;
+  }
+  _scannerCallback = callback;
+
+  // Set título/subtítulo
+  var titleEl = document.getElementById('scannerTitle');
+  var subEl = document.getElementById('scannerSubtitle');
+  if(titleEl) titleEl.textContent = opts.title || 'Escanear código de barras';
+  if(subEl) subEl.textContent = opts.subtitle || 'Apuntá la cámara al código del producto.';
+
+  // Configurar comportamiento
+  _scannerInstance = { _autoClose: opts.autoClose !== false };
+
+  // Mostrar modal
+  closeModals();
+  document.getElementById('modalScanner').classList.add('show');
+  document.getElementById('scannerError').style.display = 'none';
+  document.getElementById('scannerLastDetected').style.display = 'none';
+  document.getElementById('scannerLoading').style.display = 'flex';
+  _scannerLastCode = '';
+  _scannerTorchOn = false;
+
+  // Iniciar cámara
+  setTimeout(iniciarScanner, 200);
+}
+
+async function iniciarScanner(){
+  try{
+    // Obtener cámaras disponibles
+    _scannerCameras = await Html5Qrcode.getCameras();
+    if(!_scannerCameras || _scannerCameras.length === 0){
+      mostrarErrorScanner('No se encontraron cámaras en este dispositivo.');
+      return;
+    }
+
+    // Mostrar botón cambiar cámara si hay más de una
+    var switchBtn = document.getElementById('scannerSwitchCam');
+    if(switchBtn) switchBtn.style.display = _scannerCameras.length > 1 ? '' : 'none';
+
+    // Preferir cámara trasera en mobile
+    _scannerCurrentCam = 0;
+    var backCam = _scannerCameras.findIndex(function(c){
+      var label = (c.label || '').toLowerCase();
+      return label.indexOf('back') >= 0 || label.indexOf('rear') >= 0 || label.indexOf('environment') >= 0 || label.indexOf('trasera') >= 0;
+    });
+    if(backCam >= 0) _scannerCurrentCam = backCam;
+
+    await arrancarCamaraScanner();
+  }catch(err){
+    console.error('Scanner init error:', err);
+    mostrarErrorScanner('Error al iniciar cámara: ' + (err.message || 'permiso denegado'));
+  }
+}
+
+async function arrancarCamaraScanner(){
+  // Limpiar instancia previa si existe
+  if(_scannerInstance && _scannerInstance.stop){
+    try{ await _scannerInstance.stop(); }catch(e){}
+    try{ _scannerInstance.clear(); }catch(e){}
+  }
+
+  var autoClose = _scannerInstance ? _scannerInstance._autoClose : true;
+  _scannerInstance = new Html5Qrcode('scannerReader');
+  _scannerInstance._autoClose = autoClose;
+
+  var camId = _scannerCameras[_scannerCurrentCam].id;
+  var config = {
+    fps: 10,
+    qrbox: function(viewfinderWidth, viewfinderHeight){
+      var minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+      var edgeFraction = 0.75;
+      var qrboxSize = Math.floor(minEdge * edgeFraction);
+      // Códigos de barras son anchos: hacer rectángulo
+      return {
+        width: Math.min(qrboxSize, viewfinderWidth - 20),
+        height: Math.floor(qrboxSize * 0.45)
+      };
+    },
+    aspectRatio: 1.5
+  };
+
+  try{
+    await _scannerInstance.start(
+      camId,
+      config,
+      onScanSuccess,
+      function(){} // ignoramos errores de cada frame (son ruido)
+    );
+    document.getElementById('scannerLoading').style.display = 'none';
+
+    // Detectar si la cámara tiene linterna
+    setTimeout(detectarLinterna, 800);
+  }catch(err){
+    console.error('Scanner start error:', err);
+    mostrarErrorScanner('No se pudo iniciar la cámara: ' + (err.message || err));
+  }
+}
+
+function onScanSuccess(decodedText){
+  if(!decodedText) return;
+
+  // Debounce: si es el mismo código en menos de 2s, ignorar (evita lecturas duplicadas)
+  var ahora = Date.now();
+  if(decodedText === _scannerLastCode && (ahora - _scannerLastTime) < 2000) return;
+  _scannerLastCode = decodedText;
+  _scannerLastTime = ahora;
+
+  // Vibrar el celular si es soportado (feedback)
+  try{ if(navigator.vibrate) navigator.vibrate(100); }catch(e){}
+
+  // Mostrar el código detectado
+  var lastEl = document.getElementById('scannerLastDetected');
+  var codeEl = document.getElementById('scannerLastCode');
+  if(lastEl && codeEl){
+    codeEl.textContent = decodedText;
+    lastEl.style.display = 'block';
+  }
+
+  // Ejecutar callback con el código
+  var cb = _scannerCallback;
+  if(cb){
+    try{ cb(decodedText); }catch(e){ console.error('Scanner callback error:', e); }
+  }
+
+  // Auto-cerrar si está configurado
+  if(_scannerInstance && _scannerInstance._autoClose){
+    setTimeout(cerrarScanner, 350);
+  }
+}
+
+async function cerrarScanner(){
+  if(_scannerInstance && _scannerInstance.stop){
+    try{ await _scannerInstance.stop(); }catch(e){}
+    try{ _scannerInstance.clear(); }catch(e){}
+  }
+  _scannerInstance = null;
+  _scannerCallback = null;
+  _scannerTorchOn = false;
+  var modal = document.getElementById('modalScanner');
+  if(modal) modal.classList.remove('show');
+}
+
+async function scannerSwitchCamera(){
+  if(_scannerCameras.length < 2) return;
+  _scannerCurrentCam = (_scannerCurrentCam + 1) % _scannerCameras.length;
+  document.getElementById('scannerLoading').style.display = 'flex';
+  await arrancarCamaraScanner();
+}
+
+function detectarLinterna(){
+  // Detectar si el track de la cámara soporta torch
+  try{
+    if(!_scannerInstance) return;
+    var videoEl = document.querySelector('#scannerReader video');
+    if(!videoEl || !videoEl.srcObject) return;
+    var track = videoEl.srcObject.getVideoTracks()[0];
+    if(!track) return;
+    var caps = track.getCapabilities ? track.getCapabilities() : {};
+    if(caps.torch){
+      document.getElementById('scannerTorchBtn').style.display = '';
+    }
+  }catch(e){ /* no torch */ }
+}
+
+async function scannerToggleTorch(){
+  try{
+    var videoEl = document.querySelector('#scannerReader video');
+    if(!videoEl || !videoEl.srcObject) return;
+    var track = videoEl.srcObject.getVideoTracks()[0];
+    if(!track) return;
+    _scannerTorchOn = !_scannerTorchOn;
+    await track.applyConstraints({ advanced: [{ torch: _scannerTorchOn }] });
+    document.getElementById('scannerTorchBtn').classList.toggle('active', _scannerTorchOn);
+  }catch(err){
+    console.warn('No se pudo toggle torch:', err);
+  }
+}
+
+function mostrarErrorScanner(msg){
+  var loadEl = document.getElementById('scannerLoading');
+  var errEl = document.getElementById('scannerError');
+  if(loadEl) loadEl.style.display = 'none';
+  if(errEl){
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  }
+}
+
+// ── INTEGRACIONES POR CONTEXTO ──
+
+// Productos: scanner para llenar el campo "Código de barras" del modal de edición
+function scanCodBarraProducto(){
+  abrirScanner(function(code){
+    var inp = document.getElementById('prodCodBarra');
+    if(inp){
+      inp.value = code;
+      // Disparar evento input para que se actualice el preview del barcode
+      try{ inp.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
+      toast('Código asignado: ' + code, 'success');
+    }
+  }, {
+    title: 'Escanear código del producto',
+    subtitle: 'Apuntá la cámara al código de barras impreso del producto.',
+    autoClose: true
+  });
+}
+
+// Ventas (POS): buscar producto por código y agregarlo al carrito
+function scanParaPOS(){
+  abrirScanner(function(code){
+    // Buscar producto por código de barras o código interno
+    var p = productos.find(function(x){
+      return (x.codBarra && x.codBarra === code) || (x.codigo && x.codigo === code);
+    });
+    if(!p){
+      toast('Producto no encontrado: ' + code, 'error');
+      return;
+    }
+    if(!p.precioVenta){
+      toast('Sin precio: ' + (p.descripcion||code).substring(0,30), 'error');
+      return;
+    }
+    // Usar función existente del POS
+    if(typeof agregarAlCarrito === 'function'){
+      agregarAlCarrito(p._id);
+    } else {
+      // Fallback: agregar manualmente
+      var existing = carritoVenta.find(function(x){ return x.producto._id === p._id; });
+      if(existing){
+        existing.cantidad++;
+      } else {
+        var obraInicial = (!_asignarIndividual && obraGlobalActual) ? obraGlobalActual : '';
+        carritoVenta.push({ producto: p, cantidad: 1, obra: obraInicial });
+      }
+      renderCarrito();
+      recalcularVenta();
+      if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
+    }
+    toast('+ ' + (p.descripcion||code).substring(0,40), 'success');
+  }, {
+    title: 'Escanear producto',
+    subtitle: 'Apuntá al código del producto que querés agregar al carrito.',
+    autoClose: false // modo continuo: podés escanear varios seguidos
+  });
+}
+
+// Pedidos: buscar producto y agregar al pedido
+function scanParaPedido(){
+  abrirScanner(function(code){
+    var p = productos.find(function(x){
+      return (x.codBarra && x.codBarra === code) || (x.codigo && x.codigo === code);
+    });
+    if(!p){
+      toast('Producto no encontrado: ' + code, 'error');
+      return;
+    }
+    if(typeof agregarProductoPedido === 'function'){
+      agregarProductoPedido(p._id);
+    }
+    toast('+ ' + (p.descripcion||code).substring(0,40), 'success');
+  }, {
+    title: 'Escanear producto',
+    subtitle: 'Apuntá al código del producto que querés agregar al pedido.',
+    autoClose: false
+  });
+}
+
+// Productos (buscador del listado): llenar el buscador y filtrar
+function scanParaProductos(){
+  abrirScanner(function(code){
+    var inp = document.getElementById('prodSearch');
+    if(inp){
+      inp.value = code;
+      try{ inp.dispatchEvent(new Event('input', {bubbles:true})); }catch(e){}
+    }
+  }, {
+    title: 'Escanear para buscar',
+    subtitle: 'Apuntá al código de barras del producto para buscarlo.',
+    autoClose: true
+  });
 }
 
 </script>
