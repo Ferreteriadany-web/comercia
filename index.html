@@ -10514,204 +10514,239 @@ async function descargarVentaPDF(){
   }
 }
 
-// Construye el HTML para imprimir en A4 (con marca Comercia + logo + watermark)
+// Construye el HTML para imprimir en A4 — formato profesional formal estilo factura argentina
 function construirHtmlVentaA4(v){
   var fecha = new Date(v.fecha);
-  var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  var fechaStr = fecha.toLocaleDateString('es-AR');
+  var horaStr = fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
   var modoLbl = (v.modo || 'ticket').toUpperCase();
   var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Mi Empresa';
 
-  // SVG inline del logo Comercia (ícono cuadrado con gradiente + "C" estilizada)
-  var logoComerciaSvg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="36" height="36">'+
+  // SVG inline del logo Comercia
+  var logoComerciaSvg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="22" height="22" style="vertical-align:middle">'+
     '<defs><linearGradient id="gLogoPdf" x1="0%" y1="0%" x2="100%" y2="100%">'+
     '<stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs>'+
     '<rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gLogoPdf)"/>'+
     '<path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>'+
     '<circle cx="29" cy="20" r="2.4" fill="#fff"/></svg>';
 
-  // Items HTML
-  var itemsRows = v.items.map(function(it){
-    return '<tr>'+
-      '<td>'+eH(it.codigo||'')+'</td>'+
-      '<td>'+eH(it.descripcion||'-')+'</td>'+
-      '<td style="text-align:center">'+it.cantidad+'</td>'+
-      '<td style="text-align:right">'+fmtPeso(it.precioUnit)+'</td>'+
-      '<td style="text-align:right;font-weight:600">'+fmtPeso(it.subtotal)+'</td>'+
-      (it.obra?'<td style="font-size:10px;color:#666">'+eH(it.obra)+'</td>':'<td></td>')+
-    '</tr>';
-  }).join('');
+  // Color por tipo de comprobante
+  var colorTipo = '#1a1a23';
+  if(modoLbl === 'REMITO'){ colorTipo = '#7c3aed'; }
+  else if(modoLbl === 'PRESUPUESTO'){ colorTipo = '#ea580c'; }
 
-  // Pagos
-  var pagosHtml = '';
+  // Items HTML — cada producto en su fila con todas las casillas bordeadas
+  var itemsRows = '';
+  v.items.forEach(function(it, idx){
+    itemsRows += '<tr>'+
+      '<td class="td-center td-num">'+(idx+1)+'</td>'+
+      '<td class="td-code">'+eH(it.codigo||'-')+'</td>'+
+      '<td class="td-desc">'+eH(it.descripcion||'-')+
+        (it.obra?'<div class="td-obra">Obra: '+eH(it.obra)+'</div>':'')+
+      '</td>'+
+      '<td class="td-center">'+it.cantidad+'</td>'+
+      '<td class="td-right">'+fmtPeso(it.precioUnit)+'</td>'+
+      '<td class="td-right td-subt">'+fmtPeso(it.subtotal)+'</td>'+
+    '</tr>';
+  });
+  // Rellenar con filas vacías para que la tabla siempre tenga al menos 8 filas (estilo factura formal)
+  var filasVacias = Math.max(0, 8 - v.items.length);
+  for(var i=0; i<filasVacias; i++){
+    itemsRows += '<tr class="row-empty">'+
+      '<td class="td-center td-num">&nbsp;</td>'+
+      '<td>&nbsp;</td>'+
+      '<td>&nbsp;</td>'+
+      '<td>&nbsp;</td>'+
+      '<td>&nbsp;</td>'+
+      '<td>&nbsp;</td>'+
+    '</tr>';
+  }
+
+  // Pagos como tabla
+  var pagosRows = '';
   if(v.pagos && v.pagos.length > 0){
-    pagosHtml = v.pagos.map(function(p){
+    v.pagos.forEach(function(p){
       var lbl = (METODOS_PAGO.find(function(m){return m.value===p.metodo;}) || {label:p.metodo}).label;
-      return '<div class="pago-row"><span>'+eH(lbl)+'</span><span>'+fmtPeso(p.monto)+'</span></div>';
-    }).join('');
+      pagosRows += '<tr><td class="td-pago-lbl">'+eH(lbl)+'</td><td class="td-pago-val">'+fmtPeso(p.monto)+'</td></tr>';
+    });
   }
 
   // Cliente
-  var clienteHtml = v.cliente
-    ? '<div><strong>Cliente:</strong> '+eH(v.cliente.razonSocial)+(v.cliente.nombre?' '+eH(v.cliente.nombre):'')+'</div>'+
-      (v.cliente.numDoc?'<div><strong>'+(v.cliente.tipoDoc||'CUIT')+':</strong> '+eH(v.cliente.numDoc)+'</div>':'')+
-      (v.cliente.direccion?'<div><strong>Dirección:</strong> '+eH(v.cliente.direccion)+'</div>':'')+
-      (v.cliente.catFiscal?'<div><strong>Cat. Fiscal:</strong> '+eH(v.cliente.catFiscal)+'</div>':'')+
-      (v.cliente.telefono?'<div><strong>Tel:</strong> '+eH(v.cliente.telefono)+'</div>':'')
-    : '<div><strong>Cliente:</strong> Consumidor Final</div>';
-
-  // Color del comprobante según el modo
-  var colorTipo = '#1a1a23';
-  var colorBg = '#fbbf24';
-  if(modoLbl === 'REMITO'){ colorTipo = '#8b5cf6'; colorBg = '#ddd6fe'; }
-  else if(modoLbl === 'PRESUPUESTO'){ colorTipo = '#f97316'; colorBg = '#fed7aa'; }
-  else if(modoLbl === 'FACTURA'){ colorTipo = '#1a1a23'; colorBg = '#fbbf24'; }
+  var clienteNombre = v.cliente ? (v.cliente.razonSocial + (v.cliente.nombre?' '+v.cliente.nombre:'')) : 'Consumidor Final';
+  var clienteDoc = v.cliente && v.cliente.numDoc ? ((v.cliente.tipoDoc||'CUIT') + ': ' + v.cliente.numDoc) : '-';
+  var clienteDir = v.cliente && v.cliente.direccion ? v.cliente.direccion : '-';
+  var clienteCat = v.cliente && v.cliente.catFiscal ? v.cliente.catFiscal : '-';
+  var clienteTel = v.cliente && v.cliente.telefono ? v.cliente.telefono : '-';
+  var clienteEmail = v.cliente && v.cliente.email ? v.cliente.email : '-';
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+modoLbl+' '+v.numero+' - '+eH(empresaNombre)+'</title>'+
 '<style>'+
 '@page{size:A4;margin:0}'+
 '*{box-sizing:border-box;margin:0;padding:0}'+
-'body{font-family:Arial,Helvetica,sans-serif;color:#1a1a23;font-size:13px;line-height:1.45;background:#fff}'+
-'.doc-wrap{max-width:210mm;min-height:297mm;margin:0 auto;padding:14mm 16mm;position:relative;background:#fff}'+
+'html,body{background:#fff}'+
+'body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:#000;font-size:11px;line-height:1.35}'+
 
-/* MARCA DE AGUA DIAGONAL */
-'.watermark{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:0;overflow:hidden}'+
-'.watermark-text{font-family:Impact,"Arial Black",sans-serif;font-size:160px;font-weight:900;color:#fbbf24;opacity:0.04;transform:rotate(-30deg);letter-spacing:0.05em;white-space:nowrap}'+
+/* Marca de agua sutil */
+'.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-32deg);font-family:Impact,"Arial Black",sans-serif;font-size:180px;font-weight:900;color:#000;opacity:0.025;letter-spacing:0.06em;white-space:nowrap;z-index:0;pointer-events:none}'+
 
-'.doc-content{position:relative;z-index:1}'+
+'.doc{width:210mm;min-height:297mm;padding:14mm 12mm 14mm 12mm;margin:0 auto;position:relative;background:#fff;z-index:1}'+
 
-/* HEADER: BARRA SUPERIOR CON GRADIENTE Y EMPRESA */
-'.brand-strip{display:flex;align-items:center;gap:14px;padding:14px 18px;margin:-14mm -16mm 0 -16mm;background:linear-gradient(135deg,#fbbf24 0%,#f97316 100%);border-bottom:4px solid #1a1a23}'+
-'.brand-strip-empresa{flex:1;color:#1a1a23}'+
-'.brand-strip-empresa-name{font-size:28px;font-weight:900;letter-spacing:-0.02em;line-height:1.1;text-shadow:0 1px 0 rgba(255,255,255,.3)}'+
-'.brand-strip-empresa-tag{font-size:11px;font-weight:600;opacity:.75;margin-top:3px;letter-spacing:0.04em;text-transform:uppercase}'+
-'.brand-strip-doc{text-align:right;color:#1a1a23}'+
-'.brand-strip-doc-label{font-size:10px;font-weight:700;opacity:.75;letter-spacing:0.08em}'+
-'.brand-strip-doc-fecha{font-size:12px;font-family:"Courier New",monospace;font-weight:700;margin-top:2px}'+
+/* ─── CABEZAL TIPO FACTURA ARGENTINA (3 COLUMNAS) ─── */
+'.cabezal{display:grid;grid-template-columns:1fr 90px 1fr;border:2px solid #000;margin-bottom:10px}'+
+'.cabezal-empresa{padding:14px 16px;border-right:1px solid #000}'+
+'.cabezal-empresa-nombre{font-size:22px;font-weight:900;letter-spacing:-0.01em;color:#000;line-height:1.1;margin-bottom:6px}'+
+'.cabezal-empresa-data{font-size:10px;color:#333;line-height:1.5}'+
+'.cabezal-empresa-data div{margin-bottom:1px}'+
+'.cabezal-empresa-data strong{font-weight:700;color:#000}'+
+'.cabezal-letra{display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #000;background:#fafafa;padding:8px 0}'+
+'.cabezal-letra-big{font-size:54px;font-weight:900;line-height:1;font-family:Arial,sans-serif;color:#000;border:none}'+
+'.cabezal-letra-tag{font-size:9px;font-weight:700;letter-spacing:0.08em;color:#666;margin-top:4px}'+
+'.cabezal-doc{padding:14px 16px}'+
+'.cabezal-doc-tipo{font-size:14px;font-weight:800;color:'+colorTipo+';margin-bottom:6px;letter-spacing:0.04em}'+
+'.cabezal-doc-numero{font-size:18px;font-weight:700;font-family:"Courier New",monospace;margin-bottom:6px}'+
+'.cabezal-doc-fecha-lbl{font-size:9px;font-weight:700;color:#666;letter-spacing:0.06em;margin-top:6px}'+
+'.cabezal-doc-fecha-val{font-size:12px;font-weight:700;font-family:"Courier New",monospace;color:#000}'+
 
-/* SECCIÓN TIPO COMPROBANTE */
-'.tipo-section{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;padding:22px 0 14px;border-bottom:2px solid '+colorBg+'}'+
-'.tipo-letra{display:inline-block;font-size:54px;font-weight:900;border:4px solid '+colorTipo+';padding:6px 26px;background:#fff;color:'+colorTipo+';letter-spacing:0.05em;line-height:1;font-family:Arial,sans-serif}'+
-'.tipo-info{text-align:center}'+
-'.tipo-info-name{font-size:22px;font-weight:700;color:'+colorTipo+';letter-spacing:0.05em;margin-bottom:2px}'+
-'.tipo-info-numero{font-size:18px;font-weight:700;font-family:"Courier New",monospace;color:#1a1a23}'+
-'.tipo-info-fecha{font-size:11px;color:#666;font-family:"Courier New",monospace;margin-top:3px}'+
-'.tipo-orig{font-size:9px;font-weight:700;background:'+colorBg+';color:'+colorTipo+';padding:6px 12px;border-radius:4px;letter-spacing:0.08em;text-transform:uppercase}'+
+/* ─── DATOS DEL CLIENTE (CAJAS ETIQUETADAS) ─── */
+'.cliente-grid{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid #000;border-top:none;margin-bottom:10px}'+
+'.cliente-cell{padding:7px 10px;border-bottom:1px solid #ccc;border-right:1px solid #ccc;display:flex;align-items:baseline;gap:6px}'+
+'.cliente-cell:nth-child(2n){border-right:none}'+
+'.cliente-cell:last-child,.cliente-cell:nth-last-child(2){border-bottom:none}'+
+'.cliente-lbl{font-size:8px;font-weight:700;color:#666;letter-spacing:0.08em;text-transform:uppercase;min-width:70px;flex-shrink:0}'+
+'.cliente-val{font-size:11px;font-weight:600;color:#000;flex:1;word-break:break-word}'+
 
-/* CLIENTE */
-'.cliente-block{margin:18px 0;padding:14px 18px;background:#fafaf8;border-left:4px solid '+colorTipo+';border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.04)}'+
-'.cliente-block>div{margin-bottom:4px;font-size:12px}'+
-'.cliente-block strong{color:#1a1a23;font-weight:700}'+
+/* ─── TABLA DE PRODUCTOS (CON CASILLAS BORDEADAS) ─── */
+'.items-section{border:1.5px solid #000;margin-bottom:10px}'+
+'.items-table{width:100%;border-collapse:collapse}'+
+'.items-table thead th{background:'+colorTipo+';color:#fff;padding:8px 6px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;text-align:left;border:1px solid '+colorTipo+';border-bottom:2px solid #000}'+
+'.items-table thead th.th-center{text-align:center}'+
+'.items-table thead th.th-right{text-align:right}'+
+'.items-table tbody td{padding:7px 8px;border:1px solid #d0d0d0;font-size:11px;vertical-align:top;line-height:1.4;background:#fff}'+
+'.items-table tbody tr.row-empty td{background:#fff;height:24px}'+
+'.td-center{text-align:center}'+
+'.td-right{text-align:right;font-family:"Courier New",monospace}'+
+'.td-num{font-weight:700;background:#fafafa !important;color:#666;font-size:10px;width:24px}'+
+'.td-code{font-family:"Courier New",monospace;font-size:10px;color:#333;width:90px}'+
+'.td-desc{font-weight:500;color:#000}'+
+'.td-obra{font-size:9px;color:#7c3aed;margin-top:2px;font-style:italic}'+
+'.td-subt{font-weight:700;color:#000}'+
 
-/* TABLA ITEMS */
-'.items-title{font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;margin-top:6px}'+
-'table.items-table{width:100%;border-collapse:collapse;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);border-radius:4px;overflow:hidden}'+
-'.items-table th{background:#1a1a23;color:#fff;padding:11px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;border-bottom:3px solid '+colorBg+'}'+
-'.items-table td{padding:9px 10px;border-bottom:1px solid #e5e7eb;font-size:12px}'+
-'.items-table tr:nth-child(even) td{background:#fafaf8}'+
-'.items-table tr:last-child td{border-bottom:none}'+
+/* ─── TOTALES Y PAGOS (FILA INFERIOR DE 2 COLUMNAS) ─── */
+'.pie-grid{display:grid;grid-template-columns:1fr 280px;gap:0;margin-bottom:10px}'+
+'.pie-left{border:1.5px solid #000;padding:10px 12px;font-size:10px}'+
+'.pie-left-title{font-size:9px;font-weight:700;color:#666;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #000}'+
+'.pagos-table{width:100%;border-collapse:collapse}'+
+'.pagos-table td{padding:4px 0;font-size:11px;border:none}'+
+'.td-pago-lbl{color:#333}'+
+'.td-pago-val{text-align:right;font-family:"Courier New",monospace;font-weight:700;color:#000}'+
+'.obs-text{font-size:10px;color:#333;margin-top:8px;padding-top:6px;border-top:1px dashed #999;font-style:italic}'+
 
-/* TOTALES */
-'.totales-block{display:flex;justify-content:flex-end;margin-top:6px}'+
-'.totales-tabla{min-width:300px;font-size:13px;background:#fafaf8;padding:14px 18px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.06)}'+
-'.totales-tabla>div{display:flex;justify-content:space-between;padding:4px 0;color:#666}'+
-'.totales-tabla>div span:last-child{font-family:"Courier New",monospace;color:#1a1a23;font-weight:600}'+
-'.totales-tabla .total-row{border-top:3px double '+colorTipo+';margin-top:8px;padding-top:10px;font-size:18px;font-weight:800;color:'+colorTipo+'}'+
-'.totales-tabla .total-row span{color:'+colorTipo+' !important}'+
+'.pie-right{border:1.5px solid #000;border-left:none}'+
+'.totales-table{width:100%;border-collapse:collapse}'+
+'.totales-table td{padding:6px 12px;font-size:11px;border-bottom:1px solid #ccc}'+
+'.totales-table tr:last-child td{border-bottom:none}'+
+'.totales-table .lbl-tot{font-weight:600;color:#333}'+
+'.totales-table .val-tot{text-align:right;font-family:"Courier New",monospace;font-weight:700;color:#000;width:130px}'+
+'.totales-table .row-total td{background:'+colorTipo+';color:#fff;font-size:14px;font-weight:900;padding:10px 12px;border:none}'+
+'.totales-table .row-total .val-tot{color:#fff;font-size:16px}'+
 
-/* PAGOS */
-'.pagos-block{margin-top:18px;padding:12px 16px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.04)}'+
-'.pagos-title{font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px}'+
-'.pago-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}'+
-'.pago-row span:last-child{font-family:"Courier New",monospace;font-weight:600}'+
+/* ─── PIE: SELLO + FIRMA + BRAND COMERCIA ─── */
+'.firmas-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;margin-bottom:14px}'+
+'.firma-box{border-top:1px solid #999;padding-top:6px;text-align:center;font-size:9px;color:#666;letter-spacing:0.06em;text-transform:uppercase}'+
 
-/* OBSERVACIONES */
-'.obs-block{margin-top:16px;padding:11px 14px;background:#fefce8;border-left:4px solid #facc15;border-radius:3px;font-size:11px;color:#713f12}'+
+'.brand-footer{margin-top:auto;padding-top:14px;border-top:1.5px solid #000;display:flex;align-items:center;justify-content:space-between;font-size:9px;color:#555}'+
+'.brand-footer-left{display:flex;align-items:center;gap:8px}'+
+'.brand-name-impact{font-family:Impact,"Arial Black",sans-serif;font-size:18px;letter-spacing:0.08em;color:#000;line-height:1}'+
+'.brand-tag-it{font-style:italic;color:#666;font-size:9px}'+
+'.brand-doc-type{font-weight:700;color:'+colorTipo+';letter-spacing:0.06em;text-transform:uppercase;font-size:9px}'+
 
-/* FOOTER COMERCIA */
-'.footer-brand{margin-top:42px;padding:18px 0 0;border-top:2px dashed #ddd;position:relative}'+
-'.footer-brand-inner{display:flex;align-items:center;justify-content:center;gap:14px;text-align:center}'+
-'.footer-brand-logo{display:flex;align-items:center;gap:10px}'+
-'.footer-brand-name{font-family:Impact,"Arial Black",sans-serif;font-size:28px;letter-spacing:0.1em;color:#1a1a23;line-height:1}'+
-'.footer-brand-tag{font-size:10px;color:#666;font-style:italic;letter-spacing:0.04em}'+
-'.footer-brand-desc{margin-top:10px;text-align:center;font-size:9px;color:#999;line-height:1.5}'+
-'.footer-brand-desc strong{color:#666}'+
-
-'@media print{body{margin:0}.doc-wrap{max-width:100%;padding:14mm 16mm} .watermark-text{opacity:0.04 !important}}'+
+'@media print{body{margin:0}.doc{margin:0;padding:14mm 12mm} .watermark{opacity:0.025 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact} .items-table thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact} .totales-table .row-total td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
 '</style></head><body>'+
-'<div class="doc-wrap">'+
 
-/* MARCA DE AGUA */
-'<div class="watermark"><div class="watermark-text">COMERCIA</div></div>'+
+'<div class="watermark">COMERCIA</div>'+
 
-'<div class="doc-content">'+
+'<div class="doc">'+
 
-/* BRAND STRIP SUPERIOR */
-'<div class="brand-strip">'+
-  '<div class="brand-strip-empresa">'+
-    '<div class="brand-strip-empresa-name">'+eH(empresaNombre)+'</div>'+
-    '<div class="brand-strip-empresa-tag">Gestión profesional</div>'+
+/* CABEZAL TIPO FACTURA */
+'<div class="cabezal">'+
+  '<div class="cabezal-empresa">'+
+    '<div class="cabezal-empresa-nombre">'+eH(empresaNombre)+'</div>'+
+    '<div class="cabezal-empresa-data">'+
+      '<div><strong>Razón Social:</strong> '+eH(empresaNombre)+'</div>'+
+      '<div><strong>Domicilio:</strong> -</div>'+
+      '<div><strong>Cond. IVA:</strong> Responsable Inscripto</div>'+
+    '</div>'+
   '</div>'+
-  '<div class="brand-strip-doc">'+
-    '<div class="brand-strip-doc-label">FECHA DE EMISIÓN</div>'+
-    '<div class="brand-strip-doc-fecha">'+fechaStr+'</div>'+
+  '<div class="cabezal-letra">'+
+    '<div class="cabezal-letra-big">'+modoLbl.charAt(0)+'</div>'+
+    '<div class="cabezal-letra-tag">COD. '+(modoLbl==='FACTURA'?'01':modoLbl==='REMITO'?'91':'-')+'</div>'+
+  '</div>'+
+  '<div class="cabezal-doc">'+
+    '<div class="cabezal-doc-tipo">'+modoLbl+'</div>'+
+    '<div class="cabezal-doc-numero">N° '+eH(v.numero)+'</div>'+
+    '<div class="cabezal-doc-fecha-lbl">FECHA DE EMISIÓN</div>'+
+    '<div class="cabezal-doc-fecha-val">'+fechaStr+' '+horaStr+'</div>'+
   '</div>'+
 '</div>'+
 
-/* TIPO COMPROBANTE */
-'<div class="tipo-section">'+
-  '<div class="tipo-letra">'+modoLbl.charAt(0)+'</div>'+
-  '<div class="tipo-info">'+
-    '<div class="tipo-info-name">'+modoLbl+'</div>'+
-    '<div class="tipo-info-numero">N° '+eH(v.numero)+'</div>'+
-    '<div class="tipo-info-fecha">'+fechaStr+'</div>'+
-  '</div>'+
-  '<div class="tipo-orig">ORIGINAL</div>'+
+/* DATOS DEL CLIENTE */
+'<div class="cliente-grid">'+
+  '<div class="cliente-cell"><span class="cliente-lbl">Cliente</span><span class="cliente-val">'+eH(clienteNombre)+'</span></div>'+
+  '<div class="cliente-cell"><span class="cliente-lbl">Documento</span><span class="cliente-val">'+eH(clienteDoc)+'</span></div>'+
+  '<div class="cliente-cell"><span class="cliente-lbl">Domicilio</span><span class="cliente-val">'+eH(clienteDir)+'</span></div>'+
+  '<div class="cliente-cell"><span class="cliente-lbl">Cond. IVA</span><span class="cliente-val">'+eH(clienteCat)+'</span></div>'+
+  '<div class="cliente-cell"><span class="cliente-lbl">Teléfono</span><span class="cliente-val">'+eH(clienteTel)+'</span></div>'+
+  '<div class="cliente-cell"><span class="cliente-lbl">Email</span><span class="cliente-val">'+eH(clienteEmail)+'</span></div>'+
 '</div>'+
 
-/* CLIENTE */
-'<div class="cliente-block">'+clienteHtml+'</div>'+
-
-/* ITEMS */
-'<div class="items-title">Detalle de productos / servicios</div>'+
-'<table class="items-table"><thead><tr>'+
-  '<th style="width:14%">Código</th>'+
+/* TABLA DE PRODUCTOS */
+'<div class="items-section">'+
+'<table class="items-table">'+
+'<thead><tr>'+
+  '<th class="th-center" style="width:30px">#</th>'+
+  '<th style="width:95px">Código</th>'+
   '<th>Descripción</th>'+
-  '<th style="width:8%;text-align:center">Cant.</th>'+
-  '<th style="width:14%;text-align:right">P. Unit.</th>'+
-  '<th style="width:16%;text-align:right">Subtotal</th>'+
-  '<th style="width:14%">Obra</th>'+
-'</tr></thead><tbody>'+itemsRows+'</tbody></table>'+
+  '<th class="th-center" style="width:50px">Cant.</th>'+
+  '<th class="th-right" style="width:90px">P. Unitario</th>'+
+  '<th class="th-right" style="width:100px">Subtotal</th>'+
+'</tr></thead>'+
+'<tbody>'+itemsRows+'</tbody>'+
+'</table>'+
+'</div>'+
 
-/* TOTALES */
-'<div class="totales-block"><div class="totales-tabla">'+
-  '<div><span>Subtotal neto:</span><span>'+fmtPeso(v.neto||0)+'</span></div>'+
-  '<div><span>IVA ('+(v.ivaPct||0)+'%):</span><span>'+fmtPeso(v.ivaMonto||0)+'</span></div>'+
-  (v.descuentoPct>0?'<div><span>Descuento ('+v.descuentoPct+'%):</span><span>-'+fmtPeso(v.descuentoMonto)+'</span></div>':'')+
-  '<div class="total-row"><span>TOTAL:</span><span>'+fmtPeso(v.total)+'</span></div>'+
-'</div></div>'+
-
-/* PAGOS */
-(pagosHtml ? '<div class="pagos-block"><div class="pagos-title">Forma de pago</div>'+pagosHtml+'</div>' : '')+
-
-/* OBSERVACIONES */
-(v.observaciones ? '<div class="obs-block"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
-
-/* FOOTER COMERCIA */
-'<div class="footer-brand">'+
-  '<div class="footer-brand-inner">'+
-    '<div class="footer-brand-logo">'+logoComerciaSvg+'<span class="footer-brand-name">COMERCIA</span></div>'+
-    '<div style="border-left:1px solid #ddd;padding-left:14px"><span class="footer-brand-tag">Gestión inteligente para tu comercio</span></div>'+
+/* PIE: PAGOS (izq) + TOTALES (der) */
+'<div class="pie-grid">'+
+  '<div class="pie-left">'+
+    '<div class="pie-left-title">Forma de pago</div>'+
+    (pagosRows ? '<table class="pagos-table"><tbody>'+pagosRows+'</tbody></table>' : '<div style="font-size:10px;color:#999">-</div>')+
+    (v.observaciones ? '<div class="obs-text"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
   '</div>'+
-  '<div class="footer-brand-desc">'+
-    '<strong>'+eH(empresaNombre)+'</strong> usa <strong>Comercia</strong> · Plataforma de gestión para comercios argentinos<br>'+
-    'Este comprobante es de carácter <strong>'+(modoLbl==='FACTURA'?'fiscal':'no fiscal')+'</strong> · Generado el '+fechaStr+
+  '<div class="pie-right">'+
+    '<table class="totales-table">'+
+      '<tr><td class="lbl-tot">Subtotal neto</td><td class="val-tot">'+fmtPeso(v.neto||0)+'</td></tr>'+
+      '<tr><td class="lbl-tot">IVA ('+(v.ivaPct||0)+'%)</td><td class="val-tot">'+fmtPeso(v.ivaMonto||0)+'</td></tr>'+
+      (v.descuentoPct>0?'<tr><td class="lbl-tot">Descuento ('+v.descuentoPct+'%)</td><td class="val-tot">-'+fmtPeso(v.descuentoMonto)+'</td></tr>':'')+
+      '<tr class="row-total"><td class="lbl-tot">TOTAL</td><td class="val-tot">'+fmtPeso(v.total)+'</td></tr>'+
+    '</table>'+
   '</div>'+
 '</div>'+
 
-'</div>'+ /* /doc-content */
-'</div>'+ /* /doc-wrap */
+/* FIRMAS */
+'<div class="firmas-grid">'+
+  '<div class="firma-box">Firma vendedor</div>'+
+  '<div class="firma-box">Firma cliente / Recibido conforme</div>'+
+'</div>'+
+
+/* BRAND FOOTER */
+'<div class="brand-footer">'+
+  '<div class="brand-footer-left">'+logoComerciaSvg+'<span class="brand-name-impact">COMERCIA</span><span class="brand-tag-it">Gestión inteligente para tu comercio</span></div>'+
+  '<div class="brand-doc-type">DOCUMENTO '+(modoLbl==='FACTURA'?'FISCAL':'NO FISCAL')+'</div>'+
+'</div>'+
+
+'</div>'+
 '</body></html>';
 }
+
 
 // AFIP — placeholder (requiere certificado digital + backend)
 function facturarEnAfip(){
