@@ -2488,6 +2488,178 @@
     border-color:var(--text);
     box-shadow:var(--shadow-md);
   }
+
+  /* ═══ INTEGRACIONES ═══ */
+  .int-status{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:5px 11px;
+    border-radius:99px;
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-family:var(--mono);
+  }
+  .int-status-disabled{
+    background:var(--bg-2);
+    color:var(--text-mute);
+    border:1px solid var(--line);
+  }
+  .int-status-active{
+    background:var(--success-soft);
+    color:var(--success);
+    border:1px solid var(--success);
+  }
+  .int-hero{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--r-lg);
+    padding:24px 28px;
+    margin-bottom:18px;
+    display:flex;
+    gap:24px;
+    align-items:center;
+    box-shadow:var(--shadow-sm);
+  }
+  @media (max-width:680px){
+    .int-hero{flex-direction:column;align-items:flex-start;padding:18px 20px;gap:14px}
+  }
+  .int-hero-logo{
+    width:84px;
+    height:84px;
+    flex-shrink:0;
+    border-radius:var(--r-md);
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .int-hero-logo svg{width:100%;height:100%;display:block}
+  .int-hero-content{flex:1;min-width:0}
+  .int-hero-title{
+    font-family:var(--sans);
+    font-size:24px;
+    font-weight:800;
+    letter-spacing:-0.025em;
+    color:var(--text);
+    margin-bottom:6px;
+    line-height:1.1;
+  }
+  .int-hero-desc{
+    font-size:13px;
+    color:var(--text-soft);
+    line-height:1.5;
+    margin-bottom:14px;
+    max-width:640px;
+  }
+  .int-hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .int-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:14px;
+  }
+  @media (max-width:880px){
+    .int-grid{grid-template-columns:1fr}
+  }
+  .int-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--r-md);
+    padding:18px 20px;
+  }
+  .int-card-title{
+    font-family:var(--sans);
+    font-size:13px;
+    font-weight:700;
+    color:var(--text);
+    margin-bottom:12px;
+    letter-spacing:-0.01em;
+  }
+  .int-feature-list{
+    list-style:none;
+    padding:0;
+    margin:0;
+  }
+  .int-feature-list li{
+    font-size:12.5px;
+    color:var(--text-soft);
+    line-height:1.5;
+    padding:6px 0 6px 20px;
+    position:relative;
+    border-bottom:1px solid var(--line);
+  }
+  .int-feature-list li:last-child{border-bottom:none}
+  .int-feature-list li::before{
+    content:'›';
+    position:absolute;
+    left:0;
+    top:6px;
+    color:var(--accent);
+    font-weight:700;
+    font-size:14px;
+  }
+  .int-conf-help{
+    font-size:11.5px;
+    color:var(--text-soft);
+    line-height:1.5;
+    margin-bottom:12px;
+  }
+  .int-conn-status{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 12px;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:var(--r-sm);
+    font-size:12px;
+    color:var(--text-soft);
+    font-family:var(--mono);
+  }
+  .int-conn-dot{
+    width:8px;height:8px;
+    border-radius:50%;
+    background:var(--text-mute);
+    flex-shrink:0;
+  }
+  .int-conf-hint{
+    font-size:10px;
+    color:var(--text-mute);
+    font-family:var(--mono);
+    margin-top:8px;
+    text-align:center;
+  }
+  .int-warn{
+    background:var(--warning-soft);
+    border:1px solid var(--warning);
+    border-radius:var(--r-md);
+    padding:12px 16px;
+    font-size:12px;
+    color:var(--accent-text);
+    line-height:1.5;
+    margin-bottom:14px;
+  }
+  [data-theme="dark"] .int-warn{color:var(--accent);border-color:transparent}
+  .int-info-box{
+    background:var(--bg-2);
+    border:1px dashed var(--line-2);
+    border-radius:var(--r-md);
+    padding:14px 18px;
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    font-size:13px;
+    color:var(--text);
+    line-height:1.5;
+  }
+  .int-info-icon{
+    font-size:22px;
+    flex-shrink:0;
+    line-height:1;
+  }
   .barcode-type-select{
     background:var(--bg);
     border:1px solid var(--line);
@@ -3616,6 +3788,33 @@
         <a class="nav-item" data-module="empleados" onclick="navTo('empleados')">
           <span class="nav-item-icon">&#128101;</span><span>Empleados</span>
         </a>
+        <div class="nav-group collapsed">
+          <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
+            <span class="nav-item-icon">&#128279;</span>
+            <span class="nav-group-label">Integraciones</span>
+            <span class="nav-group-arrow">&#9662;</span>
+          </div>
+          <div class="nav-group-items">
+            <a class="nav-item nav-item-sub" data-module="intMercadolibre" onclick="navTo('intMercadolibre')">
+              <span class="nav-item-icon">&#128722;</span><span>Mercado Libre</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="intTiendanube" onclick="navTo('intTiendanube')">
+              <span class="nav-item-icon">&#9729;</span><span>Tienda Nube</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="intWoocommerce" onclick="navTo('intWoocommerce')">
+              <span class="nav-item-icon">&#127760;</span><span>WooCommerce</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="intFulljaus" onclick="navTo('intFulljaus')">
+              <span class="nav-item-icon">&#127968;</span><span>Fulljaus</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="intEmpretienda" onclick="navTo('intEmpretienda')">
+              <span class="nav-item-icon">&#128722;</span><span>EmpreTienda</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="intAfip" onclick="navTo('intAfip')">
+              <span class="nav-item-icon">&#127981;</span><span>AFIP</span>
+            </a>
+          </div>
+        </div>
         <a class="nav-item" data-module="configuracion" onclick="navTo('configuracion')">
           <span class="nav-item-icon">&#9881;</span><span>Configuración</span>
         </a>
@@ -4343,6 +4542,14 @@
           </div>
         </div>
       </div>
+
+      <!-- ═══ MÓDULOS DE INTEGRACIONES ═══ -->
+      <div class="module" id="moduleIntMercadolibre"><div id="intMercadolibreBody"></div></div>
+      <div class="module" id="moduleIntTiendanube"><div id="intTiendanubeBody"></div></div>
+      <div class="module" id="moduleIntWoocommerce"><div id="intWoocommerceBody"></div></div>
+      <div class="module" id="moduleIntFulljaus"><div id="intFulljausBody"></div></div>
+      <div class="module" id="moduleIntEmpretienda"><div id="intEmpretiendaBody"></div></div>
+      <div class="module" id="moduleIntAfip"><div id="intAfipBody"></div></div>
 
       <!-- ═══ MÓDULO CONFIGURACIÓN ═══ -->
       <div class="module" id="moduleConfiguracion">
@@ -5271,6 +5478,13 @@ function toggleNavGroup(group){
   el.classList.toggle('collapsed');
 }
 
+// Toggle genérico: recibe el header clickeado y togglea su grupo padre
+function toggleNavGroupGeneric(headerEl){
+  if(!headerEl) return;
+  var grupo = headerEl.closest('.nav-group');
+  if(grupo) grupo.classList.toggle('collapsed');
+}
+
 // ── Sidebar collapse ──
 function toggleSidebar(){
   var shell = document.getElementById('appShell');
@@ -5658,6 +5872,7 @@ function navTo(modulo){
   if(modulo==='ventas') initVentas();
   if(modulo==='ctacte') initCtaCte();
   if(modulo==='configuracion') initConfiguracion();
+  if(modulo && modulo.indexOf('int') === 0) initIntegracion(modulo);
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -11001,23 +11216,12 @@ function construirHtmlVentaA4(v){
   var empresaTel = currentEmpresa && currentEmpresa.telefono ? currentEmpresa.telefono : (currentEmpresa && currentEmpresa.phone ? currentEmpresa.phone : '');
   var empresaMail = currentEmpresa && currentEmpresa.email ? currentEmpresa.email : '';
   var empresaLogo = currentEmpresa && currentEmpresa.logoUrl ? currentEmpresa.logoUrl : '';
-  var empresaColorBase = currentEmpresa && currentEmpresa.colorPrincipal ? currentEmpresa.colorPrincipal : '#1a1a2e';
-  // Gradiente del color de la empresa
-  var empresaColorDark = oscurecerColor(empresaColorBase, 22);
-  var headerGradient = 'linear-gradient(135deg, '+empresaColorBase+' 0%, '+empresaColorDark+' 100%)';
-
-  // SVG inline del logo Comercia (cuadrado ámbar con gradiente + "C" estilizada)
-  var logoComerciaSvg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="28" height="28" style="vertical-align:middle">'+
-    '<defs><linearGradient id="gLogoPdf" x1="0%" y1="0%" x2="100%" y2="100%">'+
-    '<stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs>'+
-    '<rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gLogoPdf)"/>'+
-    '<path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>'+
-    '<circle cx="29" cy="20" r="2.4" fill="#fff"/></svg>';
+  var empresaColorBase = currentEmpresa && currentEmpresa.colorPrincipal ? currentEmpresa.colorPrincipal : '#1f1f23';
 
   // Logo de la empresa (si subió uno)
   var empresaLogoHtml = '';
   if(empresaLogo){
-    empresaLogoHtml = '<div style="width:64px;height:64px;background:#fff;border-radius:8px;padding:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15)"><img src="'+eH(empresaLogo)+'" alt="logo" style="max-width:100%;max-height:100%;object-fit:contain"></div>';
+    empresaLogoHtml = '<div class="head-logo"><img src="'+eH(empresaLogo)+'" alt="logo"></div>';
   }
 
   // Items
@@ -11027,7 +11231,7 @@ function construirHtmlVentaA4(v){
       '<td class="td-num">'+(idx+1)+'</td>'+
       '<td class="td-code">'+eH(it.codigo||'-')+'</td>'+
       '<td class="td-desc">'+eH(it.descripcion||'-')+
-        (it.obra?'<div class="td-obra"><span class="td-obra-icon">&#127959;</span> '+eH(it.obra)+'</div>':'')+
+        (it.obra?'<div class="td-obra">'+eH(it.obra)+'</div>':'')+
       '</td>'+
       '<td class="td-center">'+it.cantidad+'</td>'+
       '<td class="td-right">'+fmtPeso(it.precioUnit)+'</td>'+
@@ -11052,139 +11256,125 @@ function construirHtmlVentaA4(v){
   var clienteTel = v.cliente && v.cliente.telefono ? v.cliente.telefono : '—';
   var clienteEmail = v.cliente && v.cliente.email ? v.cliente.email : '—';
 
-  // Color de acento por tipo (sigue siendo el indicador del tipo de comprobante)
-  var accentColor = '#fbbf24'; // ámbar default (factura)
-  var accentDark = '#f59e0b';
-  if(modoLbl === 'REMITO'){ accentColor = '#8b5cf6'; accentDark = '#7c3aed'; }
-  else if(modoLbl === 'PRESUPUESTO'){ accentColor = '#f97316'; accentDark = '#ea580c'; }
-
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+modoLbl+' '+v.numero+' - '+eH(empresaNombre)+'</title>'+
 '<style>'+
 '@page{size:A4;margin:0}'+
 '*{box-sizing:border-box;margin:0;padding:0}'+
-'html,body{background:#fff}'+
-'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:#1f1f23;font-size:11px;line-height:1.45;-webkit-font-smoothing:antialiased}'+
+'html,body{background:#fff;color:#000}'+
+'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4;-webkit-font-smoothing:antialiased}'+
 
-/* CONTENEDOR A4 */
+/* CONTENEDOR A4 — más compacto */
 '.doc{width:794px;min-height:1123px;margin:0 auto;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden}'+
 
-/* HEADER CON COLOR DE LA EMPRESA (configurable) */
-'.doc-head{background:'+headerGradient+';color:#fff;padding:18mm 14mm 14mm;border-bottom:4px solid '+accentColor+';position:relative}'+
-'.doc-head::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent 0%,'+accentColor+' 50%,transparent 100%)}'+
-'.doc-head-grid{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:flex-start}'+
-'.doc-head-empresa{flex:1;display:flex;gap:14px;align-items:flex-start}'+
+/* HEADER MINIMALISTA B&N */
+'.doc-head{padding:10mm 12mm 6mm;border-bottom:2px solid #000;background:#fff;color:#000}'+
+'.doc-head-grid{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}'+
+'.doc-head-empresa{flex:1;display:flex;gap:10px;align-items:center}'+
+'.head-logo{width:52px;height:52px;flex-shrink:0;border:1px solid #ccc;background:#fff;padding:3px;display:flex;align-items:center;justify-content:center}'+
+'.head-logo img{max-width:100%;max-height:100%;object-fit:contain}'+
 '.doc-head-empresa-info{flex:1;min-width:0}'+
-'.doc-head-empresa-name{font-size:28px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.3)}'+
-'.doc-head-empresa-tag{font-size:10.5px;font-weight:600;color:'+accentColor+';letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px}'+
-'.doc-head-empresa-data{font-size:10px;color:rgba(255,255,255,.85);line-height:1.6}'+
-'.doc-head-empresa-data strong{color:#fff;font-weight:600}'+
+'.doc-head-empresa-name{font-size:22px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;color:#000;margin-bottom:2px}'+
+'.doc-head-empresa-data{font-size:9px;color:#555;line-height:1.45;margin-top:3px}'+
+'.doc-head-empresa-data span{margin-right:8px}'+
 
-'.doc-head-doc{text-align:right;background:rgba(255,255,255,.05);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:14px 18px;min-width:200px}'+
-'.doc-head-letra{font-size:36px;font-weight:900;color:'+accentColor+';line-height:1;letter-spacing:0.05em;margin-bottom:4px}'+
-'.doc-head-tipo{font-size:14px;font-weight:700;color:#fff;letter-spacing:0.08em;margin-bottom:10px;text-transform:uppercase}'+
-'.doc-head-numero{font-size:20px;font-weight:700;color:#fff;font-family:"SF Mono","Monaco","Courier New",monospace;margin-bottom:8px}'+
-'.doc-head-fecha-lbl{font-size:9px;color:rgba(255,255,255,.6);letter-spacing:0.08em;font-weight:600;margin-top:6px}'+
-'.doc-head-fecha-val{font-size:12px;color:#fff;font-family:"SF Mono",monospace;font-weight:600;margin-top:2px}'+
+'.doc-head-doc{text-align:right;border:1.5px solid #000;padding:8px 14px;min-width:170px;background:#fff}'+
+'.doc-head-letra{font-size:28px;font-weight:900;color:#000;line-height:1;letter-spacing:0.05em;margin-bottom:2px}'+
+'.doc-head-tipo{font-size:10px;font-weight:700;color:#000;letter-spacing:0.1em;margin-bottom:6px;text-transform:uppercase}'+
+'.doc-head-numero{font-size:14px;font-weight:700;color:#000;font-family:"SF Mono","Monaco","Courier New",monospace;margin-bottom:6px;border-top:1px solid #ccc;padding-top:4px}'+
+'.doc-head-fecha-val{font-size:10px;color:#000;font-family:"SF Mono",monospace;font-weight:600}'+
 
-/* CUERPO CLARO */
-'.doc-body{padding:14mm;flex:1}'+
+/* CUERPO COMPACTO */
+'.doc-body{padding:6mm 12mm;flex:1}'+
 
-/* TARJETA CLIENTE */
-'.section-title{font-size:10px;font-weight:700;color:'+accentDark+';letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;margin-top:18px}'+
+/* TÍTULOS DE SECCIÓN */
+'.section-title{font-size:9px;font-weight:700;color:#000;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;margin-top:10px;border-bottom:1px solid #000;padding-bottom:2px}'+
 '.section-title:first-child{margin-top:0}'+
 
-'.cliente-card{background:#fafafa;border:1px solid #e5e7eb;border-left:4px solid '+accentColor+';border-radius:8px;padding:14px 18px;display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}'+
-'.cliente-row{display:flex;align-items:baseline;gap:8px;padding:2px 0}'+
-'.cliente-lbl{font-size:9px;font-weight:700;color:#888;letter-spacing:0.06em;text-transform:uppercase;min-width:70px;flex-shrink:0}'+
-'.cliente-val{font-size:11.5px;font-weight:600;color:#1f1f23;flex:1;word-break:break-word}'+
+/* TARJETA CLIENTE — sin colores */
+'.cliente-card{border:1px solid #999;padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;font-size:10.5px}'+
+'.cliente-row{display:flex;align-items:baseline;gap:6px;padding:1px 0}'+
+'.cliente-lbl{font-size:8.5px;font-weight:700;color:#666;letter-spacing:0.05em;text-transform:uppercase;min-width:62px;flex-shrink:0}'+
+'.cliente-val{font-size:10.5px;font-weight:600;color:#000;flex:1;word-break:break-word}'+
 
-/* TABLA DE ITEMS */
-'.items-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05)}'+
+/* TABLA DE ITEMS — B&N pura */
+'.items-card{border:1px solid #000}'+
 '.items-table{width:100%;border-collapse:collapse}'+
-'.items-table thead th{background:'+empresaColorBase+';color:#fff;padding:11px 10px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-bottom:3px solid '+accentColor+'}'+
+'.items-table thead th{background:#000;color:#fff;padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;text-align:left;border-right:1px solid #444}'+
+'.items-table thead th:last-child{border-right:none}'+
 '.items-table thead th.th-center{text-align:center}'+
 '.items-table thead th.th-right{text-align:right}'+
-'.items-table tbody td{padding:10px 10px;border-bottom:1px solid #f1f3f5;font-size:11px;vertical-align:top;line-height:1.45;background:#fff}'+
+'.items-table tbody td{padding:5px 8px;border-bottom:1px solid #ddd;font-size:10px;vertical-align:top;line-height:1.35;background:#fff;border-right:1px solid #eee}'+
+'.items-table tbody td:last-child{border-right:none}'+
 '.items-table tbody tr:last-child td{border-bottom:none}'+
-'.items-table tbody tr:nth-child(even) td{background:#fafafa}'+
-'.td-num{font-weight:700;color:#999;font-size:10px;width:32px;text-align:center;font-family:"SF Mono",monospace}'+
-'.td-code{font-family:"SF Mono",monospace;font-size:10px;color:'+accentDark+';width:100px;font-weight:600}'+
-'.td-desc{font-weight:500;color:#1f1f23}'+
-'.td-obra{font-size:9.5px;color:#8b5cf6;margin-top:4px;font-weight:600;display:inline-block;background:rgba(139,92,246,.08);padding:2px 8px;border-radius:99px}'+
-'.td-obra-icon{font-size:11px}'+
-'.td-center{text-align:center;font-family:"SF Mono",monospace;font-weight:600}'+
+'.td-num{font-weight:600;color:#888;font-size:9px;width:26px;text-align:center;font-family:"SF Mono",monospace}'+
+'.td-code{font-family:"SF Mono",monospace;font-size:9.5px;color:#000;width:90px;font-weight:600}'+
+'.td-desc{font-weight:500;color:#000}'+
+'.td-obra{font-size:8.5px;color:#444;margin-top:2px;font-weight:600;display:inline-block;border:1px solid #999;padding:0 5px;border-radius:2px;background:#f5f5f5}'+
+'.td-center{text-align:center;font-family:"SF Mono",monospace;font-weight:600;width:42px}'+
 '.td-right{text-align:right;font-family:"SF Mono",monospace}'+
-'.td-subt{font-weight:700;color:#1f1f23}'+
+'.td-subt{font-weight:700;color:#000}'+
 
 /* PIE: 2 columnas (PAGOS izq + TOTALES der) */
-'.pie-grid{display:grid;grid-template-columns:1fr 320px;gap:14px;margin-top:14px}'+
+'.pie-grid{display:grid;grid-template-columns:1fr 280px;gap:10px;margin-top:8px}'+
 
 /* PAGOS */
-'.pagos-card{background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;border-radius:8px;padding:14px 18px}'+
-'.pagos-card-title{font-size:10px;font-weight:700;color:#15803d;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px}'+
+'.pagos-card{border:1px solid #999;padding:8px 12px;background:#fafafa}'+
+'.pagos-card-title{font-size:9px;font-weight:700;color:#000;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;border-bottom:1px solid #999;padding-bottom:3px}'+
 '.pagos-table{width:100%;border-collapse:collapse}'+
-'.pagos-table td{padding:4px 0;font-size:11.5px;border:none}'+
-'.pagos-table td:first-child{color:#1f1f23;font-weight:500}'+
-'.td-pago-val{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#15803d}'+
+'.pagos-table td{padding:2px 0;font-size:10px;border:none}'+
+'.pagos-table td:first-child{color:#000;font-weight:500}'+
+'.td-pago-val{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#000}'+
 
 /* TOTALES */
-'.totales-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.06)}'+
+'.totales-card{border:1px solid #000}'+
 '.totales-table{width:100%;border-collapse:collapse}'+
-'.totales-table td{padding:9px 16px;font-size:11.5px;border-bottom:1px solid #f1f3f5;background:#fff}'+
-'.totales-table .lbl-tot{color:#666;font-weight:500}'+
-'.totales-table .val-tot{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#1f1f23;width:140px}'+
-'.totales-table .row-total td{background:'+headerGradient+';color:#fff;font-size:14px;font-weight:800;padding:14px 16px;border:none;letter-spacing:0.02em}'+
-'.totales-table .row-total .val-tot{color:'+accentColor+';font-size:18px;font-weight:900}'+
+'.totales-table td{padding:5px 12px;font-size:10.5px;border-bottom:1px solid #eee;background:#fff}'+
+'.totales-table .lbl-tot{color:#555;font-weight:500}'+
+'.totales-table .val-tot{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#000;width:120px}'+
+'.totales-table .row-total td{background:#000;color:#fff;font-size:13px;font-weight:800;padding:9px 12px;border:none;letter-spacing:0.02em}'+
+'.totales-table .row-total .val-tot{color:#fff;font-size:16px;font-weight:900}'+
 
 /* OBSERVACIONES */
-'.obs-card{margin-top:14px;background:#fefce8;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:8px;padding:11px 16px;font-size:11px;color:#713f12}'+
-'.obs-card strong{font-weight:700;color:#92400e}'+
+'.obs-card{margin-top:8px;border:1px dashed #666;padding:6px 10px;font-size:10px;color:#000;background:#fff}'+
+'.obs-card strong{font-weight:700}'+
 
 /* FIRMAS */
-'.firmas-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:26px;margin-bottom:18px}'+
-'.firma-box{border-top:1px solid #cbd5e1;padding-top:8px;text-align:center;font-size:9.5px;color:#94a3b8;letter-spacing:0.08em;text-transform:uppercase;font-weight:600}'+
+'.firmas-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:18px;margin-bottom:10px}'+
+'.firma-box{border-top:1px solid #000;padding-top:4px;text-align:center;font-size:8.5px;color:#666;letter-spacing:0.06em;text-transform:uppercase;font-weight:600}'+
 
-/* FOOTER BRAND */
-'.doc-foot{background:#fafafa;border-top:1px solid #e5e7eb;padding:14px 14mm;display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:auto}'+
-'.brand-block{display:flex;align-items:center;gap:10px}'+
-'.brand-name-impact{font-family:Impact,"Arial Black",sans-serif;font-size:18px;letter-spacing:0.1em;color:#1a1a2e;line-height:1}'+
-'.brand-tag-it{font-style:italic;color:#888;font-size:10px;border-left:1px solid #d1d5db;padding-left:10px;margin-left:4px}'+
-'.doc-type-badge{background:'+accentColor+';color:#1a1408;padding:5px 12px;border-radius:99px;font-size:9px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase}'+
+/* FOOTER — minimalista */
+'.doc-foot{border-top:1px solid #ccc;padding:6px 12mm;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;font-size:9px;color:#888;background:#fff}'+
+'.doc-foot-brand{font-weight:700;color:#000;letter-spacing:0.08em}'+
+'.doc-foot-tag{font-style:italic}'+
+'.doc-type-badge{border:1px solid #000;padding:2px 8px;font-size:8.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#000;background:#fff}'+
 
-/* MARCA DE AGUA */
-'.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-32deg);font-family:Impact,"Arial Black",sans-serif;font-size:200px;font-weight:900;color:#1a1a2e;opacity:0.025;letter-spacing:0.06em;white-space:nowrap;z-index:0;pointer-events:none}'+
+/* BOTÓN FLOTANTE DE IMPRIMIR (solo visible al abrir el link) */
+'.print-fab{position:fixed;top:16px;right:16px;background:#000;color:#fff;border:none;padding:10px 16px;border-radius:4px;font-weight:600;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);font-family:inherit;display:flex;align-items:center;gap:6px;z-index:100;transition:all .15s}'+
+'.print-fab:hover{background:#333}'+
 
-/* BOTÓN FLOTANTE DE IMPRIMIR (visible solo cuando el cliente abre el link) */
-'.print-fab{position:fixed;top:18px;right:18px;background:'+accentColor+';color:#1a1408;border:none;padding:12px 18px;border-radius:99px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:inherit;display:flex;align-items:center;gap:8px;z-index:100;transition:all .15s}'+
-'.print-fab:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.22)}'+
-'.print-fab:active{transform:translateY(0)}'+
+/* Responsive para mobile cuando el cliente abre el link */
+'@media (max-width:840px){.doc{width:100%;min-width:0}.doc-head{padding:8mm 5mm 5mm}.doc-head-grid{grid-template-columns:1fr;gap:10px}.doc-head-doc{text-align:left;min-width:0}.doc-body{padding:5mm}.cliente-card{grid-template-columns:1fr}.items-card{overflow-x:auto}.pie-grid{grid-template-columns:1fr}.print-fab{padding:8px 12px;font-size:11px;top:10px;right:10px}.doc-foot{padding:6px 5mm;font-size:8px}}'+
 
-/* En mobile, el documento se ve más chico — mejoramos para visualización en celular */
-'@media (max-width:840px){.doc{width:100%;min-width:0;transform-origin:top left}.doc-head{padding:14mm 8mm 10mm}.doc-head-grid{grid-template-columns:1fr;gap:12px}.doc-head-doc{text-align:left;min-width:0}.doc-body{padding:10mm 6mm}.cliente-card{grid-template-columns:1fr}.items-card{overflow-x:auto}.pie-grid{grid-template-columns:1fr}.print-fab{padding:10px 14px;font-size:12px}}'+
-
-'@media print{body{margin:0}.doc{margin:0;width:794px} .print-fab{display:none !important} .watermark{opacity:0.025 !important}-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
-'@media print{.doc-head,.items-table thead th,.totales-table .row-total td,.doc-foot,.doc-type-badge{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}}'+
+'@media print{body{margin:0}.doc{margin:0;width:794px}.print-fab{display:none !important}-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+'@media print{.items-table thead th,.totales-table .row-total td{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}}'+
 '</style></head><body>'+
 
 '<button class="print-fab" onclick="window.print()">&#128424; Imprimir / Guardar PDF</button>'+
 
-'<div class="watermark">COMERCIA</div>'+
-
 '<div class="doc">'+
 
-/* HEADER CON COLOR DE LA EMPRESA */
+/* HEADER */
 '<div class="doc-head">'+
   '<div class="doc-head-grid">'+
     '<div class="doc-head-empresa">'+
       empresaLogoHtml+
       '<div class="doc-head-empresa-info">'+
         '<div class="doc-head-empresa-name">'+eH(empresaNombre)+'</div>'+
-        '<div class="doc-head-empresa-tag">Comprobante de venta</div>'+
         '<div class="doc-head-empresa-data">'+
-          (empresaCuit ? '<div><strong>CUIT:</strong> '+eH(empresaCuit)+'</div>' : '')+
-          '<div><strong>Cond. IVA:</strong> '+eH(empresaIva)+'</div>'+
-          (empresaIIBB ? '<div><strong>IIBB:</strong> '+eH(empresaIIBB)+'</div>' : '')+
-          (empresaDir ? '<div>'+eH(empresaDir)+(empresaLoc?' · '+eH(empresaLoc):'')+'</div>' : '')+
+          (empresaCuit ? '<span><strong>CUIT:</strong> '+eH(empresaCuit)+'</span>' : '')+
+          '<span><strong>'+eH(empresaIva)+'</strong></span>'+
+          (empresaIIBB ? '<span>IIBB: '+eH(empresaIIBB)+'</span>' : '')+
+          (empresaDir ? '<div>'+eH(empresaDir)+(empresaLoc?', '+eH(empresaLoc):'')+'</div>' : '')+
           ((empresaTel||empresaMail) ? '<div>'+(empresaTel?eH(empresaTel):'')+(empresaTel&&empresaMail?' · ':'')+(empresaMail?eH(empresaMail):'')+'</div>' : '')+
         '</div>'+
       '</div>'+
@@ -11193,35 +11383,36 @@ function construirHtmlVentaA4(v){
       '<div class="doc-head-letra">'+modoLbl.charAt(0)+'</div>'+
       '<div class="doc-head-tipo">'+modoLbl+'</div>'+
       '<div class="doc-head-numero">N° '+eH(v.numero)+'</div>'+
-      '<div class="doc-head-fecha-lbl">FECHA</div>'+
-      '<div class="doc-head-fecha-val">'+fechaStr+'</div>'+
+      '<div class="doc-head-fecha-val">'+fechaStr+' '+horaStr+'</div>'+
     '</div>'+
   '</div>'+
 '</div>'+
 
-/* CUERPO CLARO */
+/* CUERPO */
 '<div class="doc-body">'+
 
-  '<div class="section-title">Datos del cliente</div>'+
+  '<div class="section-title">Cliente</div>'+
   '<div class="cliente-card">'+
-    '<div class="cliente-row"><span class="cliente-lbl">Cliente</span><span class="cliente-val">'+eH(clienteNombre)+'</span></div>'+
+    '<div class="cliente-row"><span class="cliente-lbl">Nombre</span><span class="cliente-val">'+eH(clienteNombre)+'</span></div>'+
     '<div class="cliente-row"><span class="cliente-lbl">Documento</span><span class="cliente-val">'+eH(clienteDoc)+'</span></div>'+
     '<div class="cliente-row"><span class="cliente-lbl">Domicilio</span><span class="cliente-val">'+eH(clienteDir)+'</span></div>'+
     '<div class="cliente-row"><span class="cliente-lbl">Cond. IVA</span><span class="cliente-val">'+eH(clienteCat)+'</span></div>'+
-    '<div class="cliente-row"><span class="cliente-lbl">Teléfono</span><span class="cliente-val">'+eH(clienteTel)+'</span></div>'+
-    '<div class="cliente-row"><span class="cliente-lbl">Email</span><span class="cliente-val">'+eH(clienteEmail)+'</span></div>'+
+    (clienteTel !== '—' || clienteEmail !== '—'
+      ? '<div class="cliente-row"><span class="cliente-lbl">Tel</span><span class="cliente-val">'+eH(clienteTel)+'</span></div>'+
+        '<div class="cliente-row"><span class="cliente-lbl">Email</span><span class="cliente-val">'+eH(clienteEmail)+'</span></div>'
+      : '')+
   '</div>'+
 
-  '<div class="section-title">Detalle de productos y servicios</div>'+
+  '<div class="section-title">Detalle</div>'+
   '<div class="items-card">'+
     '<table class="items-table">'+
       '<thead><tr>'+
-        '<th class="th-center" style="width:32px">#</th>'+
-        '<th style="width:100px">Código</th>'+
+        '<th class="th-center" style="width:26px">#</th>'+
+        '<th style="width:90px">Código</th>'+
         '<th>Descripción</th>'+
-        '<th class="th-center" style="width:50px">Cant.</th>'+
-        '<th class="th-right" style="width:90px">P. Unit.</th>'+
-        '<th class="th-right" style="width:110px">Subtotal</th>'+
+        '<th class="th-center" style="width:42px">Cant</th>'+
+        '<th class="th-right" style="width:80px">P. Unit</th>'+
+        '<th class="th-right" style="width:90px">Subtotal</th>'+
       '</tr></thead>'+
       '<tbody>'+itemsRows+'</tbody>'+
     '</table>'+
@@ -11232,8 +11423,8 @@ function construirHtmlVentaA4(v){
       (pagosRows ? '<div class="pagos-card">'+
         '<div class="pagos-card-title">Forma de pago</div>'+
         '<table class="pagos-table"><tbody>'+pagosRows+'</tbody></table>'+
-      '</div>' : '<div style="font-size:10px;color:#999">Sin pagos registrados</div>')+
-      (v.observaciones ? '<div class="obs-card"><strong>Observaciones:</strong><br>'+eH(v.observaciones)+'</div>' : '')+
+      '</div>' : '')+
+      (v.observaciones ? '<div class="obs-card"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
     '</div>'+
     '<div class="totales-card">'+
       '<table class="totales-table">'+
@@ -11245,7 +11436,6 @@ function construirHtmlVentaA4(v){
     '</div>'+
   '</div>'+
 
-  /* FIRMAS */
   '<div class="firmas-grid">'+
     '<div class="firma-box">Firma vendedor</div>'+
     '<div class="firma-box">Firma cliente · Recibido conforme</div>'+
@@ -11253,14 +11443,10 @@ function construirHtmlVentaA4(v){
 
 '</div>'+  /* /doc-body */
 
-/* FOOTER BRAND */
+/* FOOTER minimalista */
 '<div class="doc-foot">'+
-  '<div class="brand-block">'+
-    logoComerciaSvg+
-    '<span class="brand-name-impact">COMERCIA</span>'+
-    '<span class="brand-tag-it">Gestión inteligente para tu comercio</span>'+
-  '</div>'+
-  '<div class="doc-type-badge">'+(modoLbl==='FACTURA'?'Documento Fiscal':'Documento No Fiscal')+'</div>'+
+  '<div><span class="doc-foot-brand">COMERCIA</span> <span class="doc-foot-tag">· gestión inteligente para tu comercio</span></div>'+
+  '<div class="doc-type-badge">'+(modoLbl==='FACTURA'?'Doc. Fiscal':'Doc. No Fiscal')+'</div>'+
 '</div>'+
 
 '</div>'+ /* /doc */
@@ -13989,6 +14175,207 @@ async function guardarConfigEmpresa(){
   }finally{
     btn.disabled = false;
     btn.innerHTML = '&#128190; Guardar cambios';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// INTEGRACIONES — Mercado Libre, Tienda Nube, Woo, etc.
+// ═══════════════════════════════════════════════════════
+
+// Configuración de cada integración (centralizada)
+var INTEGRACIONES = {
+  intMercadolibre: {
+    id: 'mercadolibre',
+    nombre: 'Mercado Libre',
+    color: '#FFE600',
+    colorText: '#2D3277',
+    logoSvg: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="16" fill="#FFE600"/><ellipse cx="40" cy="46" rx="22" ry="14" fill="#2D3277"/><circle cx="32" cy="42" r="2.5" fill="#FFE600"/><circle cx="48" cy="42" r="2.5" fill="#FFE600"/><path d="M30 50 Q40 56 50 50" stroke="#FFE600" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>',
+    descripcion: 'Conectá tu cuenta de Mercado Libre para sincronizar publicaciones, stock y ventas en tiempo real.',
+    features: [
+      'Sincronizar stock automáticamente con tus publicaciones',
+      'Importar ventas como tickets en Comercia',
+      'Actualizar precios desde Comercia hacia Mercado Libre',
+      'Notificaciones de nuevas compras',
+      'Reportes unificados de tus dos canales'
+    ],
+    docUrl: 'https://developers.mercadolibre.com.ar/'
+  },
+  intTiendanube: {
+    id: 'tiendanube',
+    nombre: 'Tienda Nube',
+    color: '#00A2E0',
+    colorText: '#FFFFFF',
+    logoSvg: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="16" fill="#00A2E0"/><path d="M22 48 Q22 38 30 38 Q32 30 42 30 Q52 30 54 38 Q62 38 62 48 Q62 56 54 56 L28 56 Q22 56 22 48 Z" fill="#fff"/></svg>',
+    descripcion: 'Integrá tu Tienda Nube para gestionar productos y pedidos desde Comercia.',
+    features: [
+      'Catálogo de productos sincronizado',
+      'Stock unificado entre web y local',
+      'Procesar pedidos de Tienda Nube desde Comercia',
+      'Generar comprobantes para envíos online',
+      'Análisis de ventas web vs físicas'
+    ],
+    docUrl: 'https://tiendanube.github.io/api-documentation/'
+  },
+  intWoocommerce: {
+    id: 'woocommerce',
+    nombre: 'WooCommerce',
+    color: '#7F54B3',
+    colorText: '#FFFFFF',
+    logoSvg: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="16" fill="#7F54B3"/><path d="M16 30 Q16 24 22 24 L58 24 Q64 24 64 30 L64 46 Q64 52 58 52 L40 52 L32 60 L36 52 L22 52 Q16 52 16 46 Z" fill="#fff"/><text x="40" y="42" font-family="Arial" font-size="10" font-weight="900" fill="#7F54B3" text-anchor="middle">Woo</text></svg>',
+    descripcion: 'Conectá tu tienda WooCommerce (WordPress) con Comercia vía API REST.',
+    features: [
+      'Sincronizar productos y categorías',
+      'Stock unificado en tiempo real',
+      'Importar órdenes como ventas',
+      'Soporte para WooCommerce 7+ y WordPress',
+      'Webhooks en vivo para pedidos nuevos'
+    ],
+    docUrl: 'https://woocommerce.github.io/woocommerce-rest-api-docs/'
+  },
+  intFulljaus: {
+    id: 'fulljaus',
+    nombre: 'Fulljaus',
+    color: '#FF6B35',
+    colorText: '#FFFFFF',
+    logoSvg: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="16" fill="#FF6B35"/><path d="M20 22 L60 22 L56 40 L24 40 Z" fill="#fff"/><circle cx="30" cy="54" r="6" fill="#fff"/><circle cx="50" cy="54" r="6" fill="#fff"/></svg>',
+    descripcion: 'Plataforma de venta para pequeños y medianos comercios argentinos. Sincronizá tu catálogo.',
+    features: [
+      'Importar catálogo de productos a Fulljaus',
+      'Sincronizar precios y stock',
+      'Recibir pedidos en Comercia',
+      'Gestión de envíos integrada',
+      'Reportes de canal Fulljaus'
+    ],
+    docUrl: 'https://fulljaus.com/'
+  },
+  intEmpretienda: {
+    id: 'empretienda',
+    nombre: 'EmpreTienda',
+    color: '#3B5998',
+    colorText: '#FFFFFF',
+    logoSvg: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="16" fill="#3B5998"/><rect x="20" y="28" width="40" height="32" rx="3" fill="#fff"/><rect x="20" y="28" width="40" height="8" fill="#FFC107"/><circle cx="30" cy="48" r="3" fill="#3B5998"/><circle cx="50" cy="48" r="3" fill="#3B5998"/></svg>',
+    descripcion: 'Plataforma argentina de tiendas online. Conectá tu EmpreTienda con Comercia.',
+    features: [
+      'Sincronización bidireccional de catálogo',
+      'Importación automática de ventas',
+      'Stock unificado',
+      'Gestión de clientes integrada',
+      'Cobros y reportes consolidados'
+    ],
+    docUrl: 'https://empretienda.com.ar/'
+  },
+  intAfip: {
+    id: 'afip',
+    nombre: 'AFIP',
+    color: '#00BCD4',
+    colorText: '#FFFFFF',
+    logoSvg: '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg"><rect width="80" height="80" rx="16" fill="#00BCD4"/><rect x="22" y="22" width="36" height="36" rx="2" fill="#fff"/><path d="M30 32 L50 32 M30 38 L50 38 M30 44 L42 44" stroke="#00BCD4" stroke-width="2.5" stroke-linecap="round"/><path d="M30 50 L36 50" stroke="#00BCD4" stroke-width="2.5" stroke-linecap="round"/></svg>',
+    descripcion: 'Facturación electrónica oficial con AFIP. Generá facturas A, B y C válidas fiscalmente.',
+    features: [
+      'Facturas electrónicas A, B, C y M',
+      'CAE automático desde el sistema',
+      'Notas de crédito y débito',
+      'Padrón de contribuyentes integrado',
+      'Libro IVA digital'
+    ],
+    requiereCert: true,
+    docUrl: 'https://www.afip.gob.ar/ws/'
+  }
+};
+
+function initIntegracion(moduleKey){
+  var cfg = INTEGRACIONES[moduleKey];
+  if(!cfg) return;
+  var bodyId = moduleKey + 'Body';
+  var cont = document.getElementById(bodyId);
+  if(!cont) return;
+  // Si ya está renderizado, no rehacer
+  if(cont.dataset.rendered === '1') return;
+  cont.innerHTML = renderIntegracion(cfg);
+  cont.dataset.rendered = '1';
+}
+
+function renderIntegracion(cfg){
+  var featuresHtml = cfg.features.map(function(f){
+    return '<li>'+eH(f)+'</li>';
+  }).join('');
+
+  var disclaimerCert = cfg.requiereCert
+    ? '<div class="int-warn">'+
+        '<strong>Importante:</strong> requiere certificado digital de AFIP (.crt + .key) y CUIT autorizado para facturación electrónica. Te ayudamos con el proceso al activar.'+
+      '</div>'
+    : '';
+
+  return '<header class="main-header">'+
+    '<h1 class="main-title">'+eH(cfg.nombre)+'</h1>'+
+    '<div class="main-actions">'+
+      '<span class="int-status int-status-disabled">Próximamente</span>'+
+    '</div>'+
+  '</header>'+
+  '<div class="main-body">'+
+    '<div class="int-hero">'+
+      '<div class="int-hero-logo">'+cfg.logoSvg+'</div>'+
+      '<div class="int-hero-content">'+
+        '<h2 class="int-hero-title">'+eH(cfg.nombre)+'</h2>'+
+        '<p class="int-hero-desc">'+eH(cfg.descripcion)+'</p>'+
+        '<div class="int-hero-actions">'+
+          '<button class="btn btn-primary btn-sm" onclick="solicitarIntegracion(\''+cfg.id+'\')">Avisarme cuando esté lista</button>'+
+          (cfg.docUrl ? '<a href="'+eH(cfg.docUrl)+'" target="_blank" rel="noopener" class="btn btn-line btn-sm">Documentación oficial &#8599;</a>' : '')+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+
+    '<div class="int-grid">'+
+      '<div class="int-card">'+
+        '<div class="int-card-title">&#10004; Qué vas a poder hacer</div>'+
+        '<ul class="int-feature-list">'+featuresHtml+'</ul>'+
+      '</div>'+
+      '<div class="int-card">'+
+        '<div class="int-card-title">&#128274; Conectar mi cuenta</div>'+
+        '<p class="int-conf-help">Para activar esta integración tenés que autorizar a Comercia desde tu cuenta de '+eH(cfg.nombre)+'.</p>'+
+        '<div class="int-conf-form">'+
+          '<label class="form-label">Estado de la conexión</label>'+
+          '<div class="int-conn-status">'+
+            '<span class="int-conn-dot"></span>'+
+            '<span>No conectado</span>'+
+          '</div>'+
+          '<button class="btn-form" disabled style="margin-top:10px;opacity:.5;cursor:not-allowed">Conectar con '+eH(cfg.nombre)+'</button>'+
+          '<div class="int-conf-hint">Activar la integración va a estar disponible próximamente.</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+
+    disclaimerCert+
+
+    '<div class="int-info-box">'+
+      '<div class="int-info-icon">&#128161;</div>'+
+      '<div>'+
+        '<strong>¿Querés ser el primero en probar esta integración?</strong><br>'+
+        '<span style="color:var(--text-soft);font-size:12px">Hacé clic en "Avisarme cuando esté lista" y te contactamos apenas la habilitemos para beta testing.</span>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+async function solicitarIntegracion(integracionId){
+  if(!currentUser || !currentEmpresaId){
+    toast('Tenés que estar logueado', 'error');
+    return;
+  }
+  try{
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('integraciones_solicitadas').doc(integracionId)
+      .set({
+        integracionId: integracionId,
+        solicitadoPor: currentUser.uid,
+        solicitadoPorEmail: currentUser.email || '',
+        fecha: new Date().toISOString(),
+        empresaNombre: currentEmpresa ? currentEmpresa.nombre : ''
+      }, { merge: true });
+    toast('¡Anotado! Te avisamos cuando esté lista.', 'success');
+  }catch(err){
+    console.error(err);
+    toast('No se pudo registrar tu interés. Reintentá.', 'error');
   }
 }
 
