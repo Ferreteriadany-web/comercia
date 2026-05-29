@@ -10632,9 +10632,13 @@ async function compartirVentaEmail(){
 // Genera un PDF Blob a partir del HTML A4 (con html2pdf)
 function generarPdfVenta(v){
   return new Promise(function(resolve, reject){
-    if(typeof html2pdf === 'undefined'){
-      reject(new Error('Librería html2pdf no cargada'));
-      return;
+    // html2pdf.bundle viene con html2canvas y jspdf adentro como globales
+    if(typeof html2canvas === 'undefined' || typeof jspdf === 'undefined'){
+      // Fallback al método antiguo si por algún motivo las globales no están
+      if(typeof html2pdf === 'undefined'){
+        reject(new Error('Librerías de PDF no cargadas'));
+        return;
+      }
     }
 
     var modoLbl = (v.modo || 'ticket').toUpperCase();
@@ -10642,7 +10646,7 @@ function generarPdfVenta(v){
     // Construir el HTML completo
     var fullHtml = construirHtmlVentaA4(v);
 
-    // Extraer solo el contenido del <body> usando un parser
+    // Parsear y extraer el contenido + estilos
     var parser = new DOMParser();
     var parsedDoc = parser.parseFromString(fullHtml, 'text/html');
     var docEl = parsedDoc.querySelector('.doc');
@@ -10650,66 +10654,116 @@ function generarPdfVenta(v){
       reject(new Error('No se pudo construir el contenido del PDF'));
       return;
     }
-
-    // Extraer estilos del <head>
     var styleEl = parsedDoc.querySelector('style');
     var stylesHtml = styleEl ? styleEl.outerHTML : '';
 
-    // Crear contenedor oculto en el documento principal
+    // Crear contenedor con dimensiones EXACTAS de A4 en px (96dpi)
+    // A4: 210mm x 297mm = 794 x 1123 px aprox a 96dpi (lo que usa html2canvas por default)
+    var PDF_WIDTH_PX = 794;
+
     var container = document.createElement('div');
     container.id = 'pdfRenderContainer';
-    container.style.position = 'fixed';
-    container.style.left = '-99999px';
-    container.style.top = '0';
-    container.style.width = '794px';  // A4 ancho en px @ 96dpi
-    container.style.background = '#fff';
-    container.style.zIndex = '-1';
+    // IMPORTANTE: posición visible (off-screen pero NO display:none, NO transform:scale)
+    container.style.cssText =
+      'position:fixed;' +
+      'left:0;' +
+      'top:0;' +
+      'width:' + PDF_WIDTH_PX + 'px;' +
+      'min-width:' + PDF_WIDTH_PX + 'px;' +
+      'max-width:' + PDF_WIDTH_PX + 'px;' +
+      'background:#fff;' +
+      'z-index:-9999;' +
+      'opacity:0;' +
+      'pointer-events:none;' +
+      'transform:none;' +
+      'margin:0;' +
+      'padding:0;' +
+      'overflow:visible;';
 
-    // Wrap con estilos aislados (los estilos del CSS principal pueden interferir)
-    // Inyectamos los estilos del PDF dentro del contenedor
     container.innerHTML = stylesHtml + docEl.outerHTML;
     document.body.appendChild(container);
 
-    // Esperar un tick para que se renderice
     setTimeout(function(){
       var element = container.querySelector('.doc');
       if(!element){
-        document.body.removeChild(container);
+        if(container.parentNode) document.body.removeChild(container);
         reject(new Error('No se pudo renderizar el contenido del PDF'));
         return;
       }
 
-      var opts = {
-        margin: 0,
-        filename: modoLbl.toLowerCase() + '-' + v.numero + '.pdf',
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: 794,        // ancho A4 en px @ 96dpi
-          windowWidth: 794,  // forzar viewport para que respete el ancho
-          letterRendering: true
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      };
+      // Forzar el ancho del elemento .doc también
+      element.style.width = PDF_WIDTH_PX + 'px';
+      element.style.minWidth = PDF_WIDTH_PX + 'px';
+      element.style.maxWidth = PDF_WIDTH_PX + 'px';
+      element.style.margin = '0';
+      element.style.boxSizing = 'border-box';
 
-      html2pdf()
-        .from(element)
-        .set(opts)
-        .outputPdf('blob')
-        .then(function(blob){
+      // Renderizar con html2canvas directo (no html2pdf)
+      html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: PDF_WIDTH_PX,
+        height: element.offsetHeight,
+        windowWidth: PDF_WIDTH_PX,
+        windowHeight: element.offsetHeight,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0
+      }).then(function(canvas){
+        try{
+          // Construir el PDF manualmente con jsPDF
+          var jsPdfLib = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+          if(!jsPdfLib){
+            if(container.parentNode) document.body.removeChild(container);
+            reject(new Error('jsPDF no disponible'));
+            return;
+          }
+
+          var pdf = new jsPdfLib({
+            unit: 'mm',
+            format: 'a4',
+            orientation: 'portrait',
+            compress: true
+          });
+
+          // A4 = 210 x 297 mm
+          var pdfW = 210;
+          var pdfH = 297;
+          var imgW = pdfW;
+          var imgH = (canvas.height * imgW) / canvas.width;
+
+          var imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+          if(imgH <= pdfH){
+            // Cabe en una sola página
+            pdf.addImage(imgData, 'JPEG', 0, 0, imgW, imgH);
+          } else {
+            // Múltiples páginas
+            var pageCount = Math.ceil(imgH / pdfH);
+            for(var page = 0; page < pageCount; page++){
+              if(page > 0) pdf.addPage();
+              var offsetY = -(page * pdfH);
+              pdf.addImage(imgData, 'JPEG', 0, offsetY, imgW, imgH);
+            }
+          }
+
+          var blob = pdf.output('blob');
           if(container.parentNode) document.body.removeChild(container);
           resolve(blob);
-        })
-        .catch(function(err){
+        }catch(err){
           if(container.parentNode) document.body.removeChild(container);
-          console.error('html2pdf falló:', err);
+          console.error('Error armando PDF:', err);
           reject(err);
-        });
-    }, 200);
+        }
+      }).catch(function(err){
+        if(container.parentNode) document.body.removeChild(container);
+        console.error('html2canvas falló:', err);
+        reject(err);
+      });
+    }, 250);
   });
 }
 
