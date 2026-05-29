@@ -10339,7 +10339,7 @@ async function subirPdfAStorage(pdfBlob, v){
 async function compartirVentaWhatsApp(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
-  var texto = generarTextoVenta(v);
+  var textoBase = generarTextoVenta(v);
 
   // Determinar teléfono del cliente (si tiene)
   var tel = '';
@@ -10352,7 +10352,7 @@ async function compartirVentaWhatsApp(){
     }
   }
 
-  // Generar PDF
+  // 1. Generar PDF (espera a que esté listo)
   toast('Generando PDF...', 'success');
   var pdfBlob = null;
   try{
@@ -10363,65 +10363,60 @@ async function compartirVentaWhatsApp(){
     return;
   }
 
-  var modoLblShare = (v.modo || 'ticket').toUpperCase();
-  var fileNameShare = modoLblShare.toLowerCase() + '-' + v.numero + '.pdf';
-
-  // Intentar Web Share API en mobile — puede compartir el archivo PDF DIRECTAMENTE al WhatsApp
-  if(navigator.canShare && navigator.share){
-    var pdfFile = new File([pdfBlob], fileNameShare, { type: 'application/pdf' });
-    var shareData = {
-      title: modoLblShare + ' N° ' + v.numero,
-      text: texto,
-      files: [pdfFile]
-    };
-    if(navigator.canShare(shareData)){
-      try{
-        await navigator.share(shareData);
-        toast('Compartido', 'success');
-        return;
-      }catch(err){
-        if(err.name === 'AbortError') return;
-        console.warn('Share API falló, usando fallback:', err);
-      }
-    }
-  }
-
-  // Fallback desktop: SUBIR a Storage, generar link y mandarlo por WhatsApp
-  toast('Subiendo PDF (válido 30 días)...', 'success');
+  // 2. Subir a Firebase Storage para obtener link público
+  toast('Subiendo a la nube (válido 30 días)...', 'success');
   var pdfInfo = null;
   try{
     pdfInfo = await subirPdfAStorage(pdfBlob, v);
   }catch(err){
-    console.warn('No se pudo subir a Storage, usando fallback de descarga:', err);
+    console.error('Error subiendo a Storage:', err);
+    toast('Error al subir PDF: '+(err.message||'sin permisos de Storage'), 'error');
+    return;
   }
 
-  // Descargar el PDF al historial de descargas del navegador (para arrastrar si quiere)
-  var url = URL.createObjectURL(pdfBlob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = fileNameShare;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  // 3. Armar mensaje SOLO con el link clickeable (el cliente lo abre desde su WhatsApp)
+  var modoLbl = (v.modo || 'ticket').toUpperCase();
+  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
+  var expStr = pdfInfo.expiraEl.toLocaleDateString('es-AR');
 
-  // Armar mensaje con link al PDF si se pudo subir
-  var textoFinal = texto;
-  if(pdfInfo && pdfInfo.url){
-    var expStr = pdfInfo.expiraEl.toLocaleDateString('es-AR');
-    textoFinal += '\n\n📄 Descargar comprobante en PDF:\n' + pdfInfo.url + '\n(Link válido hasta el ' + expStr + ')';
-  }
+  // Mensaje corto + link al PDF (el detalle completo está en el PDF)
+  var mensaje =
+    '*' + empresaNombre + '*\n' +
+    modoLbl + ' N° ' + v.numero + '\n' +
+    'Fecha: ' + new Date(v.fecha).toLocaleDateString('es-AR') + '\n' +
+    'Total: *' + fmtPeso(v.total) + '*\n' +
+    '\n' +
+    '📄 Ver comprobante completo:\n' +
+    pdfInfo.url + '\n' +
+    '\n' +
+    '_Link válido hasta el ' + expStr + '_\n' +
+    '\n' +
+    '— Generado con COMERCIA';
 
-  // Abrir WhatsApp Web con el texto + link
-  setTimeout(function(){
-    var wUrl = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(textoFinal);
-    window.open(wUrl, '_blank');
-    if(pdfInfo){
-      toast('PDF subido y link incluido en el mensaje. También descargado.', 'success');
-    } else {
-      toast('PDF descargado. Arrastralo al chat de WhatsApp.', 'success');
+  // 4. Abrir WhatsApp con el mensaje (el cliente recibe el link y lo abre en su navegador)
+  var wUrl = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(mensaje);
+  window.open(wUrl, '_blank');
+  toast('WhatsApp abierto con el link al PDF', 'success');
+}
+
+// Función auxiliar para copiar el link al portapapeles (para email u otros)
+async function copiarLinkPdfVenta(){
+  if(!_ventaActualVer) return null;
+  var v = _ventaActualVer;
+  try{
+    toast('Generando link...', 'success');
+    var pdfBlob = await generarPdfVenta(v);
+    var pdfInfo = await subirPdfAStorage(pdfBlob, v);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(pdfInfo.url);
+      toast('Link copiado al portapapeles', 'success');
     }
-  }, 500);
+    return pdfInfo;
+  }catch(err){
+    console.error(err);
+    toast('Error: '+(err.message||''), 'error');
+    return null;
+  }
 }
 
 // EMAIL — descarga PDF para adjuntar y abre cliente de correo
