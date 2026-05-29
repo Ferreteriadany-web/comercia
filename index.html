@@ -11831,6 +11831,35 @@ function construirHtmlVentaA4(v){
     empresaLogoHtml = '<div class="head-logo"><img src="'+eH(empresaLogo)+'" alt="logo"></div>';
   }
 
+  // ── Datos AFIP (si la venta tiene CAE) ──
+  var tieneCae = !!(v.afipCae && v.afipCbteNro);
+  var qrAfipUrl = '';
+  if(tieneCae){
+    // Formato AFIP RG 4291/18: URL del portal de constancias
+    // Debe contener un JSON con los datos del comprobante, codificado en Base64URL
+    var qrData = {
+      ver: 1,
+      fecha: v.fecha ? new Date(v.fecha).toISOString().substring(0,10) : '',
+      cuit: parseInt(String(empresaCuit).replace(/\D/g,'')) || 0,
+      ptoVta: parseInt(v.afipPtoVta) || 0,
+      tipoCmp: parseInt(v.afipCbteTipo) || 0,
+      nroCmp: parseInt(v.afipCbteNro) || 0,
+      importe: Number(v.total || 0),
+      moneda: 'PES',
+      ctz: 1,
+      tipoDocRec: v.cliente && v.cliente.tipoDoc ? (v.cliente.tipoDoc === 'CUIT' ? 80 : (v.cliente.tipoDoc === 'DNI' ? 96 : 99)) : 99,
+      nroDocRec: v.cliente && v.cliente.numDoc ? (parseInt(String(v.cliente.numDoc).replace(/\D/g,'')) || 0) : 0,
+      tipoCodAut: 'E',  // E = CAE
+      codAut: parseInt(v.afipCae) || 0,
+    };
+    var qrJson = JSON.stringify(qrData);
+    // Base64 standard (sin URL-safe modifications)
+    var qrB64 = btoa(unescape(encodeURIComponent(qrJson)));
+    var afipPortalUrl = 'https://www.afip.gob.ar/fe/qr/?p=' + qrB64;
+    // Usamos api.qrserver.com para generar la imagen del QR (más estable que chart.googleapis.com)
+    qrAfipUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=' + encodeURIComponent(afipPortalUrl);
+  }
+
   // Items
   var itemsRows = '';
   v.items.forEach(function(it, idx){
@@ -11949,6 +11978,17 @@ function construirHtmlVentaA4(v){
 '.firmas-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:18px;margin-bottom:10px}'+
 '.firma-box{border-top:1px solid #000;padding-top:4px;text-align:center;font-size:8.5px;color:#666;letter-spacing:0.06em;text-transform:uppercase;font-weight:600}'+
 
+/* CAE + QR AFIP */
+'.cae-card{display:grid;grid-template-columns:auto 1fr;gap:14px;margin-top:14px;padding:10px 14px;border:1.5px solid #000;background:#fff;align-items:center}'+
+'.cae-qr{flex-shrink:0}'+
+'.cae-qr img{display:block;width:120px;height:120px}'+
+'.cae-info{flex:1;min-width:0}'+
+'.cae-info-title{font-size:10px;font-weight:700;color:#000;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;border-bottom:1px solid #999;padding-bottom:3px}'+
+'.cae-info-row{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;padding:2px 0;border-bottom:1px dotted #ccc}'+
+'.cae-info-row span{color:#666;font-weight:500}'+
+'.cae-info-row strong{font-family:"SF Mono","Monaco","Courier New",monospace;color:#000;font-weight:700;font-size:11px}'+
+'.cae-info-warn{margin-top:6px;padding:5px 8px;background:#fff;border:1px dashed #000;font-size:9.5px;font-weight:700;color:#000;text-align:center;letter-spacing:0.04em}'+
+
 /* FOOTER — minimalista */
 '.doc-foot{border-top:1px solid #ccc;padding:6px 12mm;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;font-size:9px;color:#888;background:#fff}'+
 '.doc-foot-brand{font-weight:700;color:#000;letter-spacing:0.08em}'+
@@ -11987,9 +12027,9 @@ function construirHtmlVentaA4(v){
       '</div>'+
     '</div>'+
     '<div class="doc-head-doc">'+
-      '<div class="doc-head-letra">'+modoLbl.charAt(0)+'</div>'+
-      '<div class="doc-head-tipo">'+modoLbl+'</div>'+
-      '<div class="doc-head-numero">N° '+eH(v.numero)+'</div>'+
+      '<div class="doc-head-letra">'+(v.afipCbteLetra ? v.afipCbteLetra : modoLbl.charAt(0))+'</div>'+
+      '<div class="doc-head-tipo">'+(v.afipCbteLetra ? 'FACTURA '+v.afipCbteLetra : modoLbl)+(v.afipAmbiente==='homo'?' · HOMOLOG.':'')+'</div>'+
+      '<div class="doc-head-numero">N° '+(v.afipPtoVta ? String(v.afipPtoVta).padStart(4,'0')+'-'+String(v.afipCbteNro).padStart(8,'0') : eH(v.numero))+'</div>'+
       '<div class="doc-head-fecha-val">'+fechaStr+' '+horaStr+'</div>'+
     '</div>'+
   '</div>'+
@@ -12043,6 +12083,18 @@ function construirHtmlVentaA4(v){
     '</div>'+
   '</div>'+
 
+  (tieneCae ? '<div class="cae-card">'+
+    '<div class="cae-qr">'+
+      '<img src="'+qrAfipUrl+'" alt="QR AFIP" width="120" height="120">'+
+    '</div>'+
+    '<div class="cae-info">'+
+      '<div class="cae-info-title">Comprobante Autorizado</div>'+
+      '<div class="cae-info-row"><span>CAE N°:</span><strong>'+eH(v.afipCae)+'</strong></div>'+
+      '<div class="cae-info-row"><span>Fecha vto. CAE:</span><strong>'+(v.afipCaeVto ? eH(v.afipCaeVto.substring(0,4)+'-'+v.afipCaeVto.substring(4,6)+'-'+v.afipCaeVto.substring(6,8)) : '—')+'</strong></div>'+
+      (v.afipAmbiente==='homo' ? '<div class="cae-info-warn">⚠ AMBIENTE DE HOMOLOGACIÓN — Este comprobante NO es válido fiscalmente</div>' : '')+
+    '</div>'+
+  '</div>' : '')+
+
   '<div class="firmas-grid">'+
     '<div class="firma-box">Firma vendedor</div>'+
     '<div class="firma-box">Firma cliente · Recibido conforme</div>'+
@@ -12061,9 +12113,231 @@ function construirHtmlVentaA4(v){
 }
 
 // AFIP — placeholder (requiere certificado digital + backend)
-function facturarEnAfip(){
+// ═══════════════════════════════════════════════════════
+// EMISIÓN DE FACTURA ELECTRÓNICA AFIP
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Determina el tipo de comprobante AFIP según la condición fiscal de la empresa
+ * y la del cliente.
+ *
+ * Códigos AFIP:
+ *   1 = Factura A    | 2 = Nota Débito A    | 3 = Nota Crédito A
+ *   6 = Factura B    | 7 = Nota Débito B    | 8 = Nota Crédito B
+ *  11 = Factura C    | 12 = Nota Débito C   | 13 = Nota Crédito C
+ *  51 = Factura M    | 52 = Nota Débito M   | 53 = Nota Crédito M
+ *
+ * Reglas:
+ *  - Si EMPRESA es Monotributo (MONO) → siempre Factura C (no importa cliente)
+ *  - Si EMPRESA es Responsable Inscripto (RI):
+ *      · Cliente RI o Monotributista → Factura A
+ *      · Cliente Consumidor Final o Exento → Factura B
+ */
+function determinarTipoComprobante(condEmpresa, condCliente){
+  if(condEmpresa === 'MONO'){
+    return { codigo: 11, letra: 'C', nombre: 'Factura C' };
+  }
+  if(condEmpresa === 'RI'){
+    // Detectar condición del cliente
+    var c = (condCliente || '').toLowerCase();
+    if(c.indexOf('responsable inscripto') >= 0 || c.indexOf('monotrib') >= 0){
+      return { codigo: 1, letra: 'A', nombre: 'Factura A' };
+    }
+    return { codigo: 6, letra: 'B', nombre: 'Factura B' };
+  }
+  // Default conservador
+  return { codigo: 6, letra: 'B', nombre: 'Factura B' };
+}
+
+/**
+ * Determina el tipo de documento del cliente para AFIP.
+ *   80 = CUIT  | 86 = CUIL  | 96 = DNI  | 99 = Consumidor Final (sin doc)
+ */
+function determinarTipoDocCliente(cliente, totalVenta){
+  if(!cliente || !cliente.numDoc){
+    // Sin doc: CF — pero AFIP requiere DocNro=0 y solo si total <= límite (varía, por defecto $191.5K)
+    return { docTipo: 99, docNro: 0 };
+  }
+  var tipoDocStr = (cliente.tipoDoc || 'CUIT').toUpperCase();
+  var nro = String(cliente.numDoc).replace(/\D/g, '');
+  if(tipoDocStr === 'CUIT'){ return { docTipo: 80, docNro: parseInt(nro) || 0 }; }
+  if(tipoDocStr === 'CUIL'){ return { docTipo: 86, docNro: parseInt(nro) || 0 }; }
+  if(tipoDocStr === 'DNI'){ return { docTipo: 96, docNro: parseInt(nro) || 0 }; }
+  return { docTipo: 80, docNro: parseInt(nro) || 0 };
+}
+
+/**
+ * Convierte una fecha JS a formato yyyyMMdd que requiere AFIP.
+ */
+function fechaAfip(date){
+  var d = date instanceof Date ? date : new Date(date);
+  var y = d.getFullYear();
+  var m = String(d.getMonth()+1).padStart(2,'0');
+  var dd = String(d.getDate()).padStart(2,'0');
+  return y + m + dd;
+}
+
+/**
+ * Botón "Facturar AFIP" en el modal de venta.
+ * Lee la venta actual, arma el payload y llama a la Cloud Function.
+ */
+async function facturarEnAfip(){
   if(!_ventaActualVer) return;
-  toast('La facturación con AFIP requiere certificado digital. Próximamente.', 'error');
+  var v = _ventaActualVer;
+
+  // 1) Verificar config AFIP
+  if(!currentEmpresaId){ toast('No hay empresa cargada','error'); return; }
+  var cfgDoc;
+  try{
+    cfgDoc = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('afip_config').doc('config').get();
+  }catch(err){ toast('Error leyendo config AFIP','error'); return; }
+
+  if(!cfgDoc.exists){
+    if(confirm('Todavía no configuraste AFIP en Comercia. ¿Te llevo a la configuración?')){
+      navTo('afip');
+    }
+    return;
+  }
+  var cfg = cfgDoc.data();
+  if(!cfg.certActivo || !cfg.keyActiva){
+    if(confirm('Falta cargar el certificado o la clave AFIP. ¿Vamos a la configuración?')){
+      navTo('afip');
+    }
+    return;
+  }
+  if(!cfg.cuit){
+    toast('Falta el CUIT en la config AFIP','error');
+    navTo('afip');
+    return;
+  }
+
+  // 2) Verificar que haya al menos un punto de venta cargado
+  var pvSnap = await db.collection('empresas').doc(currentEmpresaId)
+    .collection('afip_puntos_venta').limit(1).get();
+  if(pvSnap.empty){
+    if(confirm('No tenés puntos de venta cargados. ¿Vamos a configurarlos?')){
+      navTo('afip');
+    }
+    return;
+  }
+  var pvDoc = pvSnap.docs[0].data();
+  var ptoVta = pvDoc.numero;
+
+  // 3) Determinar tipo de comprobante
+  var tipo = determinarTipoComprobante(cfg.condicionFiscal, v.cliente ? v.cliente.catFiscal : '');
+  var doc = determinarTipoDocCliente(v.cliente || {}, v.total);
+
+  // 4) Calcular alícuotas IVA
+  // Por simplicidad: todo lo que tiene IVA está al 21% (factura A) o sin discriminar (factura B/C)
+  var ivaXml = [];
+  var impIVA = 0;
+  var impNeto = v.neto || 0;
+  if(tipo.letra === 'A'){
+    // En factura A discriminamos IVA
+    impIVA = v.ivaMonto || 0;
+    if(impIVA > 0){
+      ivaXml.push({ id: 5, baseImp: impNeto, importe: impIVA });  // 5 = 21%
+    }
+  } else if(tipo.letra === 'B'){
+    // En factura B el IVA está incluido en el precio, no se discrimina al cliente pero AFIP lo necesita
+    impIVA = v.ivaMonto || 0;
+    if(impIVA > 0){
+      ivaXml.push({ id: 5, baseImp: impNeto, importe: impIVA });
+    }
+  }
+  // Factura C (monotributo): SIN IVA, todo el monto va a impNeto y impTotal
+
+  var comprobante = {
+    ptoVta: ptoVta,
+    cbteTipo: tipo.codigo,
+    concepto: 1,  // 1 = productos
+    docTipo: doc.docTipo,
+    docNro: doc.docNro,
+    fechaCbte: fechaAfip(v.fecha || new Date()),
+    impTotal: Number((v.total || 0).toFixed(2)),
+    impTotConc: 0,  // no gravado
+    impNeto: tipo.letra === 'C' ? Number((v.total||0).toFixed(2)) : Number(impNeto.toFixed(2)),
+    impOpEx: 0,
+    impTrib: 0,
+    impIVA: tipo.letra === 'C' ? 0 : Number(impIVA.toFixed(2)),
+    monId: 'PES',
+    monCotiz: 1,
+    iva: tipo.letra === 'C' ? [] : ivaXml,
+  };
+
+  // 5) Confirmar antes de emitir
+  var ambienteLbl = cfg.ambiente === 'prod' ? '🔴 PRODUCCIÓN (factura real)' : '🧪 Homologación (prueba)';
+  var msg = '¿Emitir factura electrónica?\n\n'+
+    'Ambiente: '+ambienteLbl+'\n'+
+    'Tipo: '+tipo.nombre+' (cód '+tipo.codigo+')\n'+
+    'Pto venta: '+String(ptoVta).padStart(4,'0')+'\n'+
+    'Total: '+fmtPeso(v.total)+'\n'+
+    'Cliente: '+(v.cliente && v.cliente.razonSocial ? v.cliente.razonSocial : 'Consumidor Final');
+  if(!confirm(msg)) return;
+
+  // 6) Llamar a Cloud Function
+  toast('Solicitando CAE a AFIP...','success');
+  try{
+    var emitir = functions.httpsCallable('afipEmitirComprobante');
+    var res = await emitir({
+      comprobante: comprobante,
+      ventaId: v._id || v.numero,
+    });
+
+    if(res.data && res.data.ok){
+      // ✅ CAE obtenido
+      var cae = res.data.cae;
+      var caeVto = res.data.caeVto;
+      var cbteNro = res.data.cbteNro;
+      var observ = res.data.observaciones || [];
+
+      // Guardar referencia en la venta
+      if(v._id){
+        await db.collection('empresas').doc(currentEmpresaId)
+          .collection('ventas').doc(v._id)
+          .update({
+            afipCae: cae,
+            afipCaeVto: caeVto,
+            afipCbteNro: cbteNro,
+            afipPtoVta: ptoVta,
+            afipCbteTipo: tipo.codigo,
+            afipCbteLetra: tipo.letra,
+            afipAmbiente: cfg.ambiente,
+            afipEmitidoEn: new Date().toISOString(),
+          });
+        // Actualizar copia local
+        _ventaActualVer.afipCae = cae;
+        _ventaActualVer.afipCaeVto = caeVto;
+        _ventaActualVer.afipCbteNro = cbteNro;
+        _ventaActualVer.afipPtoVta = ptoVta;
+        _ventaActualVer.afipCbteTipo = tipo.codigo;
+        _ventaActualVer.afipCbteLetra = tipo.letra;
+        _ventaActualVer.afipAmbiente = cfg.ambiente;
+      }
+
+      var obsMsg = observ.length > 0 ? '\n\nObservaciones AFIP:\n' + observ.join('\n') : '';
+      alert('✅ CAE obtenido correctamente\n\n'+
+        'CAE: '+cae+'\n'+
+        'Vencimiento: '+caeVto+'\n'+
+        'Comprobante: '+tipo.letra+' '+String(ptoVta).padStart(4,'0')+'-'+String(cbteNro).padStart(8,'0')+obsMsg);
+
+      // Refrescar el modal para mostrar el CAE
+      if(typeof verVenta === 'function' && v._id){
+        verVenta(v._id);
+      }
+    } else {
+      var errMsg = res.data && res.data.error ? res.data.error : 'Error desconocido';
+      alert('❌ Error al emitir factura:\n\n'+errMsg);
+    }
+  }catch(err){
+    console.error('Error AFIP:', err);
+    if(err.code === 'functions/not-found' || err.code === 'functions/internal'){
+      alert('❌ La función de AFIP todavía no está desplegada.\n\nEjecutá:\n  firebase deploy --only functions\n\ndesde la carpeta del proyecto.');
+    } else {
+      alert('❌ Error: '+(err.message||'desconocido'));
+    }
+  }
 }
 
 
