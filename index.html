@@ -2660,6 +2660,341 @@
     flex-shrink:0;
     line-height:1;
   }
+
+  /* ═══ MÓDULO AFIP ═══ */
+  .afip-status-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 11px;
+    border-radius:99px;
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    font-family:var(--mono);
+    background:rgba(255,255,255,.1);
+    color:rgba(255,255,255,.85);
+    border:1px solid rgba(255,255,255,.25);
+  }
+  .afip-status-badge.ok{
+    background:rgba(34,197,94,.15);
+    color:#4ade80;
+    border-color:rgba(34,197,94,.4);
+  }
+  .afip-status-badge.warn{
+    background:rgba(251,191,36,.15);
+    color:#fbbf24;
+    border-color:rgba(251,191,36,.4);
+  }
+  .afip-status-badge.error{
+    background:rgba(239,68,68,.15);
+    color:#f87171;
+    border-color:rgba(239,68,68,.4);
+  }
+
+  .afip-section-title{
+    font-size:14px;
+    font-weight:700;
+    color:var(--text);
+    letter-spacing:-0.01em;
+    margin-bottom:4px;
+  }
+  .afip-section-desc{
+    font-size:12px;
+    color:var(--text-soft);
+    line-height:1.5;
+    margin-bottom:14px;
+  }
+  .afip-hint{
+    font-size:10.5px;
+    color:var(--text-mute);
+    margin-top:4px;
+    font-family:var(--mono);
+  }
+
+  /* Banner ambiente */
+  .afip-ambiente-banner{
+    background:var(--warning-soft);
+    border:1px solid var(--warning);
+    border-radius:var(--r-md);
+    padding:16px 20px;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    flex-wrap:wrap;
+  }
+  .afip-ambiente-banner.prod{
+    background:rgba(220,38,38,.08);
+    border-color:var(--danger);
+  }
+  [data-theme="dark"] .afip-ambiente-banner.prod{
+    background:rgba(220,38,38,.15);
+  }
+  .afip-ambiente-info{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex:1;
+    min-width:240px;
+  }
+  .afip-ambiente-icon{
+    font-size:30px;
+    flex-shrink:0;
+    line-height:1;
+  }
+  .afip-ambiente-title{
+    font-weight:700;
+    font-size:13.5px;
+    color:var(--accent-text);
+    letter-spacing:-0.005em;
+    margin-bottom:2px;
+  }
+  [data-theme="dark"] .afip-ambiente-title{color:var(--accent)}
+  .afip-ambiente-banner.prod .afip-ambiente-title{color:var(--danger)}
+  .afip-ambiente-desc{
+    font-size:11.5px;
+    color:var(--text-soft);
+    line-height:1.45;
+  }
+  .afip-ambiente-toggle{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-shrink:0;
+  }
+  .afip-toggle-label{
+    font-size:11px;
+    font-weight:700;
+    color:var(--text);
+    font-family:var(--mono);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  /* Toggle switch (estilo iOS) */
+  .afip-toggle-switch{
+    position:relative;
+    display:inline-block;
+    width:50px;
+    height:26px;
+  }
+  .afip-toggle-switch input{opacity:0;width:0;height:0}
+  .afip-toggle-slider{
+    position:absolute;
+    cursor:pointer;
+    inset:0;
+    background:var(--text-mute);
+    transition:.25s;
+    border-radius:99px;
+  }
+  .afip-toggle-slider::before{
+    position:absolute;
+    content:"";
+    height:20px;
+    width:20px;
+    left:3px;
+    top:3px;
+    background:#fff;
+    transition:.25s;
+    border-radius:50%;
+    box-shadow:var(--shadow-sm);
+  }
+  .afip-toggle-switch input:checked + .afip-toggle-slider{background:var(--danger)}
+  .afip-toggle-switch input:checked + .afip-toggle-slider::before{transform:translateX(24px)}
+
+  /* Tipos de comprobante disponibles */
+  .afip-tipos-disp{
+    margin-top:14px;
+    background:var(--success-soft);
+    border:1px solid var(--success);
+    border-radius:var(--r-md);
+    padding:10px 14px;
+  }
+  [data-theme="dark"] .afip-tipos-disp{border-color:transparent}
+  .afip-tipos-disp-title{
+    font-size:11px;
+    font-weight:700;
+    color:var(--success);
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    font-family:var(--mono);
+    margin-bottom:6px;
+  }
+  .afip-tipos-disp-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .afip-tipo-badge{
+    background:#fff;
+    color:var(--text);
+    padding:3px 10px;
+    border-radius:99px;
+    font-size:11px;
+    font-weight:600;
+    border:1px solid var(--line);
+    font-family:var(--mono);
+  }
+  [data-theme="dark"] .afip-tipo-badge{background:var(--paper-2);color:var(--text)}
+
+  /* Certificado boxes */
+  .afip-cert-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-top:8px;
+  }
+  @media (max-width:880px){
+    .afip-cert-grid{grid-template-columns:1fr}
+  }
+  .afip-cert-box{
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:var(--r-md);
+    padding:14px 16px;
+  }
+  .afip-cert-box.loaded{
+    border-color:var(--success);
+    background:var(--success-soft);
+  }
+  [data-theme="dark"] .afip-cert-box.loaded{background:var(--paper-2);border-color:var(--success)}
+  .afip-cert-header{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .afip-cert-icon{
+    font-size:22px;
+    line-height:1;
+  }
+  .afip-cert-title{
+    font-size:13px;
+    font-weight:700;
+    color:var(--text);
+    letter-spacing:-0.005em;
+  }
+  .afip-cert-status{
+    font-size:10.5px;
+    color:var(--text-mute);
+    font-family:var(--mono);
+    margin-top:1px;
+  }
+  .afip-cert-status.ok{color:var(--success)}
+  .afip-cert-status.error{color:var(--danger)}
+  .afip-cert-textarea{
+    font-family:'Geist Mono',ui-monospace,monospace !important;
+    font-size:10.5px !important;
+    line-height:1.4;
+    resize:vertical;
+    min-height:90px;
+    background:var(--paper) !important;
+  }
+  .afip-cert-actions{
+    display:flex;
+    gap:6px;
+    margin-top:8px;
+    flex-wrap:wrap;
+  }
+
+  /* Aviso seguridad */
+  .afip-security-notice{
+    margin-top:14px;
+    padding:11px 14px;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-left:3px solid var(--success);
+    border-radius:var(--r-sm);
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    font-size:12px;
+    color:var(--text);
+    line-height:1.5;
+  }
+  .afip-security-icon{
+    font-size:18px;
+    flex-shrink:0;
+    line-height:1;
+  }
+
+  /* Guía paso a paso */
+  .afip-guia-grid{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .afip-guia-step{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--r-md);
+    padding:18px 20px;
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+  }
+  .afip-guia-step-num{
+    width:32px;
+    height:32px;
+    background:var(--text);
+    color:var(--bg);
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:700;
+    font-size:14px;
+    flex-shrink:0;
+    font-family:var(--mono);
+  }
+  [data-theme="dark"] .afip-guia-step-num{color:var(--ink)}
+  .afip-guia-step-content{flex:1;min-width:0}
+  .afip-guia-step-content h4{
+    font-size:14px;
+    font-weight:700;
+    color:var(--text);
+    margin-bottom:8px;
+    letter-spacing:-0.01em;
+  }
+  .afip-guia-step-content p{
+    font-size:12.5px;
+    color:var(--text-soft);
+    line-height:1.55;
+    margin:6px 0;
+  }
+  .afip-guia-step-content code{
+    background:var(--bg-2);
+    color:var(--accent-text);
+    padding:1px 6px;
+    border-radius:3px;
+    font-family:var(--mono);
+    font-size:11.5px;
+    border:1px solid var(--line);
+  }
+  [data-theme="dark"] .afip-guia-step-content code{color:var(--accent)}
+  .afip-guia-step-content a{
+    color:var(--accent-text);
+    font-weight:600;
+    text-decoration:none;
+    border-bottom:1px dotted currentColor;
+  }
+  [data-theme="dark"] .afip-guia-step-content a{color:var(--accent)}
+  .afip-code-block{
+    background:#0a0a0a;
+    color:#10b981;
+    padding:10px 14px;
+    border-radius:var(--r-sm);
+    font-family:var(--mono);
+    font-size:11.5px;
+    overflow-x:auto;
+    margin:8px 0;
+    border:1px solid #1f1f23;
+    line-height:1.5;
+    white-space:pre-wrap;
+    word-break:break-all;
+  }
   .barcode-type-select{
     background:var(--bg);
     border:1px solid var(--line);
@@ -3810,7 +4145,7 @@
             <a class="nav-item nav-item-sub" data-module="intEmpretienda" onclick="navTo('intEmpretienda')">
               <span class="nav-item-icon">&#128722;</span><span>EmpreTienda</span>
             </a>
-            <a class="nav-item nav-item-sub" data-module="intAfip" onclick="navTo('intAfip')">
+            <a class="nav-item nav-item-sub" data-module="afip" onclick="navTo('afip')">
               <span class="nav-item-icon">&#127981;</span><span>AFIP</span>
             </a>
           </div>
@@ -4549,7 +4884,278 @@
       <div class="module" id="moduleIntWoocommerce"><div id="intWoocommerceBody"></div></div>
       <div class="module" id="moduleIntFulljaus"><div id="intFulljausBody"></div></div>
       <div class="module" id="moduleIntEmpretienda"><div id="intEmpretiendaBody"></div></div>
-      <div class="module" id="moduleIntAfip"><div id="intAfipBody"></div></div>
+
+      <!-- ═══ MÓDULO AFIP — facturación electrónica ═══ -->
+      <div class="module" id="moduleAfip">
+        <header class="main-header">
+          <div style="display:flex;align-items:center;gap:14px">
+            <h1 class="main-title">Facturación electrónica AFIP</h1>
+            <span class="afip-status-badge" id="afipStatusBadge">No configurado</span>
+          </div>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="afipTestConexion()" id="btnAfipTest" disabled>&#128279; Probar conexión</button>
+            <button class="btn btn-primary btn-sm" onclick="afipGuardarConfig()" id="btnAfipGuardar">&#128190; Guardar configuración</button>
+          </div>
+        </header>
+        <div class="main-body">
+
+          <!-- Tabs -->
+          <div class="ventas-tabbar">
+            <button class="ventas-tabbar-btn active" id="afipTabConfBtn" onclick="afipSwitchTab('conf')">Configuración</button>
+            <button class="ventas-tabbar-btn" id="afipTabPvBtn" onclick="afipSwitchTab('pv')">Puntos de venta</button>
+            <button class="ventas-tabbar-btn" id="afipTabHistBtn" onclick="afipSwitchTab('hist')">Historial CAE</button>
+            <button class="ventas-tabbar-btn" id="afipTabAyudaBtn" onclick="afipSwitchTab('ayuda')">Guía paso a paso</button>
+          </div>
+
+          <div class="alert error" id="afipAlert"></div>
+          <div class="alert success" id="afipSuccess"></div>
+
+          <!-- TAB CONFIGURACIÓN -->
+          <div id="afipTabConf">
+
+            <!-- Banner ambiente -->
+            <div class="afip-ambiente-banner" id="afipAmbienteBanner">
+              <div class="afip-ambiente-info">
+                <div class="afip-ambiente-icon" id="afipAmbienteIcon">&#129514;</div>
+                <div>
+                  <div class="afip-ambiente-title" id="afipAmbienteTitle">Ambiente de Homologación (PRUEBAS)</div>
+                  <div class="afip-ambiente-desc" id="afipAmbienteDesc">Los CAE que generes acá NO valen como factura legal. Usá este ambiente para hacer pruebas antes de pasar a producción.</div>
+                </div>
+              </div>
+              <div class="afip-ambiente-toggle">
+                <label class="afip-toggle-switch">
+                  <input type="checkbox" id="afipAmbienteSwitch" onchange="afipCambiarAmbiente(this.checked)">
+                  <span class="afip-toggle-slider"></span>
+                </label>
+                <span class="afip-toggle-label" id="afipToggleLabel">Homologación</span>
+              </div>
+            </div>
+
+            <!-- Datos fiscales -->
+            <div class="table-card" style="padding:20px;margin-bottom:14px">
+              <h3 class="afip-section-title">Datos fiscales de tu empresa</h3>
+              <p class="afip-section-desc">Estos datos deben coincidir EXACTAMENTE con lo que figura en tu inscripción en AFIP.</p>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">CUIT (sin guiones) *</label>
+                  <input class="form-input" type="text" id="afipCuit" placeholder="30712345678" maxlength="11" pattern="[0-9]{11}">
+                  <div class="afip-hint">11 dígitos sin guiones ni espacios.</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Condición fiscal *</label>
+                  <select class="form-input" id="afipCondicion" onchange="afipUpdateTiposComprob()">
+                    <option value="">Seleccioná...</option>
+                    <option value="RI">Responsable Inscripto</option>
+                    <option value="MONO">Monotributista</option>
+                  </select>
+                  <div class="afip-hint">Define qué tipos de factura podés emitir.</div>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Razón social</label>
+                  <input class="form-input" type="text" id="afipRazonSocial" placeholder="Mi Empresa SRL">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Domicilio fiscal</label>
+                  <input class="form-input" type="text" id="afipDomicilioFiscal" placeholder="Av. Siempre Viva 742, CABA">
+                </div>
+              </div>
+
+              <!-- Info de tipos disponibles según condición -->
+              <div id="afipTiposDisp" class="afip-tipos-disp" style="display:none">
+                <div class="afip-tipos-disp-title">Vas a poder emitir:</div>
+                <div class="afip-tipos-disp-list" id="afipTiposDispList"></div>
+              </div>
+            </div>
+
+            <!-- Certificado digital -->
+            <div class="table-card" style="padding:20px;margin-bottom:14px">
+              <h3 class="afip-section-title">Certificado digital</h3>
+              <p class="afip-section-desc">
+                Para facturar electrónicamente, AFIP requiere un certificado digital (.crt) y su clave privada (.key) generados desde el portal de AFIP.
+                <a onclick="afipSwitchTab('ayuda')" style="color:var(--accent-text);cursor:pointer;font-weight:600;text-decoration:underline">¿Cómo lo genero?</a>
+              </p>
+
+              <div class="afip-cert-grid">
+                <!-- Certificado .crt -->
+                <div class="afip-cert-box" id="afipCertBox">
+                  <div class="afip-cert-header">
+                    <span class="afip-cert-icon">&#128196;</span>
+                    <div>
+                      <div class="afip-cert-title">Certificado (.crt)</div>
+                      <div class="afip-cert-status" id="afipCertStatus">No cargado</div>
+                    </div>
+                  </div>
+                  <input type="file" id="afipCertFile" accept=".crt,.pem,.cer,application/x-x509-ca-cert,application/pkix-cert" style="display:none" onchange="afipCertFileChange(event)">
+                  <textarea class="form-input afip-cert-textarea" id="afipCertText" rows="4" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----&#10;&#10;Pegá el contenido o subí el archivo" oninput="afipValidarCert()"></textarea>
+                  <div class="afip-cert-actions">
+                    <button class="btn btn-line btn-sm" onclick="document.getElementById('afipCertFile').click()">&#128194; Subir archivo .crt</button>
+                    <button class="btn btn-ghost btn-sm" onclick="afipLimpiarCert()">Limpiar</button>
+                  </div>
+                </div>
+
+                <!-- Clave privada .key -->
+                <div class="afip-cert-box" id="afipKeyBox">
+                  <div class="afip-cert-header">
+                    <span class="afip-cert-icon">&#128273;</span>
+                    <div>
+                      <div class="afip-cert-title">Clave privada (.key)</div>
+                      <div class="afip-cert-status" id="afipKeyStatus">No cargada</div>
+                    </div>
+                  </div>
+                  <input type="file" id="afipKeyFile" accept=".key,.pem,application/x-pem-file" style="display:none" onchange="afipKeyFileChange(event)">
+                  <textarea class="form-input afip-cert-textarea" id="afipKeyText" rows="4" placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----&#10;&#10;Pegá el contenido o subí el archivo" oninput="afipValidarKey()"></textarea>
+                  <div class="afip-cert-actions">
+                    <button class="btn btn-line btn-sm" onclick="document.getElementById('afipKeyFile').click()">&#128194; Subir archivo .key</button>
+                    <button class="btn btn-ghost btn-sm" onclick="afipLimpiarKey()">Limpiar</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Security notice -->
+              <div class="afip-security-notice">
+                <span class="afip-security-icon">&#128274;</span>
+                <div>
+                  <strong>Tus credenciales se guardan en un área restringida.</strong><br>
+                  <span style="color:var(--text-soft);font-size:11.5px">
+                    El certificado y la clave se almacenan en Firestore con reglas estrictas: solo accesibles desde Cloud Functions (nadie puede leerlas desde el navegador, ni vos ni otros usuarios).
+                    NUNCA compartas tu archivo .key con nadie por email/whatsapp/etc.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- TAB PUNTOS DE VENTA -->
+          <div id="afipTabPv" style="display:none">
+            <div class="table-card" style="padding:20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+                <div>
+                  <h3 class="afip-section-title" style="margin:0">Puntos de venta habilitados</h3>
+                  <p class="afip-section-desc" style="margin:4px 0 0">Cada caja/sucursal usa un punto de venta distinto. AFIP los numera 0001, 0002, etc.</p>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-line btn-sm" onclick="afipConsultarPVs()" id="btnConsultarPVs">&#128260; Consultar a AFIP</button>
+                  <button class="btn btn-primary btn-sm" onclick="afipAgregarPV()">&#43; Agregar manual</button>
+                </div>
+              </div>
+
+              <div id="afipPVList">
+                <div class="empty-table" style="padding:32px 16px">
+                  <div class="empty-table-icon">&#127978;</div>
+                  <div class="empty-table-title">Sin puntos de venta cargados</div>
+                  <div class="empty-table-desc">Configurá el certificado primero, después podés consultar tus PVs habilitados a AFIP.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB HISTORIAL CAE -->
+          <div id="afipTabHist" style="display:none">
+            <div class="table-card" style="padding:20px">
+              <h3 class="afip-section-title">Últimos comprobantes emitidos</h3>
+              <p class="afip-section-desc">Acá vas a ver todas las facturas con CAE generadas desde Comercia.</p>
+              <div id="afipHistList" style="margin-top:14px">
+                <div class="empty-table" style="padding:32px 16px">
+                  <div class="empty-table-icon">&#128203;</div>
+                  <div class="empty-table-title">Sin comprobantes electrónicos todavía</div>
+                  <div class="empty-table-desc">Una vez configurado AFIP, cada venta que emitas como Factura va a aparecer acá con su CAE.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB AYUDA / GUÍA -->
+          <div id="afipTabAyuda" style="display:none">
+            <div class="afip-guia-grid">
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">1</div>
+                <div class="afip-guia-step-content">
+                  <h4>Generar la clave privada en tu PC</h4>
+                  <p>Abrí una terminal (consola) y corré el siguiente comando. Esto crea el archivo <code>privada.key</code>:</p>
+                  <pre class="afip-code-block">openssl genrsa -out privada.key 2048</pre>
+                  <p style="font-size:11.5px;color:var(--text-mute);margin-top:6px">Si no tenés OpenSSL, en Windows lo conseguís de <a href="https://slproweb.com/products/Win32OpenSSL.html" target="_blank" rel="noopener" style="color:var(--accent-text)">slproweb.com</a>. En Mac/Linux ya viene instalado.</p>
+                </div>
+              </div>
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">2</div>
+                <div class="afip-guia-step-content">
+                  <h4>Generar el pedido de certificado (CSR)</h4>
+                  <p>Corré este comando reemplazando los datos por los tuyos (CN = nombre cualquiera, CUIT = tu CUIT real):</p>
+                  <pre class="afip-code-block">openssl req -new -key privada.key -subj "/C=AR/O=TU NOMBRE/CN=comercia/serialNumber=CUIT 20123456789" -out pedido.csr</pre>
+                  <p style="font-size:11.5px;color:var(--text-mute);margin-top:6px">El "CN" es un alias que vos elegís (no tiene que ser tu CUIT). El "serialNumber" sí tiene que tener tu CUIT real.</p>
+                </div>
+              </div>
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">3</div>
+                <div class="afip-guia-step-content">
+                  <h4>Subir el CSR al portal de AFIP</h4>
+                  <p>Entrá a <a href="https://auth.afip.gob.ar/contribuyente_/login.xhtml" target="_blank" rel="noopener" style="color:var(--accent-text);font-weight:600">AFIP con Clave Fiscal</a> y buscá el servicio:</p>
+                  <p><strong>"Administrador de Relaciones de Clave Fiscal"</strong> → <strong>"Nueva Relación"</strong> → Servicio: <strong>"WSN - Administración de Certificados Digitales"</strong></p>
+                  <p>Una vez ahí: <strong>"Nuevo Certificado"</strong> → pegá el contenido de <code>pedido.csr</code> → Alias: <code>comercia</code> (o el que pusiste en CN).</p>
+                  <p>AFIP te devuelve el archivo <code>certificado.crt</code>. <strong>¡Guardalo!</strong></p>
+                </div>
+              </div>
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">4</div>
+                <div class="afip-guia-step-content">
+                  <h4>Autorizar el certificado para Facturación Electrónica</h4>
+                  <p>Volvé a <strong>"Administrador de Relaciones"</strong> → <strong>"Nueva Relación"</strong>:</p>
+                  <ul style="margin:6px 0 0 18px;font-size:12.5px;line-height:1.6">
+                    <li><strong>Autorizante:</strong> tu CUIT</li>
+                    <li><strong>Representado:</strong> tu CUIT (vos mismo)</li>
+                    <li><strong>Servicio:</strong> "Facturación Electrónica" (wsfe)</li>
+                    <li><strong>Representante:</strong> seleccionás el certificado que acabás de generar (alias "comercia")</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">5</div>
+                <div class="afip-guia-step-content">
+                  <h4>Subir el certificado y la clave a Comercia</h4>
+                  <p>Volvé a la pestaña <strong>Configuración</strong> de acá y subí:</p>
+                  <ul style="margin:6px 0 0 18px;font-size:12.5px;line-height:1.6">
+                    <li><code>certificado.crt</code> (te lo dio AFIP en el paso 3)</li>
+                    <li><code>privada.key</code> (lo generaste vos en el paso 1)</li>
+                  </ul>
+                  <p style="margin-top:8px;padding:8px 12px;background:var(--warning-soft);border-left:3px solid var(--warning);border-radius:var(--r-sm);font-size:12px">
+                    <strong>⚠ Importante:</strong> tenés que generar DOS certificados separados, uno para <strong>Homologación</strong> (testing) y otro para <strong>Producción</strong> (facturas reales). El proceso es el mismo pero entrás con la opción correcta dentro del portal AFIP.
+                  </p>
+                </div>
+              </div>
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">6</div>
+                <div class="afip-guia-step-content">
+                  <h4>Habilitar los puntos de venta</h4>
+                  <p>En el portal de AFIP, andá a <strong>"Regímenes de Facturación y Registración (REAR/RECE/RFI)"</strong> y dar de alta los puntos de venta que vas a usar (por ejemplo, 0001 para tu caja principal).</p>
+                  <p style="font-size:11.5px;color:var(--text-mute);margin-top:6px">Cuando termines, podés tocar el botón "Consultar a AFIP" en la pestaña <strong>Puntos de venta</strong> de acá y se importan automáticamente.</p>
+                </div>
+              </div>
+
+              <div class="afip-guia-step">
+                <div class="afip-guia-step-num">7</div>
+                <div class="afip-guia-step-content">
+                  <h4>¡Listo!</h4>
+                  <p>Volvé a Configuración, tocá "Probar conexión" y si todo está bien, ya podés empezar a emitir facturas electrónicas desde el módulo de Ventas.</p>
+                  <p style="font-size:11.5px;color:var(--text-mute);margin-top:6px">Recomendación: hacé al menos 3 facturas de prueba en Homologación antes de pasar a Producción.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
 
       <!-- ═══ MÓDULO CONFIGURACIÓN ═══ -->
       <div class="module" id="moduleConfiguracion">
@@ -5873,6 +6479,7 @@ function navTo(modulo){
   if(modulo==='ctacte') initCtaCte();
   if(modulo==='configuracion') initConfiguracion();
   if(modulo && modulo.indexOf('int') === 0) initIntegracion(modulo);
+  if(modulo==='afip') initAfip();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -14376,6 +14983,472 @@ async function solicitarIntegracion(integracionId){
   }catch(err){
     console.error(err);
     toast('No se pudo registrar tu interés. Reintentá.', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO AFIP — Facturación electrónica
+// ═══════════════════════════════════════════════════════
+
+var afipConfigActual = null;
+var afipPuntosVenta = [];
+
+// ── Hook al navegar a AFIP ──
+function initAfip(){
+  if(!currentEmpresaId) return;
+  // Reset UI a tab Configuración
+  afipSwitchTab('conf');
+  hideAlerts();
+  cargarConfigAfip();
+  cargarPuntosVenta();
+}
+
+function afipSwitchTab(tab){
+  var tabs = ['conf', 'pv', 'hist', 'ayuda'];
+  tabs.forEach(function(t){
+    var btn = document.getElementById('afipTab' + t.charAt(0).toUpperCase() + t.slice(1) + 'Btn');
+    var content = document.getElementById('afipTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if(btn) btn.classList.toggle('active', t === tab);
+    if(content) content.style.display = t === tab ? '' : 'none';
+  });
+  hideAlerts();
+}
+
+// ── Cambio de ambiente (homologación / producción) ──
+function afipCambiarAmbiente(esProd){
+  var banner = document.getElementById('afipAmbienteBanner');
+  var icon = document.getElementById('afipAmbienteIcon');
+  var title = document.getElementById('afipAmbienteTitle');
+  var desc = document.getElementById('afipAmbienteDesc');
+  var lbl = document.getElementById('afipToggleLabel');
+
+  if(esProd){
+    // Producción → confirmar
+    if(!confirm('⚠ ATENCIÓN\n\nVas a pasar a AMBIENTE DE PRODUCCIÓN.\n\nLos CAE que generes en este ambiente son facturas legales reales y van a aparecer en tu IVA Ventas.\n\nAsegurate de:\n• Tener el certificado de PRODUCCIÓN cargado (no el de homologación)\n• Haber hecho pruebas exhaustivas en homologación primero\n• Tener los puntos de venta correctos\n\n¿Continuar?')){
+      document.getElementById('afipAmbienteSwitch').checked = false;
+      return;
+    }
+    banner.classList.add('prod');
+    icon.innerHTML = '&#128293;'; // 🔥
+    title.textContent = 'Ambiente de PRODUCCIÓN (FACTURAS REALES)';
+    desc.innerHTML = '<strong>ATENCIÓN:</strong> los CAE que generes son facturas legales y aparecen en tu declaración. Asegurate de tener el certificado correcto (no el de pruebas).';
+    lbl.textContent = 'Producción';
+    lbl.style.color = 'var(--danger)';
+  } else {
+    banner.classList.remove('prod');
+    icon.innerHTML = '&#129514;'; // 🧪
+    title.textContent = 'Ambiente de Homologación (PRUEBAS)';
+    desc.textContent = 'Los CAE que generes acá NO valen como factura legal. Usá este ambiente para hacer pruebas antes de pasar a producción.';
+    lbl.textContent = 'Homologación';
+    lbl.style.color = '';
+  }
+}
+
+// ── Cargar configuración existente ──
+async function cargarConfigAfip(){
+  try{
+    var doc = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('afip_config').doc('config').get();
+    if(!doc.exists){
+      afipConfigActual = null;
+      afipUpdateStatusBadge('No configurado', '');
+      return;
+    }
+    var cfg = doc.data();
+    afipConfigActual = cfg;
+    document.getElementById('afipCuit').value = cfg.cuit || '';
+    document.getElementById('afipCondicion').value = cfg.condicionFiscal || '';
+    document.getElementById('afipRazonSocial').value = cfg.razonSocial || '';
+    document.getElementById('afipDomicilioFiscal').value = cfg.domicilioFiscal || '';
+    document.getElementById('afipAmbienteSwitch').checked = (cfg.ambiente === 'prod');
+    afipCambiarAmbiente(cfg.ambiente === 'prod');
+    afipUpdateTiposComprob();
+    // Indicador certificado cargado (sin mostrar contenido)
+    if(cfg.certActivo){
+      document.getElementById('afipCertStatus').textContent = 'Cargado ✓';
+      document.getElementById('afipCertStatus').classList.add('ok');
+      document.getElementById('afipCertBox').classList.add('loaded');
+      document.getElementById('afipCertText').placeholder = '✓ Certificado cargado (no se muestra por seguridad). Pegá uno nuevo para reemplazar.';
+    }
+    if(cfg.keyActiva){
+      document.getElementById('afipKeyStatus').textContent = 'Cargada ✓';
+      document.getElementById('afipKeyStatus').classList.add('ok');
+      document.getElementById('afipKeyBox').classList.add('loaded');
+      document.getElementById('afipKeyText').placeholder = '✓ Clave cargada (no se muestra por seguridad). Pegá una nueva para reemplazar.';
+    }
+    // Habilitar botón de test si tiene todo
+    document.getElementById('btnAfipTest').disabled = !(cfg.certActivo && cfg.keyActiva && cfg.cuit);
+    // Status badge
+    if(cfg.certActivo && cfg.keyActiva){
+      afipUpdateStatusBadge((cfg.ambiente === 'prod' ? 'Producción' : 'Homologación') + ' · Listo', 'ok');
+    } else {
+      afipUpdateStatusBadge('Faltan credenciales', 'warn');
+    }
+  }catch(err){
+    console.error('Error cargando config AFIP:', err);
+  }
+}
+
+function afipUpdateStatusBadge(text, cls){
+  var b = document.getElementById('afipStatusBadge');
+  if(!b) return;
+  b.textContent = text;
+  b.classList.remove('ok', 'warn', 'error');
+  if(cls) b.classList.add(cls);
+}
+
+// ── Carga de certificado .crt ──
+function afipCertFileChange(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  if(file.size > 50 * 1024){ // certificados típicos son 2-4 KB
+    showAlert('afipAlert', 'El archivo es muy grande para ser un certificado (max 50KB).');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    document.getElementById('afipCertText').value = e.target.result;
+    afipValidarCert();
+  };
+  reader.onerror = function(){
+    showAlert('afipAlert', 'No se pudo leer el archivo.');
+  };
+  reader.readAsText(file);
+}
+
+function afipKeyFileChange(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  if(file.size > 50 * 1024){
+    showAlert('afipAlert', 'El archivo es muy grande para ser una clave (max 50KB).');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    document.getElementById('afipKeyText').value = e.target.result;
+    afipValidarKey();
+  };
+  reader.onerror = function(){
+    showAlert('afipAlert', 'No se pudo leer el archivo.');
+  };
+  reader.readAsText(file);
+}
+
+function afipValidarCert(){
+  var txt = document.getElementById('afipCertText').value.trim();
+  var status = document.getElementById('afipCertStatus');
+  var box = document.getElementById('afipCertBox');
+  status.classList.remove('ok', 'error');
+  box.classList.remove('loaded');
+  if(!txt){
+    status.textContent = 'No cargado';
+    return false;
+  }
+  // Validación básica de PEM
+  if(txt.indexOf('-----BEGIN CERTIFICATE-----') === -1 || txt.indexOf('-----END CERTIFICATE-----') === -1){
+    status.textContent = 'Formato inválido';
+    status.classList.add('error');
+    return false;
+  }
+  status.textContent = 'Válido ✓';
+  status.classList.add('ok');
+  box.classList.add('loaded');
+  return true;
+}
+
+function afipValidarKey(){
+  var txt = document.getElementById('afipKeyText').value.trim();
+  var status = document.getElementById('afipKeyStatus');
+  var box = document.getElementById('afipKeyBox');
+  status.classList.remove('ok', 'error');
+  box.classList.remove('loaded');
+  if(!txt){
+    status.textContent = 'No cargada';
+    return false;
+  }
+  // Validación básica
+  var isPrivKey = txt.indexOf('-----BEGIN PRIVATE KEY-----') >= 0
+               || txt.indexOf('-----BEGIN RSA PRIVATE KEY-----') >= 0
+               || txt.indexOf('-----BEGIN ENCRYPTED PRIVATE KEY-----') >= 0;
+  if(!isPrivKey){
+    status.textContent = 'Formato inválido';
+    status.classList.add('error');
+    return false;
+  }
+  if(txt.indexOf('-----BEGIN ENCRYPTED PRIVATE KEY-----') >= 0){
+    status.textContent = 'Clave encriptada (no soportada)';
+    status.classList.add('error');
+    return false;
+  }
+  status.textContent = 'Válida ✓';
+  status.classList.add('ok');
+  box.classList.add('loaded');
+  return true;
+}
+
+function afipLimpiarCert(){
+  document.getElementById('afipCertText').value = '';
+  document.getElementById('afipCertFile').value = '';
+  afipValidarCert();
+}
+function afipLimpiarKey(){
+  document.getElementById('afipKeyText').value = '';
+  document.getElementById('afipKeyFile').value = '';
+  afipValidarKey();
+}
+
+// ── Tipos de comprobante según condición fiscal ──
+function afipUpdateTiposComprob(){
+  var cond = document.getElementById('afipCondicion').value;
+  var disp = document.getElementById('afipTiposDisp');
+  var list = document.getElementById('afipTiposDispList');
+  if(!cond){ disp.style.display = 'none'; return; }
+
+  var tipos = [];
+  if(cond === 'RI'){
+    tipos = [
+      'Factura A', 'Factura B', 'Factura M',
+      'Nota de Crédito A', 'Nota de Crédito B', 'Nota de Débito A', 'Nota de Débito B'
+    ];
+  } else if(cond === 'MONO'){
+    tipos = ['Factura C', 'Nota de Crédito C', 'Nota de Débito C'];
+  }
+  list.innerHTML = tipos.map(function(t){ return '<span class="afip-tipo-badge">'+eH(t)+'</span>'; }).join('');
+  disp.style.display = '';
+}
+
+// ── Guardar configuración ──
+async function afipGuardarConfig(){
+  hideAlerts();
+  var cuit = document.getElementById('afipCuit').value.replace(/\D/g, '');
+  var condicion = document.getElementById('afipCondicion').value;
+  var ambiente = document.getElementById('afipAmbienteSwitch').checked ? 'prod' : 'homo';
+
+  if(cuit.length !== 11){ return showAlert('afipAlert', 'El CUIT debe tener 11 dígitos.'); }
+  if(!condicion){ return showAlert('afipAlert', 'Seleccioná la condición fiscal.'); }
+
+  var certText = document.getElementById('afipCertText').value.trim();
+  var keyText = document.getElementById('afipKeyText').value.trim();
+
+  // Si se está cargando nuevo cert/key, validar
+  var certValido = certText && afipValidarCert();
+  var keyValida = keyText && afipValidarKey();
+
+  if(certText && !certValido){ return showAlert('afipAlert', 'El certificado tiene un formato inválido. Revisalo.'); }
+  if(keyText && !keyValida){ return showAlert('afipAlert', 'La clave privada tiene un formato inválido. Revisala.'); }
+
+  var btn = document.getElementById('btnAfipGuardar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sync-spinner"></span> Guardando...';
+
+  try{
+    var ahora = new Date().toISOString();
+    // 1) Guardar config pública (Firestore)
+    var configData = {
+      cuit: cuit,
+      condicionFiscal: condicion,
+      razonSocial: document.getElementById('afipRazonSocial').value.trim(),
+      domicilioFiscal: document.getElementById('afipDomicilioFiscal').value.trim(),
+      ambiente: ambiente,
+      certActivo: certValido || (afipConfigActual && afipConfigActual.certActivo),
+      keyActiva: keyValida || (afipConfigActual && afipConfigActual.keyActiva),
+      updatedAt: ahora,
+      updatedBy: currentUser ? currentUser.uid : ''
+    };
+    if(certValido) configData.certUploadedAt = ahora;
+    if(keyValida) configData.keyUploadedAt = ahora;
+
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('afip_config').doc('config')
+      .set(configData, { merge: true });
+
+    // 2) Guardar secretos (solo si se cargaron nuevos)
+    if(certValido || keyValida){
+      var secretsData = { updatedAt: ahora, updatedBy: currentUser ? currentUser.uid : '' };
+      if(certValido) secretsData.certPem = certText;
+      if(keyValida) secretsData.keyPem = keyText;
+      await db.collection('empresas').doc(currentEmpresaId)
+        .collection('afip_secrets').doc('secrets')
+        .set(secretsData, { merge: true });
+    }
+
+    // Limpiar textareas por seguridad (no queremos que se queden visibles)
+    if(certValido){
+      document.getElementById('afipCertText').value = '';
+      document.getElementById('afipCertText').placeholder = '✓ Certificado cargado (no se muestra por seguridad). Pegá uno nuevo para reemplazar.';
+      document.getElementById('afipCertStatus').textContent = 'Cargado ✓';
+      document.getElementById('afipCertStatus').classList.add('ok');
+    }
+    if(keyValida){
+      document.getElementById('afipKeyText').value = '';
+      document.getElementById('afipKeyText').placeholder = '✓ Clave cargada (no se muestra por seguridad). Pegá una nueva para reemplazar.';
+      document.getElementById('afipKeyStatus').textContent = 'Cargada ✓';
+      document.getElementById('afipKeyStatus').classList.add('ok');
+    }
+
+    afipConfigActual = Object.assign(afipConfigActual || {}, configData);
+    document.getElementById('btnAfipTest').disabled = !(configData.certActivo && configData.keyActiva);
+
+    if(configData.certActivo && configData.keyActiva){
+      afipUpdateStatusBadge((ambiente === 'prod' ? 'Producción' : 'Homologación') + ' · Listo', 'ok');
+    } else {
+      afipUpdateStatusBadge('Faltan credenciales', 'warn');
+    }
+
+    showAlert('afipSuccess', '✓ Configuración guardada correctamente.');
+    setTimeout(function(){ hideAlerts(); }, 4000);
+    toast('Configuración AFIP guardada','success');
+  }catch(err){
+    console.error('Error guardando config AFIP:', err);
+    showAlert('afipAlert', 'Error al guardar: ' + (err.message || 'desconocido'));
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = '&#128190; Guardar configuración';
+  }
+}
+
+// ── Probar conexión (requiere Cloud Function) ──
+async function afipTestConexion(){
+  if(!afipConfigActual || !afipConfigActual.certActivo || !afipConfigActual.keyActiva){
+    showAlert('afipAlert', 'Primero guardá el certificado y la clave.');
+    return;
+  }
+  var btn = document.getElementById('btnAfipTest');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sync-spinner"></span> Probando...';
+  hideAlerts();
+  try{
+    var testFunc = functions.httpsCallable('afipTestConexion');
+    var res = await testFunc({});
+    if(res.data && res.data.ok){
+      showAlert('afipSuccess', '✓ Conexión exitosa con AFIP ' + (afipConfigActual.ambiente === 'prod' ? 'Producción' : 'Homologación') + '. Servidor responde correctamente.');
+      afipUpdateStatusBadge('Conectado ✓', 'ok');
+    } else {
+      showAlert('afipAlert', 'Error de conexión: ' + (res.data && res.data.error ? res.data.error : 'sin detalle'));
+      afipUpdateStatusBadge('Error de conexión', 'error');
+    }
+  }catch(err){
+    console.error('Error test AFIP:', err);
+    if(err.code === 'functions/not-found' || err.code === 'functions/internal'){
+      showAlert('afipAlert', 'La Cloud Function "afipTestConexion" todavía no está desplegada. Te paso el código en la próxima entrega.');
+    } else {
+      showAlert('afipAlert', 'Error: ' + (err.message || 'desconocido'));
+    }
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = '&#128279; Probar conexión';
+  }
+}
+
+// ── Puntos de venta ──
+function afipAgregarPV(){
+  var n = prompt('Número de punto de venta (1 a 9999):');
+  if(!n) return;
+  n = parseInt(n);
+  if(isNaN(n) || n < 1 || n > 9999){ toast('Número inválido','error'); return; }
+  // Persistir en Firestore
+  db.collection('empresas').doc(currentEmpresaId)
+    .collection('afip_puntos_venta').doc(String(n).padStart(4,'0'))
+    .set({ numero: n, agregadoManual: true, fecha: new Date().toISOString() }, { merge: true })
+    .then(function(){
+      toast('Punto de venta '+String(n).padStart(4,'0')+' agregado','success');
+      cargarPuntosVenta();
+    })
+    .catch(function(err){
+      toast('Error: '+(err.message||''),'error');
+    });
+}
+
+async function cargarPuntosVenta(){
+  if(!currentEmpresaId) return;
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('afip_puntos_venta').get();
+    afipPuntosVenta = [];
+    snap.forEach(function(d){ afipPuntosVenta.push(Object.assign({_id:d.id}, d.data())); });
+    renderPuntosVenta();
+  }catch(err){
+    console.error('Error cargando PVs:', err);
+  }
+}
+
+function renderPuntosVenta(){
+  var cont = document.getElementById('afipPVList');
+  if(!cont) return;
+  if(afipPuntosVenta.length === 0){
+    cont.innerHTML = '<div class="empty-table" style="padding:32px 16px">'+
+      '<div class="empty-table-icon">&#127978;</div>'+
+      '<div class="empty-table-title">Sin puntos de venta cargados</div>'+
+      '<div class="empty-table-desc">Configurá el certificado primero, después podés consultar tus PVs habilitados a AFIP.</div>'+
+    '</div>';
+    return;
+  }
+  var html = '<table class="data-table"><thead><tr>'+
+    '<th>Punto de venta</th><th>Sistema</th><th>Origen</th><th></th>'+
+  '</tr></thead><tbody>';
+  afipPuntosVenta.sort(function(a,b){ return a.numero - b.numero; }).forEach(function(pv){
+    html += '<tr>'+
+      '<td class="code-cell">'+String(pv.numero).padStart(4,'0')+'</td>'+
+      '<td>'+(pv.sistema || 'WSFEv1')+'</td>'+
+      '<td>'+(pv.agregadoManual ? 'Manual' : 'AFIP')+'</td>'+
+      '<td><button class="icon-btn danger" onclick="afipEliminarPV(\''+escapeQ(pv._id)+'\')">&#128465;</button></td>'+
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  cont.innerHTML = html;
+}
+
+async function afipEliminarPV(id){
+  if(!confirm('¿Quitar este punto de venta? Solo se borra de Comercia, no de AFIP.')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('afip_puntos_venta').doc(id).delete();
+    toast('Punto de venta eliminado','success');
+    cargarPuntosVenta();
+  }catch(err){
+    toast('Error: '+(err.message||''),'error');
+  }
+}
+
+async function afipConsultarPVs(){
+  if(!afipConfigActual || !afipConfigActual.certActivo){
+    toast('Configurá el certificado primero','error');
+    return;
+  }
+  var btn = document.getElementById('btnConsultarPVs');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="sync-spinner"></span> Consultando...';
+  try{
+    var consultar = functions.httpsCallable('afipConsultarPuntosVenta');
+    var res = await consultar({});
+    if(res.data && res.data.ok){
+      // Guardar PVs importados
+      var batch = db.batch();
+      (res.data.puntosVenta || []).forEach(function(pv){
+        var ref = db.collection('empresas').doc(currentEmpresaId)
+          .collection('afip_puntos_venta').doc(String(pv.numero).padStart(4,'0'));
+        batch.set(ref, {
+          numero: pv.numero,
+          sistema: pv.sistema || 'WSFEv1',
+          agregadoManual: false,
+          fechaConsulta: new Date().toISOString()
+        }, { merge: true });
+      });
+      await batch.commit();
+      toast('Importados '+(res.data.puntosVenta||[]).length+' puntos de venta','success');
+      cargarPuntosVenta();
+    } else {
+      toast('Error: '+(res.data && res.data.error ? res.data.error : 'sin detalle'),'error');
+    }
+  }catch(err){
+    if(err.code === 'functions/not-found'){
+      toast('Cloud Function pendiente de despliegue','error');
+    } else {
+      toast('Error: '+(err.message||''),'error');
+    }
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = '&#128260; Consultar a AFIP';
   }
 }
 
