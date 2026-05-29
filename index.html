@@ -10341,14 +10341,32 @@ async function compartirVentaWhatsApp(){
   var v = _ventaActualVer;
   var textoBase = generarTextoVenta(v);
 
-  // Determinar teléfono del cliente (si tiene)
+  // Determinar teléfono del cliente con normalización inteligente para Argentina
+  // Acepta formatos: 11-1234-5678, (011) 1234-5678, +54 9 11 1234 5678, 11 12345678, etc.
   var tel = '';
   if(v.cliente && v.cliente.telefono){
-    tel = v.cliente.telefono.replace(/[^0-9]/g, '');
-    if(tel.length === 10 && tel.charAt(0) !== '5'){
-      tel = '54' + tel;
-    } else if(tel.length === 8 || tel.length === 9){
-      tel = '';
+    var raw = v.cliente.telefono.replace(/[^0-9]/g, '');
+    if(raw.length >= 8){
+      // Limpiar prefijos comunes
+      // Si empieza con 549 → +54 9 (móvil arg) → mantener
+      // Si empieza con 54 → código de país → mantener
+      // Si empieza con 0 → quitar el 0 (prefijo nacional argentino)
+      if(raw.charAt(0) === '0') raw = raw.substring(1);
+      // Si empieza con 15 después de código área → quitar el 15 (prefijo móvil viejo)
+      // Aplicar solo si el tel tiene formato "área(2-4 dig) + 15 + número"
+      // ej: 1115-1234-5678 → 11-1234-5678
+      // Esto es heurística simple: si tiene 11 dígitos y los dígitos 3-4 son "15"
+      if(raw.length === 11 && raw.substring(2,4) === '15'){
+        raw = raw.substring(0,2) + raw.substring(4);
+      }
+      // Agregar código de país 54 si no lo tiene
+      if(!raw.startsWith('54')) raw = '54' + raw;
+      // Insertar el 9 después del 54 si no está (móviles argentinos requieren 549 + área + número)
+      // Solo si la longitud sugiere que es móvil (54 + 10 dígitos = 12 totales sin el 9, 13 con el 9)
+      if(raw.length === 12 && raw.charAt(2) !== '9') raw = '54' + '9' + raw.substring(2);
+      tel = raw;
+      // Verificar que tenga sentido (entre 11 y 15 dígitos totales para internacional)
+      if(tel.length < 11 || tel.length > 15) tel = '';
     }
   }
 
@@ -10396,7 +10414,11 @@ async function compartirVentaWhatsApp(){
   // 4. Abrir WhatsApp con el mensaje (el cliente recibe el link y lo abre en su navegador)
   var wUrl = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(mensaje);
   window.open(wUrl, '_blank');
-  toast('WhatsApp abierto con el link al PDF', 'success');
+  if(tel){
+    toast('WhatsApp abierto. Mensaje listo para enviar al cliente.', 'success');
+  } else {
+    toast('WhatsApp abierto. Elegí el contacto para enviar.', 'success');
+  }
 }
 
 // Función auxiliar para copiar el link al portapapeles (para email u otros)
@@ -10465,48 +10487,78 @@ function generarPdfVenta(v){
       reject(new Error('Librería html2pdf no cargada'));
       return;
     }
-    var html = construirHtmlVentaA4(v);
-    // Crear iframe oculto para renderizar
-    var iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '0';
-    iframe.style.width = '210mm';
-    iframe.style.height = '297mm';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
 
-    iframe.onload = function(){
-      setTimeout(function(){
-        var doc = iframe.contentDocument || iframe.contentWindow.document;
-        // El nuevo HTML usa .doc en vez de .doc-wrap
-        var element = doc.querySelector('.doc') || doc.querySelector('.doc-wrap') || doc.body;
-        if(!element){
-          document.body.removeChild(iframe);
-          reject(new Error('No se pudo encontrar contenido para PDF'));
-          return;
-        }
-        var modoLbl = (v.modo || 'ticket').toUpperCase();
-        var opts = {
-          margin: 0,
-          filename: modoLbl.toLowerCase() + '-' + v.numero + '.pdf',
-          image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-        html2pdf().from(element).set(opts).outputPdf('blob').then(function(blob){
-          document.body.removeChild(iframe);
+    var modoLbl = (v.modo || 'ticket').toUpperCase();
+
+    // Construir el HTML completo
+    var fullHtml = construirHtmlVentaA4(v);
+
+    // Extraer solo el contenido del <body> usando un parser
+    var parser = new DOMParser();
+    var parsedDoc = parser.parseFromString(fullHtml, 'text/html');
+    var docEl = parsedDoc.querySelector('.doc');
+    if(!docEl){
+      reject(new Error('No se pudo construir el contenido del PDF'));
+      return;
+    }
+
+    // Extraer estilos del <head>
+    var styleEl = parsedDoc.querySelector('style');
+    var stylesHtml = styleEl ? styleEl.outerHTML : '';
+
+    // Crear contenedor oculto en el documento principal
+    var container = document.createElement('div');
+    container.id = 'pdfRenderContainer';
+    container.style.position = 'fixed';
+    container.style.left = '-99999px';
+    container.style.top = '0';
+    container.style.width = '210mm';
+    container.style.background = '#fff';
+    container.style.zIndex = '-1';
+
+    // Wrap con estilos aislados (los estilos del CSS principal pueden interferir)
+    // Inyectamos los estilos del PDF dentro del contenedor
+    container.innerHTML = stylesHtml + docEl.outerHTML;
+    document.body.appendChild(container);
+
+    // Esperar un tick para que se renderice
+    setTimeout(function(){
+      var element = container.querySelector('.doc');
+      if(!element){
+        document.body.removeChild(container);
+        reject(new Error('No se pudo renderizar el contenido del PDF'));
+        return;
+      }
+
+      var opts = {
+        margin: 0,
+        filename: modoLbl.toLowerCase() + '-' + v.numero + '.pdf',
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: element.scrollWidth,
+          windowHeight: element.scrollHeight
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf()
+        .from(element)
+        .set(opts)
+        .outputPdf('blob')
+        .then(function(blob){
+          if(container.parentNode) document.body.removeChild(container);
           resolve(blob);
-        }).catch(function(err){
-          document.body.removeChild(iframe);
+        })
+        .catch(function(err){
+          if(container.parentNode) document.body.removeChild(container);
+          console.error('html2pdf falló:', err);
           reject(err);
         });
-      }, 300);
-    };
-
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
+    }, 200);
   });
 }
 
