@@ -3910,6 +3910,431 @@
     .main-title{font-size:15px}
     .stat-number{font-size:20px}
   }
+
+  /* ═══════════════════════════════════════════════════════
+     LISTAS DE PROVEEDORES
+     ═══════════════════════════════════════════════════════ */
+  .lp-tabs{
+    display:flex;
+    gap:4px;
+    border-bottom:1px solid var(--border);
+    margin-bottom:24px;
+    padding:0 2px;
+  }
+  .lp-tab{
+    background:transparent;
+    border:none;
+    padding:11px 18px;
+    font-size:13.5px;
+    color:var(--text-mute);
+    cursor:pointer;
+    border-bottom:2px solid transparent;
+    margin-bottom:-1px;
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-family:inherit;
+    font-weight:500;
+    transition:color .15s, border-color .15s;
+  }
+  .lp-tab:hover{color:var(--text)}
+  .lp-tab.active{color:var(--text);border-bottom-color:var(--accent)}
+  .lp-tab span{font-size:15px}
+
+  .lp-pane{display:none}
+  .lp-pane.active{display:block}
+
+  .lp-pane-header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    margin-bottom:16px;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .lp-pane-title{font-size:15px;font-weight:600;margin:0;color:var(--text)}
+  .lp-pane-sub{font-size:13px;color:var(--text-mute);margin:2px 0 0}
+
+  .lp-empty{
+    background:var(--bg-soft);
+    border:1px dashed var(--border);
+    border-radius:10px;
+    padding:32px 20px;
+    text-align:center;
+    color:var(--text-mute);
+    font-size:13.5px;
+  }
+
+  .lp-prov-card{
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:18px 20px;
+    margin-bottom:12px;
+    transition:border-color .15s;
+  }
+  .lp-prov-card:hover{border-color:var(--border-strong)}
+  .lp-prov-card.lp-prov-empty{background:var(--bg-soft)}
+
+  .lp-prov-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .lp-prov-head-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+  .lp-prov-avatar{
+    width:38px;height:38px;
+    border-radius:50%;
+    background:var(--accent-soft);
+    color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:600;
+    font-size:13px;
+    flex-shrink:0;
+  }
+  .lp-prov-name{font-weight:600;font-size:14.5px;margin:0;color:var(--text)}
+  .lp-prov-meta{font-size:12px;color:var(--text-mute);margin:2px 0 0}
+
+  .lp-prov-stats{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:10px;
+    margin-top:14px;
+  }
+  .lp-prov-stat{
+    background:var(--bg-soft);
+    border-radius:8px;
+    padding:10px 12px;
+  }
+  .lp-prov-stat-label{font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.4px;margin:0}
+  .lp-prov-stat-value{font-size:16px;font-weight:600;margin:3px 0 0;color:var(--text)}
+
+  .lp-prov-tramos{margin-top:14px}
+  .lp-prov-tramos-label{font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.4px;margin:0 0 8px}
+  .lp-prov-tramos-table{
+    width:100%;
+    border-collapse:collapse;
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+    font-size:13px;
+  }
+  .lp-prov-tramos-table thead{background:var(--bg-soft)}
+  .lp-prov-tramos-table th{
+    text-align:left;
+    padding:8px 12px;
+    font-size:11px;
+    color:var(--text-mute);
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    font-weight:500;
+  }
+  .lp-prov-tramos-table td{padding:8px 12px;border-top:1px solid var(--border)}
+  .lp-prov-tramos-table td:last-child{text-align:right;font-weight:600}
+
+  .lp-form-row{margin-bottom:14px}
+  .lp-form-row label{
+    display:block;
+    font-size:12px;
+    color:var(--text-mute);
+    margin-bottom:6px;
+    font-weight:500;
+  }
+  .lp-form-help{
+    font-size:12px;
+    color:var(--text-mute);
+    margin:0 0 10px;
+    line-height:1.5;
+  }
+  .lp-form-grid-3{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  @media (max-width: 600px){
+    .lp-form-grid-3{grid-template-columns:1fr}
+  }
+
+  .lp-tramo-row{
+    display:grid;
+    grid-template-columns:1fr 1fr 90px 32px;
+    gap:8px;
+    margin-bottom:6px;
+    align-items:center;
+  }
+  .lp-tramo-row input{
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:7px 10px;
+    font-size:13px;
+    color:var(--text);
+    font-family:inherit;
+    width:100%;
+  }
+  .lp-tramo-suffix{position:relative}
+  .lp-tramo-suffix::after{
+    content:'%';
+    position:absolute;
+    right:10px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:12px;
+    color:var(--text-mute);
+    pointer-events:none;
+  }
+  .lp-tramo-suffix input{padding-right:24px !important}
+  .lp-tramo-del{
+    background:transparent;
+    border:1px solid var(--border);
+    border-radius:6px;
+    color:#dc2626;
+    cursor:pointer;
+    font-size:16px;
+    line-height:1;
+    height:32px;
+  }
+  .lp-tramo-del:hover{background:#dc2626;color:white}
+
+  .lp-tramo-header{
+    display:grid;
+    grid-template-columns:1fr 1fr 90px 32px;
+    gap:8px;
+    margin-bottom:6px;
+    font-size:11px;
+    color:var(--text-mute);
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    padding:0 4px;
+  }
+
+  .lp-calc-preview{
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-top:16px;
+  }
+  .lp-calc-title{font-size:12px;font-weight:600;margin:0 0 10px;color:var(--text);text-transform:uppercase;letter-spacing:.4px}
+  .lp-calc-input-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .lp-calc-input-row label{font-size:13px;color:var(--text-mute)}
+  .lp-calc-input-row input{max-width:140px}
+  .lp-calc-breakdown{font-size:13px;color:var(--text);font-family:var(--mono);line-height:1.7}
+  .lp-calc-line{display:flex;justify-content:space-between;padding:2px 0}
+  .lp-calc-line-final{
+    border-top:1px solid var(--border);
+    padding-top:8px;
+    margin-top:6px;
+    font-weight:600;
+    font-size:15px;
+  }
+
+  .lp-dropzone{
+    background:var(--bg-soft);
+    border:2px dashed var(--border-strong);
+    border-radius:12px;
+    padding:48px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:all .15s;
+    margin:16px 0;
+  }
+  .lp-dropzone:hover, .lp-dropzone.lp-drag-over{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .lp-dropzone-icon{font-size:36px;margin-bottom:10px;opacity:.7}
+  .lp-dropzone-title{font-size:14.5px;font-weight:500;margin:0;color:var(--text)}
+  .lp-dropzone-sub{font-size:12.5px;color:var(--text-mute);margin:6px 0 0}
+
+  .lp-help-box{
+    background:var(--bg-soft);
+    border-radius:10px;
+    padding:14px 16px;
+    font-size:13px;
+    color:var(--text-mute);
+    line-height:1.6;
+  }
+  .lp-help-box strong{color:var(--text);font-weight:600;display:block;margin-bottom:6px}
+  .lp-help-box ul{margin:0 0 8px;padding-left:20px}
+  .lp-help-box li{margin-bottom:3px}
+
+  .lp-preview-header{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:16px;
+    flex-wrap:wrap;
+  }
+  .lp-stats{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:10px;
+    margin-bottom:16px;
+  }
+  @media (max-width: 600px){
+    .lp-stats{grid-template-columns:repeat(2, 1fr)}
+  }
+  .lp-stat{
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px 14px;
+  }
+  .lp-stat-label{font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.4px;margin:0}
+  .lp-stat-value{font-size:22px;font-weight:600;margin:4px 0 0;color:var(--text)}
+  .lp-stat-success{color:#16a34a}
+  .lp-stat-warning{color:#ca8a04}
+  .lp-stat-danger{color:#dc2626}
+
+  .lp-preview-controls{
+    display:flex;
+    gap:10px;
+    margin-bottom:14px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .lp-preview-count{
+    font-size:12px;
+    color:var(--text-mute);
+    margin-left:auto;
+  }
+
+  .lp-table-wrap{
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:auto;
+    max-height:60vh;
+  }
+  .lp-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .lp-table thead{
+    background:var(--bg-soft);
+    position:sticky;
+    top:0;
+    z-index:2;
+  }
+  .lp-table th{
+    text-align:left;
+    padding:10px 12px;
+    font-size:11px;
+    color:var(--text-mute);
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    font-weight:500;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  .lp-table td{
+    padding:9px 12px;
+    border-bottom:1px solid var(--border);
+    vertical-align:middle;
+  }
+  .lp-table tr:last-child td{border-bottom:none}
+  .lp-table tr.lp-row-alert{background:rgba(220,38,38,.06)}
+  .lp-table tr.lp-row-alert:hover{background:rgba(220,38,38,.1)}
+  .lp-table tbody tr:hover{background:var(--bg-soft)}
+
+  .lp-col-check{width:38px;text-align:center}
+  .lp-col-codigo{width:90px}
+  .lp-col-num{text-align:right;width:90px;font-variant-numeric:tabular-nums}
+  .lp-col-estado{width:110px;text-align:center}
+
+  .lp-badge{
+    display:inline-block;
+    font-size:11px;
+    padding:3px 9px;
+    border-radius:10px;
+    font-weight:500;
+    text-transform:lowercase;
+  }
+  .lp-badge-actualizar{background:#dbeafe;color:#1e40af}
+  .lp-badge-crear{background:#dcfce7;color:#166534}
+  .lp-badge-sinmatch{background:#fef3c7;color:#92400e}
+  .lp-badge-alerta{background:#fee2e2;color:#991b1b}
+
+  .lp-change-up{color:#16a34a}
+  .lp-change-down{color:#dc2626}
+  .lp-change-big{font-weight:600;color:#dc2626}
+  .lp-change-neutral{color:var(--text-mute)}
+
+  .lp-row-desc{
+    max-width:240px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+
+  .lp-preview-pager{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:12px 0;
+    font-size:13px;
+    color:var(--text-mute);
+  }
+  .lp-preview-pager button{
+    background:transparent;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:5px 10px;
+    cursor:pointer;
+    color:var(--text);
+    font-family:inherit;
+    font-size:12px;
+  }
+  .lp-preview-pager button:disabled{opacity:.4;cursor:not-allowed}
+  .lp-preview-pager button:not(:disabled):hover{background:var(--bg-soft)}
+
+  .lp-preview-actions{
+    display:flex;
+    gap:10px;
+    justify-content:flex-end;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+
+  .lp-hist-item{
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  .lp-hist-item-left{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+  .lp-hist-item-icon{
+    width:36px;height:36px;
+    border-radius:50%;
+    background:var(--accent-soft);
+    color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;
+    flex-shrink:0;
+  }
+  .lp-hist-item-title{font-weight:600;font-size:14px;margin:0;color:var(--text)}
+  .lp-hist-item-sub{font-size:12px;color:var(--text-mute);margin:2px 0 0}
+  .lp-hist-item-stats{
+    display:flex;
+    gap:14px;
+    font-size:13px;
+    color:var(--text);
+    flex-wrap:wrap;
+  }
+  .lp-hist-stat strong{font-weight:600}
+
 </style>
 </head>
 <body>
@@ -4113,6 +4538,9 @@
         </div>
         <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
           <span class="nav-item-icon">&#128722;</span><span>Pedidos</span>
+        </a>
+        <a class="nav-item" data-module="listasProveedores" onclick="navTo('listasProveedores')">
+          <span class="nav-item-icon">&#128200;</span><span>Listas Proveedores</span>
         </a>
         <a class="nav-item" data-module="ventas" onclick="navTo('ventas')">
           <span class="nav-item-icon">&#128181;</span><span>Ventas</span>
@@ -5157,6 +5585,221 @@
         </div>
       </div>
 
+      <!-- ═══ MÓDULO LISTAS PROVEEDORES ═══ -->
+      <div class="module" id="moduleListasProveedores">
+        <header class="main-header">
+          <h1 class="main-title">Listas de Proveedores</h1>
+          <div class="main-actions">
+            <button class="btn btn-sm" onclick="lpAbrirNuevoProveedor()">&#43; Nuevo proveedor</button>
+          </div>
+        </header>
+        <div class="main-body">
+
+          <!-- Sub-tabs -->
+          <div class="lp-tabs">
+            <button class="lp-tab active" data-tab="config" onclick="lpCambiarTab('config')">
+              <span>&#9881;</span> Configuración
+            </button>
+            <button class="lp-tab" data-tab="importar" onclick="lpCambiarTab('importar')">
+              <span>&#128228;</span> Importar lista
+            </button>
+            <button class="lp-tab" data-tab="historial" onclick="lpCambiarTab('historial')">
+              <span>&#128338;</span> Historial
+            </button>
+          </div>
+
+          <!-- TAB 1: Configuración -->
+          <div class="lp-pane active" id="lpPaneConfig">
+            <div class="lp-pane-header">
+              <div>
+                <p class="lp-pane-title">Proveedores configurados</p>
+                <p class="lp-pane-sub" id="lpProvCount">Cargando...</p>
+              </div>
+            </div>
+            <div id="lpProveedoresList">
+              <div class="lp-empty">Cargando proveedores...</div>
+            </div>
+          </div>
+
+          <!-- TAB 2: Importar -->
+          <div class="lp-pane" id="lpPaneImportar">
+            <div id="lpImportarPaso1">
+              <div class="lp-pane-header">
+                <div>
+                  <p class="lp-pane-title">Importar nueva lista</p>
+                  <p class="lp-pane-sub">Elegí el proveedor y subí el Excel con la lista de precios</p>
+                </div>
+              </div>
+              <div class="lp-form-row">
+                <label>Proveedor</label>
+                <select id="lpImpProveedor" class="search-input" style="max-width:380px"></select>
+              </div>
+              <div class="lp-dropzone" id="lpDropzone">
+                <input type="file" id="lpFileInput" accept=".xlsx,.xls" style="display:none">
+                <div class="lp-dropzone-icon">&#128228;</div>
+                <p class="lp-dropzone-title">Arrastrá el Excel aquí o hacé click para elegirlo</p>
+                <p class="lp-dropzone-sub">Formatos: .xlsx, .xls &middot; Se procesa automáticamente</p>
+              </div>
+              <div class="lp-help-box">
+                <strong>Formato esperado del Excel:</strong>
+                <ul>
+                  <li>Una columna con el código del proveedor</li>
+                  <li>Una columna con la descripción del producto</li>
+                  <li>Una columna con el precio neto (sin IVA)</li>
+                  <li>Opcionalmente: columna con IVA específico</li>
+                </ul>
+                Vamos a detectar las columnas automáticamente. Si nos equivocamos, te dejamos corregir el mapeo.
+              </div>
+            </div>
+
+            <!-- Paso 2: Vista previa -->
+            <div id="lpImportarPaso2" style="display:none">
+              <div class="lp-preview-header">
+                <button class="btn btn-sm btn-light" onclick="lpVolverAPaso1()">&#8249; Volver</button>
+                <div style="flex:1">
+                  <p class="lp-pane-title" style="margin:0">Vista previa</p>
+                  <p class="lp-pane-sub" id="lpPreviewSubtitle"></p>
+                </div>
+              </div>
+
+              <!-- Stats -->
+              <div class="lp-stats">
+                <div class="lp-stat">
+                  <div class="lp-stat-label">A actualizar</div>
+                  <div class="lp-stat-value" id="lpStatActualizar">0</div>
+                </div>
+                <div class="lp-stat">
+                  <div class="lp-stat-label">Nuevos</div>
+                  <div class="lp-stat-value lp-stat-success" id="lpStatNuevos">0</div>
+                </div>
+                <div class="lp-stat">
+                  <div class="lp-stat-label">Sin matchear</div>
+                  <div class="lp-stat-value lp-stat-warning" id="lpStatSinMatch">0</div>
+                </div>
+                <div class="lp-stat">
+                  <div class="lp-stat-label">Alertas</div>
+                  <div class="lp-stat-value lp-stat-danger" id="lpStatAlertas">0</div>
+                </div>
+              </div>
+
+              <!-- Filtro -->
+              <div class="lp-preview-controls">
+                <input type="text" class="search-input" id="lpPreviewBuscar" placeholder="Buscar por código o descripción..." style="flex:1;max-width:320px">
+                <select id="lpPreviewFiltro" class="search-input" style="max-width:200px">
+                  <option value="todos">Todos</option>
+                  <option value="actualizar">Solo a actualizar</option>
+                  <option value="crear">Solo nuevos</option>
+                  <option value="alerta">Solo alertas</option>
+                  <option value="sinmatch">Sin matchear</option>
+                </select>
+                <span class="lp-preview-count" id="lpPreviewCount"></span>
+              </div>
+
+              <!-- Tabla -->
+              <div class="lp-table-wrap">
+                <table class="lp-table">
+                  <thead>
+                    <tr>
+                      <th class="lp-col-check"><input type="checkbox" id="lpCheckAll" checked onchange="lpToggleAll(this.checked)"></th>
+                      <th class="lp-col-codigo">Código</th>
+                      <th>Descripción</th>
+                      <th class="lp-col-num">Costo</th>
+                      <th class="lp-col-num">Actual</th>
+                      <th class="lp-col-num">Nuevo</th>
+                      <th class="lp-col-num">Cambio</th>
+                      <th class="lp-col-estado">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lpPreviewTbody"></tbody>
+                </table>
+              </div>
+
+              <div class="lp-preview-pager" id="lpPreviewPager"></div>
+
+              <!-- Actions -->
+              <div class="lp-preview-actions">
+                <button class="btn btn-sm btn-light" onclick="lpCancelarImport()">Cancelar</button>
+                <button class="btn btn-sm" onclick="lpAplicarSoloNuevos()" id="lpBtnSoloNuevos">Solo nuevos (0)</button>
+                <button class="btn btn-sm btn-primary" onclick="lpAplicarTodo()" id="lpBtnAplicar">Aplicar seleccionados (0)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: Historial -->
+          <div class="lp-pane" id="lpPaneHistorial">
+            <div class="lp-pane-header">
+              <div>
+                <p class="lp-pane-title">Historial de importaciones</p>
+                <p class="lp-pane-sub" id="lpHistCount">Cargando...</p>
+              </div>
+            </div>
+            <div id="lpHistorialList">
+              <div class="lp-empty">Cargando historial...</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- MODAL: Editar proveedor -->
+      <div class="modal-overlay" id="lpModalProveedor">
+        <div class="modal" style="max-width:640px">
+          <div class="modal-header">
+            <h3 class="modal-title" id="lpModalTitulo">Configurar proveedor</h3>
+            <button class="modal-close" onclick="lpCerrarModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="lp-form-row">
+              <label>Nombre del proveedor *</label>
+              <input type="text" class="search-input" id="lpModalNombre" placeholder="Ej: Bremen">
+            </div>
+            <div class="lp-form-grid-3">
+              <div class="lp-form-row">
+                <label>Descuento del proveedor (%)</label>
+                <input type="number" class="search-input" id="lpModalDescuento" step="0.1" min="0" max="100" value="0">
+              </div>
+              <div class="lp-form-row">
+                <label>IVA por defecto (%)</label>
+                <select class="search-input" id="lpModalIva">
+                  <option value="21">21 %</option>
+                  <option value="10.5">10,5 %</option>
+                  <option value="27">27 %</option>
+                  <option value="0">0 %</option>
+                </select>
+              </div>
+              <div class="lp-form-row">
+                <label>Base para ganancia</label>
+                <select class="search-input" id="lpModalBase">
+                  <option value="conDescuento">Con descuento</option>
+                  <option value="neto">Neto (sin descuento)</option>
+                </select>
+              </div>
+            </div>
+            <div class="lp-form-row">
+              <label>Tramos de ganancia por monto</label>
+              <p class="lp-form-help">A productos más baratos podés sacarles más ganancia. A más caros, menos. Los tramos se aplican según el costo del producto.</p>
+              <div id="lpModalTramos"></div>
+              <button class="btn btn-sm btn-light" onclick="lpAgregarTramo()" style="margin-top:8px">&#43; Agregar tramo</button>
+            </div>
+
+            <!-- Calculadora preview -->
+            <div class="lp-calc-preview">
+              <p class="lp-calc-title">Probá la fórmula</p>
+              <div class="lp-calc-input-row">
+                <label>Precio neto del proveedor:</label>
+                <input type="number" class="search-input" id="lpCalcInput" value="1000" step="0.01" oninput="lpRecalcularPreview()">
+              </div>
+              <div class="lp-calc-breakdown" id="lpCalcBreakdown"></div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-light" onclick="lpCerrarModal()">Cancelar</button>
+            <button class="btn btn-sm btn-danger" id="lpBtnEliminarProv" onclick="lpEliminarProveedor()" style="display:none;margin-right:auto">Eliminar</button>
+            <button class="btn btn-sm btn-primary" onclick="lpGuardarProveedor()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ═══ MÓDULO CONFIGURACIÓN ═══ -->
       <div class="module" id="moduleConfiguracion">
         <header class="main-header">
@@ -6119,7 +6762,7 @@ function closeMobileSidebar(){
   var btn = document.getElementById('mobileMenuBtn');
   if(sidebar) sidebar.classList.remove('mobile-open');
   if(overlay) overlay.classList.remove('show');
-  if(btn) btn.classList.remove('open');
+  if(btn) btn.classList.remove('show');
   document.body.style.overflow = '';
 }
 
@@ -6474,6 +7117,7 @@ function navTo(modulo){
   var target = document.getElementById('module'+modulo.charAt(0).toUpperCase()+modulo.slice(1));
   if(target) target.classList.add('active');
   if(modulo==='pedidos') initPedidos();
+  if(modulo==='listasProveedores') initListasProveedores();
   if(modulo==='clientes') initClientes();
   if(modulo==='ventas') initVentas();
   if(modulo==='ctacte') initCtaCte();
@@ -15723,6 +16367,1003 @@ async function afipConsultarPVs(){
   }finally{
     btn.disabled = false;
     btn.innerHTML = '&#128260; Consultar a AFIP';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MÓDULO: LISTAS DE PROVEEDORES
+// ═══════════════════════════════════════════════════════════════════
+
+var lpState = {
+  proveedores: [],          // array de proveedores configurados
+  proveedorEditando: null,  // ID del proveedor que se está editando
+  tramosEditando: [],       // tramos en el modal abierto
+  importacion: null,        // { proveedor, archivo, rows: [{...}] }
+  importPage: 0,
+  importPageSize: 50,
+  importFiltro: 'todos',
+  importBusqueda: '',
+  historial: [],
+  initialized: false
+};
+
+function initListasProveedores(){
+  if(!currentEmpresaId) return;
+  if(!lpState.initialized){
+    lpSetupDropzone();
+    // Agregar listener click-fuera al modal (por si quedó fuera del querySelector inicial)
+    var modal = document.getElementById('lpModalProveedor');
+    if(modal){
+      modal.addEventListener('click', function(e){ if(e.target === modal) lpCerrarModal(); });
+    }
+    lpState.initialized = true;
+  }
+  lpCargarProveedores();
+}
+
+function lpCambiarTab(tab){
+  document.querySelectorAll('.lp-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelector('.lp-tab[data-tab="'+tab+'"]').classList.add('active');
+  document.querySelectorAll('.lp-pane').forEach(function(p){ p.classList.remove('active'); });
+  if(tab === 'config'){
+    document.getElementById('lpPaneConfig').classList.add('active');
+    lpCargarProveedores();
+  } else if(tab === 'importar'){
+    document.getElementById('lpPaneImportar').classList.add('active');
+    lpPoblarSelectorImport();
+  } else if(tab === 'historial'){
+    document.getElementById('lpPaneHistorial').classList.add('active');
+    lpCargarHistorial();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// FORMATEO Y CÁLCULOS
+// ═══════════════════════════════════════════════════════════
+
+function lpFmt(n){
+  if(n == null || isNaN(n)) return '-';
+  return '$ ' + Number(n).toLocaleString('es-AR', {maximumFractionDigits: 0});
+}
+function lpFmtPct(n){
+  if(n == null || isNaN(n)) return '-';
+  var sign = n >= 0 ? '+' : '';
+  return sign + Number(n).toFixed(1) + ' %';
+}
+function lpIniciales(nombre){
+  var s = String(nombre || '?').trim().toUpperCase();
+  var parts = s.split(/\s+/);
+  if(parts.length >= 2) return (parts[0][0] || '') + (parts[1][0] || '');
+  return s.substring(0, 2);
+}
+
+// Calcula el precio final aplicando descuento + tramo + IVA + redondeo
+function lpCalcularPrecio(precioNeto, proveedor){
+  var pn = Number(precioNeto) || 0;
+  if(pn <= 0) return { neto: pn, conDesc: 0, base: 0, margen: 0, costoFinal: 0, conIva: 0, final: 0, tramoIdx: -1 };
+  var desc = Number(proveedor.descuentoProveedor) || 0;
+  var iva = Number(proveedor.ivaDefault) || 0;
+  var conDesc = pn * (1 - desc/100);
+  var base = (proveedor.baseGanancia === 'neto') ? pn : conDesc;
+  // Buscar tramo
+  var tramos = proveedor.tramos || [];
+  var tramoIdx = -1;
+  var margen = 0;
+  for(var i = 0; i < tramos.length; i++){
+    var t = tramos[i];
+    var desde = Number(t.desde) || 0;
+    var hasta = (t.hasta === null || t.hasta === undefined || t.hasta === '' || t.hasta === Infinity) ? Infinity : Number(t.hasta);
+    if(base >= desde && base < hasta){
+      tramoIdx = i;
+      margen = Number(t.ganancia) || 0;
+      break;
+    }
+  }
+  // Si no hay tramo, usar 0%
+  var costoFinal = conDesc * (1 + margen/100);
+  var conIva = costoFinal * (1 + iva/100);
+  var final = Math.ceil(conIva); // redondeo hacia arriba
+  return {
+    neto: pn,
+    conDesc: conDesc,
+    base: base,
+    margen: margen,
+    costoFinal: costoFinal,
+    conIva: conIva,
+    final: final,
+    tramoIdx: tramoIdx
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONFIGURACIÓN: CARGAR + RENDER
+// ═══════════════════════════════════════════════════════════
+
+async function lpCargarProveedores(){
+  if(!currentEmpresaId) return;
+  var cont = document.getElementById('lpProveedoresList');
+  cont.innerHTML = '<div class="lp-empty">Cargando proveedores...</div>';
+
+  try{
+    // 1. Cargar configurados desde Firestore
+    var snap = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('listas_proveedores').get();
+    var configurados = {};
+    snap.forEach(function(doc){
+      var d = doc.data();
+      d.id = doc.id;
+      configurados[doc.id] = d;
+    });
+
+    // 2. Detectar proveedores únicos en productos
+    if(!productos || productos.length === 0){
+      try{ productos = await idbGetTodos(currentEmpresaId); }catch(e){ productos = []; }
+    }
+    var provsDetectados = {};
+    for(var i = 0; i < productos.length; i++){
+      var pr = (productos[i].proveedor || '').trim();
+      if(pr){
+        var key = lpSanitizarId(pr);
+        if(!provsDetectados[key]) provsDetectados[key] = { nombre: pr, count: 0 };
+        provsDetectados[key].count++;
+      }
+    }
+
+    // 3. Mergear: configurados (con su data) + detectados (sin config)
+    var lista = [];
+    for(var k in configurados){
+      var c = configurados[k];
+      c._productosCount = (provsDetectados[k] && provsDetectados[k].count) || 0;
+      c._configurado = true;
+      lista.push(c);
+    }
+    for(var k2 in provsDetectados){
+      if(!configurados[k2]){
+        lista.push({
+          id: k2,
+          proveedorNombre: provsDetectados[k2].nombre,
+          _productosCount: provsDetectados[k2].count,
+          _configurado: false
+        });
+      }
+    }
+    lista.sort(function(a, b){
+      // Configurados primero, después por productos count
+      if(a._configurado && !b._configurado) return -1;
+      if(!a._configurado && b._configurado) return 1;
+      return (b._productosCount || 0) - (a._productosCount || 0);
+    });
+
+    lpState.proveedores = lista;
+
+    // 4. Render
+    var configCount = 0;
+    var sinConfigCount = 0;
+    lista.forEach(function(p){
+      if(p._configurado) configCount++; else sinConfigCount++;
+    });
+    document.getElementById('lpProvCount').textContent =
+      configCount + ' configurados · ' + sinConfigCount + ' detectados sin configurar';
+
+    if(lista.length === 0){
+      cont.innerHTML = '<div class="lp-empty">Todavía no hay proveedores. Tocá <strong>+ Nuevo proveedor</strong> para crear uno, o asigná el campo "proveedor" a algunos productos.</div>';
+      return;
+    }
+
+    var html = '';
+    lista.forEach(function(p){
+      html += lpRenderProveedorCard(p);
+    });
+    cont.innerHTML = html;
+  }catch(err){
+    console.error(err);
+    cont.innerHTML = '<div class="lp-empty" style="color:#dc2626">Error cargando proveedores: ' + eH(err.message) + '</div>';
+  }
+}
+
+function lpRenderProveedorCard(p){
+  var ini = lpIniciales(p.proveedorNombre);
+  var fechaTxt = '';
+  if(p.ultimaActualizacion){
+    try{
+      var d = p.ultimaActualizacion.toDate ? p.ultimaActualizacion.toDate() : new Date(p.ultimaActualizacion);
+      fechaTxt = 'Última actualización: ' + d.toLocaleDateString('es-AR', {day: 'numeric', month: 'short', year: 'numeric'});
+    }catch(e){}
+  } else {
+    fechaTxt = 'Sin importaciones todavía';
+  }
+
+  if(!p._configurado){
+    return '<div class="lp-prov-card lp-prov-empty">' +
+      '<div class="lp-prov-head">' +
+        '<div class="lp-prov-head-left">' +
+          '<div class="lp-prov-avatar">' + eH(ini) + '</div>' +
+          '<div>' +
+            '<p class="lp-prov-name">' + eH(p.proveedorNombre) + '</p>' +
+            '<p class="lp-prov-meta">' + p._productosCount + ' producto' + (p._productosCount === 1 ? '' : 's') + ' · sin configurar</p>' +
+          '</div>' +
+        '</div>' +
+        '<button class="btn btn-sm btn-primary" onclick="lpAbrirEditarProveedor(\'' + p.id + '\')">Configurar</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // Card expandida con stats + tramos
+  var tramosHtml = '';
+  (p.tramos || []).forEach(function(t){
+    var hastaTxt = (t.hasta === null || t.hasta === undefined || t.hasta === '' || t.hasta === Infinity) ?
+      '<span style="color:var(--text-mute)">sin límite</span>' :
+      lpFmt(t.hasta);
+    tramosHtml += '<tr>' +
+      '<td>' + lpFmt(t.desde) + '</td>' +
+      '<td>' + hastaTxt + '</td>' +
+      '<td>' + Number(t.ganancia).toFixed(0) + ' %</td>' +
+    '</tr>';
+  });
+  if(!tramosHtml) tramosHtml = '<tr><td colspan="3" style="color:var(--text-mute);text-align:center">Sin tramos definidos</td></tr>';
+
+  var baseTxt = (p.baseGanancia === 'neto') ? 'Neto' : 'Con descuento';
+
+  return '<div class="lp-prov-card">' +
+    '<div class="lp-prov-head">' +
+      '<div class="lp-prov-head-left">' +
+        '<div class="lp-prov-avatar">' + eH(ini) + '</div>' +
+        '<div>' +
+          '<p class="lp-prov-name">' + eH(p.proveedorNombre) + ' <span style="font-size:12px;color:var(--text-mute);font-weight:400">· ' + p._productosCount + ' productos</span></p>' +
+          '<p class="lp-prov-meta">' + eH(fechaTxt) + '</p>' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn btn-sm" onclick="lpAbrirEditarProveedor(\'' + p.id + '\')">Editar</button>' +
+    '</div>' +
+    '<div class="lp-prov-stats">' +
+      '<div class="lp-prov-stat">' +
+        '<p class="lp-prov-stat-label">Descuento prov.</p>' +
+        '<p class="lp-prov-stat-value">' + Number(p.descuentoProveedor || 0).toFixed(1) + ' %</p>' +
+      '</div>' +
+      '<div class="lp-prov-stat">' +
+        '<p class="lp-prov-stat-label">IVA defecto</p>' +
+        '<p class="lp-prov-stat-value">' + Number(p.ivaDefault || 21).toFixed(1) + ' %</p>' +
+      '</div>' +
+      '<div class="lp-prov-stat">' +
+        '<p class="lp-prov-stat-label">Base ganancia</p>' +
+        '<p class="lp-prov-stat-value" style="font-size:13px">' + baseTxt + '</p>' +
+      '</div>' +
+    '</div>' +
+    '<div class="lp-prov-tramos">' +
+      '<p class="lp-prov-tramos-label">Tramos de ganancia</p>' +
+      '<table class="lp-prov-tramos-table">' +
+        '<thead><tr><th>Desde</th><th>Hasta</th><th style="text-align:right">Ganar</th></tr></thead>' +
+        '<tbody>' + tramosHtml + '</tbody>' +
+      '</table>' +
+    '</div>' +
+  '</div>';
+}
+
+function lpSanitizarId(nombre){
+  return String(nombre || '').trim().toLowerCase()
+    .replace(/[áàäâ]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o').replace(/[úùüû]/g, 'u').replace(/[ñ]/g, 'n')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 80) || 'proveedor';
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL: editar proveedor
+// ═══════════════════════════════════════════════════════════
+
+function lpAbrirNuevoProveedor(){
+  lpState.proveedorEditando = null;
+  lpState.tramosEditando = [
+    { desde: 0, hasta: 500, ganancia: 50 },
+    { desde: 500, hasta: 5000, ganancia: 40 },
+    { desde: 5000, hasta: 50000, ganancia: 35 },
+    { desde: 50000, hasta: null, ganancia: 30 }
+  ];
+  document.getElementById('lpModalTitulo').textContent = 'Nuevo proveedor';
+  document.getElementById('lpModalNombre').value = '';
+  document.getElementById('lpModalNombre').disabled = false;
+  document.getElementById('lpModalDescuento').value = 0;
+  document.getElementById('lpModalIva').value = '21';
+  document.getElementById('lpModalBase').value = 'conDescuento';
+  document.getElementById('lpBtnEliminarProv').style.display = 'none';
+  lpRenderTramos();
+  lpRecalcularPreview();
+  document.getElementById('lpModalProveedor').classList.add('show');
+}
+
+function lpAbrirEditarProveedor(provId){
+  var prov = lpState.proveedores.find(function(p){ return p.id === provId; });
+  if(!prov) return;
+  lpState.proveedorEditando = provId;
+  // Si no estaba configurado, usar tramos por defecto
+  if(!prov._configurado){
+    lpState.tramosEditando = [
+      { desde: 0, hasta: 500, ganancia: 50 },
+      { desde: 500, hasta: 5000, ganancia: 40 },
+      { desde: 5000, hasta: 50000, ganancia: 35 },
+      { desde: 50000, hasta: null, ganancia: 30 }
+    ];
+  } else {
+    lpState.tramosEditando = (prov.tramos || []).map(function(t){
+      return { desde: t.desde, hasta: t.hasta, ganancia: t.ganancia };
+    });
+    if(lpState.tramosEditando.length === 0){
+      lpState.tramosEditando = [{ desde: 0, hasta: null, ganancia: 30 }];
+    }
+  }
+  document.getElementById('lpModalTitulo').textContent = 'Editar ' + prov.proveedorNombre;
+  document.getElementById('lpModalNombre').value = prov.proveedorNombre || '';
+  // Si tiene productos asociados, el nombre se bloquea para no romper el match
+  document.getElementById('lpModalNombre').disabled = prov._productosCount > 0;
+  document.getElementById('lpModalDescuento').value = prov.descuentoProveedor || 0;
+  document.getElementById('lpModalIva').value = String(prov.ivaDefault || 21);
+  document.getElementById('lpModalBase').value = prov.baseGanancia || 'conDescuento';
+  document.getElementById('lpBtnEliminarProv').style.display = prov._configurado ? 'inline-block' : 'none';
+  lpRenderTramos();
+  lpRecalcularPreview();
+  document.getElementById('lpModalProveedor').classList.add('show');
+}
+
+function lpCerrarModal(){
+  document.getElementById('lpModalProveedor').classList.remove('show');
+}
+
+function lpRenderTramos(){
+  var cont = document.getElementById('lpModalTramos');
+  var html = '<div class="lp-tramo-header"><span>Desde ($)</span><span>Hasta ($)</span><span style="text-align:right">Ganar</span><span></span></div>';
+  lpState.tramosEditando.forEach(function(t, idx){
+    var hastaVal = (t.hasta === null || t.hasta === undefined || t.hasta === Infinity) ? '' : t.hasta;
+    var hastaPlaceholder = (idx === lpState.tramosEditando.length - 1) ? 'sin límite' : '';
+    html += '<div class="lp-tramo-row">' +
+      '<input type="number" min="0" step="0.01" value="' + Number(t.desde || 0) + '" oninput="lpActualizarTramo(' + idx + ',\'desde\',this.value)">' +
+      '<input type="number" min="0" step="0.01" value="' + hastaVal + '" placeholder="' + hastaPlaceholder + '" oninput="lpActualizarTramo(' + idx + ',\'hasta\',this.value)">' +
+      '<div class="lp-tramo-suffix"><input type="number" min="0" step="0.1" value="' + Number(t.ganancia || 0) + '" oninput="lpActualizarTramo(' + idx + ',\'ganancia\',this.value)"></div>' +
+      '<button class="lp-tramo-del" onclick="lpEliminarTramo(' + idx + ')" title="Eliminar tramo">&times;</button>' +
+    '</div>';
+  });
+  cont.innerHTML = html;
+}
+
+function lpActualizarTramo(idx, campo, val){
+  if(!lpState.tramosEditando[idx]) return;
+  if(campo === 'hasta' && (val === '' || val === null)){
+    lpState.tramosEditando[idx].hasta = null;
+  } else {
+    lpState.tramosEditando[idx][campo] = Number(val) || 0;
+  }
+  lpRecalcularPreview();
+}
+
+function lpAgregarTramo(){
+  var ultimo = lpState.tramosEditando[lpState.tramosEditando.length - 1];
+  var nuevoDesde = ultimo ? (Number(ultimo.hasta) || (Number(ultimo.desde) || 0) + 1000) : 0;
+  // Si el último tenía hasta=null (infinito), cerrarlo en un valor razonable
+  if(ultimo && (ultimo.hasta === null || ultimo.hasta === undefined)){
+    ultimo.hasta = nuevoDesde + 50000;
+    nuevoDesde = ultimo.hasta;
+  }
+  lpState.tramosEditando.push({ desde: nuevoDesde, hasta: null, ganancia: 30 });
+  lpRenderTramos();
+  lpRecalcularPreview();
+}
+
+function lpEliminarTramo(idx){
+  if(lpState.tramosEditando.length <= 1){
+    toast('Tiene que haber al menos un tramo', 'error');
+    return;
+  }
+  lpState.tramosEditando.splice(idx, 1);
+  lpRenderTramos();
+  lpRecalcularPreview();
+}
+
+function lpRecalcularPreview(){
+  var precioNeto = Number(document.getElementById('lpCalcInput').value) || 0;
+  var prov = {
+    descuentoProveedor: Number(document.getElementById('lpModalDescuento').value) || 0,
+    ivaDefault: Number(document.getElementById('lpModalIva').value) || 21,
+    baseGanancia: document.getElementById('lpModalBase').value || 'conDescuento',
+    tramos: lpState.tramosEditando
+  };
+  var calc = lpCalcularPrecio(precioNeto, prov);
+  var html =
+    '<div class="lp-calc-line"><span>Precio neto del proveedor</span><span>' + lpFmt(calc.neto) + '</span></div>' +
+    '<div class="lp-calc-line"><span>− Descuento ' + Number(prov.descuentoProveedor).toFixed(1) + ' %</span><span>' + lpFmt(calc.conDesc) + '</span></div>' +
+    '<div class="lp-calc-line"><span>+ Margen ' + Number(calc.margen).toFixed(0) + ' % <span style="color:var(--text-mute)">(tramo ' + (calc.tramoIdx + 1) + ')</span></span><span>' + lpFmt(calc.costoFinal) + '</span></div>' +
+    '<div class="lp-calc-line"><span>+ IVA ' + Number(prov.ivaDefault).toFixed(1) + ' %</span><span>' + lpFmt(calc.conIva) + '</span></div>' +
+    '<div class="lp-calc-line lp-calc-line-final"><span>Precio final de venta</span><span>' + lpFmt(calc.final) + '</span></div>';
+  document.getElementById('lpCalcBreakdown').innerHTML = html;
+}
+
+async function lpGuardarProveedor(){
+  var nombre = document.getElementById('lpModalNombre').value.trim();
+  if(!nombre){ toast('Falta el nombre del proveedor', 'error'); return; }
+
+  // Validar tramos: sin gaps ni overlaps
+  var tramosOrdenados = lpState.tramosEditando.slice().sort(function(a, b){ return (a.desde || 0) - (b.desde || 0); });
+  for(var i = 0; i < tramosOrdenados.length; i++){
+    var t = tramosOrdenados[i];
+    var desde = Number(t.desde) || 0;
+    var hasta = (t.hasta === null || t.hasta === undefined) ? Infinity : Number(t.hasta);
+    if(hasta <= desde){ toast('Tramo ' + (i + 1) + ': "hasta" debe ser mayor que "desde"', 'error'); return; }
+  }
+
+  var data = {
+    proveedorNombre: nombre,
+    descuentoProveedor: Number(document.getElementById('lpModalDescuento').value) || 0,
+    ivaDefault: Number(document.getElementById('lpModalIva').value) || 21,
+    baseGanancia: document.getElementById('lpModalBase').value || 'conDescuento',
+    tramos: tramosOrdenados,
+    actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  var docId = lpState.proveedorEditando || lpSanitizarId(nombre);
+
+  try{
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('listas_proveedores').doc(docId).set(data, {merge: true});
+    toast('Proveedor guardado', 'success');
+    lpCerrarModal();
+    lpCargarProveedores();
+  }catch(err){
+    console.error(err);
+    toast('Error al guardar: ' + err.message, 'error');
+  }
+}
+
+async function lpEliminarProveedor(){
+  if(!lpState.proveedorEditando) return;
+  if(!confirm('¿Eliminar la configuración de este proveedor? Los productos asociados no se borran, solo la configuración de cálculo.')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('listas_proveedores').doc(lpState.proveedorEditando).delete();
+    toast('Configuración eliminada', 'success');
+    lpCerrarModal();
+    lpCargarProveedores();
+  }catch(err){
+    toast('Error: ' + err.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMPORTACIÓN: dropzone + parser
+// ═══════════════════════════════════════════════════════════
+
+function lpPoblarSelectorImport(){
+  var sel = document.getElementById('lpImpProveedor');
+  // Solo los configurados pueden importar
+  var configurados = lpState.proveedores.filter(function(p){ return p._configurado; });
+  if(configurados.length === 0){
+    sel.innerHTML = '<option value="">— No hay proveedores configurados —</option>';
+    return;
+  }
+  var html = '<option value="">— Elegir proveedor —</option>';
+  configurados.forEach(function(p){
+    html += '<option value="' + eH(p.id) + '">' + eH(p.proveedorNombre) + '</option>';
+  });
+  sel.innerHTML = html;
+}
+
+function lpSetupDropzone(){
+  var dz = document.getElementById('lpDropzone');
+  var input = document.getElementById('lpFileInput');
+  if(!dz || !input) return;
+
+  dz.addEventListener('click', function(){ input.click(); });
+  input.addEventListener('change', function(e){
+    if(e.target.files && e.target.files[0]) lpProcesarArchivo(e.target.files[0]);
+  });
+  dz.addEventListener('dragover', function(e){
+    e.preventDefault();
+    dz.classList.add('lp-drag-over');
+  });
+  dz.addEventListener('dragleave', function(){
+    dz.classList.remove('lp-drag-over');
+  });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault();
+    dz.classList.remove('lp-drag-over');
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) lpProcesarArchivo(e.dataTransfer.files[0]);
+  });
+}
+
+async function lpProcesarArchivo(file){
+  var provId = document.getElementById('lpImpProveedor').value;
+  if(!provId){ toast('Primero elegí el proveedor', 'error'); return; }
+  var prov = lpState.proveedores.find(function(p){ return p.id === provId; });
+  if(!prov || !prov._configurado){ toast('Proveedor no configurado', 'error'); return; }
+
+  toast('Leyendo Excel...', 'info');
+
+  try{
+    var data = await lpLeerArchivo(file);
+    var wb = XLSX.read(data, {type: 'array'});
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    var rowsRaw = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+
+    // Detectar fila de headers
+    var headerRowIdx = -1;
+    for(var i = 0; i < Math.min(20, rowsRaw.length); i++){
+      var row = rowsRaw[i];
+      if(!row) continue;
+      var rowStr = row.join('|').toLowerCase();
+      var tieneCodigo = /\bcod|\barti|\breferenc|\bsku/i.test(rowStr);
+      var tieneDesc = /\bproduct|\bdescripc|\bdetal|\bnombre/i.test(rowStr);
+      var tienePrecio = /\bprecio|\bcost|\bvalor|\bimport/i.test(rowStr);
+      if(tieneCodigo && (tieneDesc || tienePrecio)){ headerRowIdx = i; break; }
+    }
+    if(headerRowIdx < 0) headerRowIdx = 0;
+    var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
+
+    // Detectar columnas
+    var colCodigo = lpDetectarCol(headers, ['codigo', 'cod', 'sku', 'articulo', 'referencia', 'ref']);
+    var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc']);
+    var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista']);
+    var colIva = lpDetectarCol(headers, ['iva', 'i.v.a.', '% iva']);
+
+    if(colCodigo < 0 || colPrecio < 0){
+      toast('No pude detectar las columnas de código y precio. Revisá el formato del Excel.', 'error');
+      return;
+    }
+
+    // Mapear filas
+    var rows = [];
+    for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
+      var r = rowsRaw[j];
+      if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
+      var codigo = String(r[colCodigo] || '').trim();
+      var precio = Number(r[colPrecio]);
+      if(!codigo || isNaN(precio) || precio <= 0) continue;
+      var desc = colDesc >= 0 ? String(r[colDesc] || '').trim() : '';
+      var iva = colIva >= 0 ? Number(r[colIva]) : null;
+      rows.push({
+        codigoProv: codigo,
+        descripcion: desc,
+        precioNeto: precio,
+        ivaCustom: (isNaN(iva) || iva === null) ? null : iva
+      });
+    }
+
+    if(rows.length === 0){
+      toast('No se encontraron filas válidas en el Excel', 'error');
+      return;
+    }
+
+    lpState.importacion = {
+      proveedor: prov,
+      archivo: file.name,
+      rows: rows
+    };
+    lpProcesarMatching();
+    lpMostrarVistaPrevia();
+    toast(rows.length + ' ítems leídos', 'success');
+  }catch(err){
+    console.error(err);
+    toast('Error al leer Excel: ' + err.message, 'error');
+  }
+}
+
+function lpLeerArchivo(file){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onload = function(e){ resolve(new Uint8Array(e.target.result)); };
+    reader.onerror = function(){ reject(reader.error); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function lpDetectarCol(headers, candidatos){
+  for(var i = 0; i < headers.length; i++){
+    var h = headers[i];
+    for(var j = 0; j < candidatos.length; j++){
+      if(h === candidatos[j] || h.indexOf(candidatos[j]) === 0) return i;
+    }
+  }
+  // Búsqueda más laxa
+  for(var i2 = 0; i2 < headers.length; i2++){
+    for(var j2 = 0; j2 < candidatos.length; j2++){
+      if(headers[i2].indexOf(candidatos[j2]) >= 0) return i2;
+    }
+  }
+  return -1;
+}
+
+// Matching contra catálogo + cálculo + clasificación
+function lpProcesarMatching(){
+  var imp = lpState.importacion;
+  if(!imp) return;
+  var prov = imp.proveedor;
+
+  // Index de productos por código
+  var index = {};
+  for(var i = 0; i < productos.length; i++){
+    var p = productos[i];
+    if(p.codigo){
+      var k = String(p.codigo).trim().toLowerCase();
+      index[k] = p;
+    }
+  }
+
+  imp.rows.forEach(function(row){
+    var key = String(row.codigoProv).trim().toLowerCase();
+    var matched = index[key];
+
+    var ivaUsar = (row.ivaCustom !== null) ? row.ivaCustom : prov.ivaDefault;
+    var provParaCalc = Object.assign({}, prov, { ivaDefault: ivaUsar });
+    var calc = lpCalcularPrecio(row.precioNeto, provParaCalc);
+
+    row.matched = !!matched;
+    row.productoActual = matched ? {
+      docId: matched._id,
+      precioVenta: matched.precioVenta || 0,
+      descripcionActual: matched.descripcion || matched.nombre || ''
+    } : null;
+    row.calc = calc;
+    row.nuevoPrecio = calc.final;
+    row.cambio = matched && matched.precioVenta > 0 ?
+      ((calc.final - matched.precioVenta) / matched.precioVenta) * 100 : null;
+    row.seleccionado = true;
+    row.editado = false;
+    // Clasificar
+    if(!matched){
+      row.estado = 'crear';
+    } else if(row.cambio !== null && Math.abs(row.cambio) > 50){
+      row.estado = 'alerta';
+    } else {
+      row.estado = 'actualizar';
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// VISTA PREVIA: render + paginación + filtros
+// ═══════════════════════════════════════════════════════════
+
+function lpMostrarVistaPrevia(){
+  document.getElementById('lpImportarPaso1').style.display = 'none';
+  document.getElementById('lpImportarPaso2').style.display = 'block';
+  var imp = lpState.importacion;
+  document.getElementById('lpPreviewSubtitle').textContent =
+    imp.proveedor.proveedorNombre + ' · ' + imp.archivo + ' · ' + imp.rows.length + ' ítems';
+  lpState.importPage = 0;
+  lpState.importFiltro = 'todos';
+  lpState.importBusqueda = '';
+  document.getElementById('lpPreviewBuscar').value = '';
+  document.getElementById('lpPreviewFiltro').value = 'todos';
+  document.getElementById('lpPreviewBuscar').oninput = function(){
+    lpState.importBusqueda = this.value;
+    lpState.importPage = 0;
+    lpRenderPreview();
+  };
+  document.getElementById('lpPreviewFiltro').onchange = function(){
+    lpState.importFiltro = this.value;
+    lpState.importPage = 0;
+    lpRenderPreview();
+  };
+  lpActualizarStats();
+  lpRenderPreview();
+}
+
+function lpVolverAPaso1(){
+  document.getElementById('lpImportarPaso2').style.display = 'none';
+  document.getElementById('lpImportarPaso1').style.display = 'block';
+}
+
+function lpCancelarImport(){
+  if(confirm('¿Cancelar la importación? Vas a perder los cambios sin guardar.')){
+    lpState.importacion = null;
+    lpVolverAPaso1();
+    document.getElementById('lpFileInput').value = '';
+  }
+}
+
+function lpActualizarStats(){
+  var imp = lpState.importacion;
+  if(!imp) return;
+  var stats = { actualizar: 0, crear: 0, sinmatch: 0, alerta: 0 };
+  imp.rows.forEach(function(r){
+    if(r.estado === 'actualizar') stats.actualizar++;
+    else if(r.estado === 'crear') stats.crear++;
+    else if(r.estado === 'sinmatch') stats.sinmatch++;
+    else if(r.estado === 'alerta') stats.alerta++;
+  });
+  document.getElementById('lpStatActualizar').textContent = stats.actualizar;
+  document.getElementById('lpStatNuevos').textContent = stats.crear;
+  document.getElementById('lpStatSinMatch').textContent = stats.sinmatch;
+  document.getElementById('lpStatAlertas').textContent = stats.alerta;
+  // Botones de acción
+  var seleccionados = imp.rows.filter(function(r){ return r.seleccionado; }).length;
+  document.getElementById('lpBtnAplicar').textContent = 'Aplicar seleccionados (' + seleccionados + ')';
+  document.getElementById('lpBtnSoloNuevos').textContent = 'Solo nuevos (' + stats.crear + ')';
+}
+
+function lpFiltrarRows(){
+  var imp = lpState.importacion;
+  if(!imp) return [];
+  var filtro = lpState.importFiltro;
+  var busq = lpState.importBusqueda.toLowerCase();
+  return imp.rows.filter(function(r){
+    if(filtro === 'actualizar' && r.estado !== 'actualizar') return false;
+    if(filtro === 'crear' && r.estado !== 'crear') return false;
+    if(filtro === 'alerta' && r.estado !== 'alerta') return false;
+    if(filtro === 'sinmatch' && r.estado !== 'sinmatch') return false;
+    if(busq){
+      var hay = (r.codigoProv + ' ' + (r.descripcion || '') + ' ' + ((r.productoActual && r.productoActual.descripcionActual) || '')).toLowerCase();
+      if(hay.indexOf(busq) < 0) return false;
+    }
+    return true;
+  });
+}
+
+function lpRenderPreview(){
+  var rows = lpFiltrarRows();
+  var pageSize = lpState.importPageSize;
+  var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  if(lpState.importPage >= totalPages) lpState.importPage = totalPages - 1;
+  if(lpState.importPage < 0) lpState.importPage = 0;
+  var start = lpState.importPage * pageSize;
+  var slice = rows.slice(start, start + pageSize);
+
+  document.getElementById('lpPreviewCount').textContent =
+    rows.length + ' de ' + lpState.importacion.rows.length + ' ítems';
+
+  var html = '';
+  slice.forEach(function(r, idxInSlice){
+    var idx = lpState.importacion.rows.indexOf(r);
+    html += lpRenderRow(r, idx);
+  });
+  if(slice.length === 0){
+    html = '<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--text-mute)">Sin resultados</td></tr>';
+  }
+  document.getElementById('lpPreviewTbody').innerHTML = html;
+
+  // Pager
+  if(totalPages > 1){
+    var pagerHtml = '<button onclick="lpPagina(-1)" ' + (lpState.importPage === 0 ? 'disabled' : '') + '>&lsaquo; Anterior</button>' +
+      '<span>Página ' + (lpState.importPage + 1) + ' de ' + totalPages + '</span>' +
+      '<button onclick="lpPagina(1)" ' + (lpState.importPage >= totalPages - 1 ? 'disabled' : '') + '>Siguiente &rsaquo;</button>';
+    document.getElementById('lpPreviewPager').innerHTML = pagerHtml;
+  } else {
+    document.getElementById('lpPreviewPager').innerHTML = '';
+  }
+}
+
+function lpPagina(dir){
+  lpState.importPage += dir;
+  lpRenderPreview();
+}
+
+function lpRenderRow(r, idx){
+  var calc = r.calc;
+  var badgeCls = 'lp-badge-' + r.estado;
+  var badgeTxt = r.estado === 'crear' ? 'crear' :
+                 r.estado === 'alerta' ? '⚠ revisar' :
+                 r.estado === 'sinmatch' ? 'sin código' : 'actualizar';
+  var rowCls = r.estado === 'alerta' ? 'lp-row-alert' : '';
+
+  var precioActualTxt = r.productoActual ?
+    '<span style="color:var(--text-mute)">' + lpFmt(r.productoActual.precioVenta) + '</span>' :
+    '<span style="color:var(--text-mute)">—</span>';
+
+  var cambioTxt = '';
+  if(r.cambio === null && r.estado === 'crear'){
+    cambioTxt = '<span class="lp-change-neutral">nuevo</span>';
+  } else if(r.cambio !== null){
+    var cls = Math.abs(r.cambio) > 50 ? 'lp-change-big' : (r.cambio >= 0 ? 'lp-change-up' : 'lp-change-down');
+    var arrow = r.cambio >= 0 ? '▲' : '▼';
+    cambioTxt = '<span class="' + cls + '">' + lpFmtPct(r.cambio) + ' ' + arrow + '</span>';
+  } else {
+    cambioTxt = '<span class="lp-change-neutral">—</span>';
+  }
+
+  var descTxt = r.descripcion || (r.productoActual && r.productoActual.descripcionActual) || '';
+
+  return '<tr class="' + rowCls + '">' +
+    '<td class="lp-col-check"><input type="checkbox" ' + (r.seleccionado ? 'checked' : '') + ' onchange="lpToggleRow(' + idx + ', this.checked)"></td>' +
+    '<td class="lp-col-codigo">' + eH(r.codigoProv) + '</td>' +
+    '<td><div class="lp-row-desc" title="' + eH(descTxt) + '">' + eH(descTxt) + '</div></td>' +
+    '<td class="lp-col-num">' + lpFmt(calc.neto) + '</td>' +
+    '<td class="lp-col-num">' + precioActualTxt + '</td>' +
+    '<td class="lp-col-num" style="font-weight:600">' + lpFmt(calc.final) + '</td>' +
+    '<td class="lp-col-num">' + cambioTxt + '</td>' +
+    '<td class="lp-col-estado"><span class="lp-badge ' + badgeCls + '">' + badgeTxt + '</span></td>' +
+  '</tr>';
+}
+
+function lpToggleRow(idx, checked){
+  if(!lpState.importacion || !lpState.importacion.rows[idx]) return;
+  lpState.importacion.rows[idx].seleccionado = checked;
+  lpActualizarStats();
+}
+
+function lpToggleAll(checked){
+  var filtrados = lpFiltrarRows();
+  filtrados.forEach(function(r){ r.seleccionado = checked; });
+  lpRenderPreview();
+  lpActualizarStats();
+}
+
+// ═══════════════════════════════════════════════════════════
+// APLICAR: escribir a Firestore en batch
+// ═══════════════════════════════════════════════════════════
+
+async function lpAplicarTodo(){
+  var imp = lpState.importacion;
+  if(!imp){ return; }
+  var sel = imp.rows.filter(function(r){ return r.seleccionado; });
+  if(sel.length === 0){ toast('No hay nada seleccionado', 'error'); return; }
+  if(!confirm('¿Aplicar cambios a ' + sel.length + ' producto(s)?')){ return; }
+  await lpEjecutarAplicar(sel);
+}
+
+async function lpAplicarSoloNuevos(){
+  var imp = lpState.importacion;
+  if(!imp){ return; }
+  var nuevos = imp.rows.filter(function(r){ return r.estado === 'crear'; });
+  if(nuevos.length === 0){ toast('No hay productos nuevos para crear', 'error'); return; }
+  if(!confirm('¿Crear ' + nuevos.length + ' producto(s) nuevo(s)? Los existentes no se modifican.')){ return; }
+  await lpEjecutarAplicar(nuevos);
+}
+
+async function lpEjecutarAplicar(filas){
+  var imp = lpState.importacion;
+  var prov = imp.proveedor;
+  var btn = document.getElementById('lpBtnAplicar');
+  var btnNuevos = document.getElementById('lpBtnSoloNuevos');
+  btn.disabled = true;
+  btnNuevos.disabled = true;
+  btn.textContent = 'Aplicando 0 / ' + filas.length + '...';
+
+  var batchSize = 400; // Firestore: max 500 por batch
+  var actualizados = 0;
+  var creados = 0;
+  var errores = 0;
+
+  try{
+    for(var start = 0; start < filas.length; start += batchSize){
+      var slice = filas.slice(start, start + batchSize);
+      var batch = db.batch();
+      var newProds = [];
+      var nowIso = new Date().toISOString();
+
+      slice.forEach(function(r){
+        // Datos para Firestore (con serverTimestamp)
+        var dataFs = {
+          precioVenta: r.calc.final,
+          precioCosto: Math.round(r.calc.conDesc),
+          proveedor: prov.proveedorNombre,
+          fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        // Datos para cache local (con Date string)
+        var dataLocal = {
+          precioVenta: r.calc.final,
+          precioCosto: Math.round(r.calc.conDesc),
+          proveedor: prov.proveedorNombre,
+          fechaUltimoCambioPrecio: nowIso
+        };
+        if(r.estado === 'crear'){
+          dataFs.codigo = r.codigoProv;
+          dataFs.descripcion = r.descripcion || r.codigoProv;
+          dataFs.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
+          dataLocal.codigo = r.codigoProv;
+          dataLocal.descripcion = r.descripcion || r.codigoProv;
+          dataLocal.fechaCreacion = nowIso;
+          creados++;
+        } else {
+          actualizados++;
+        }
+        var docId = r.productoActual && r.productoActual.docId ?
+          r.productoActual.docId :
+          lpSanitizarIdProducto(r.codigoProv);
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(docId);
+        batch.set(ref, dataFs, {merge: true});
+        // Para cache local: fusionar con producto existente si lo había
+        var prodLocal = r.productoActual ?
+          Object.assign({}, productos.find(function(p){ return p._id === r.productoActual.docId; }) || {}, dataLocal, { _id: r.productoActual.docId }) :
+          Object.assign({}, dataLocal, { _id: docId });
+        newProds.push(prodLocal);
+      });
+
+      await batch.commit();
+      // Actualizar IDB cache para que se vean al toque
+      try{ await idbGuardarBatch(currentEmpresaId, newProds); }catch(e){ console.warn('IDB cache skip', e); }
+      btn.textContent = 'Aplicando ' + Math.min(start + batchSize, filas.length) + ' / ' + filas.length + '...';
+    }
+
+    // Marcar última actualización del proveedor
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('listas_proveedores').doc(prov.id)
+      .set({ ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp() }, {merge: true});
+
+    // Historial
+    await db.collection('empresas').doc(currentEmpresaId)
+      .collection('listas_proveedores_historial').add({
+        proveedorId: prov.id,
+        proveedorNombre: prov.proveedorNombre,
+        archivo: imp.archivo,
+        totalLeidos: imp.rows.length,
+        actualizados: actualizados,
+        creados: creados,
+        fecha: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+    toast('✅ Aplicado: ' + actualizados + ' actualizados, ' + creados + ' nuevos', 'success');
+    lpState.importacion = null;
+    lpVolverAPaso1();
+    document.getElementById('lpFileInput').value = '';
+    // Refrescar productos
+    try{ productos = await idbGetTodos(currentEmpresaId); }catch(e){}
+    lpCambiarTab('historial');
+  }catch(err){
+    console.error(err);
+    toast('Error al aplicar: ' + err.message, 'error');
+  }finally{
+    btn.disabled = false;
+    btnNuevos.disabled = false;
+    lpActualizarStats();
+  }
+}
+
+function lpSanitizarIdProducto(codigo){
+  return String(codigo || '').trim()
+    .replace(/[áàäâ]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o').replace(/[úùüû]/g, 'u').replace(/[ñ]/g, 'n')
+    .replace(/[^a-zA-Z0-9\-_]+/g, '_').substring(0, 200) || 'sin-codigo';
+}
+
+// ═══════════════════════════════════════════════════════════
+// HISTORIAL
+// ═══════════════════════════════════════════════════════════
+
+async function lpCargarHistorial(){
+  if(!currentEmpresaId) return;
+  var cont = document.getElementById('lpHistorialList');
+  cont.innerHTML = '<div class="lp-empty">Cargando historial...</div>';
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId)
+      .collection('listas_proveedores_historial')
+      .orderBy('fecha', 'desc').limit(50).get();
+    var items = [];
+    snap.forEach(function(doc){
+      var d = doc.data();
+      d._id = doc.id;
+      items.push(d);
+    });
+    lpState.historial = items;
+    document.getElementById('lpHistCount').textContent =
+      items.length === 0 ? 'Sin importaciones todavía' :
+      items.length + ' importacion' + (items.length === 1 ? '' : 'es');
+    if(items.length === 0){
+      cont.innerHTML = '<div class="lp-empty">Todavía no importaste ninguna lista. Andá a la pestaña <strong>Importar lista</strong> para empezar.</div>';
+      return;
+    }
+    var html = '';
+    items.forEach(function(h){
+      var fechaTxt = '';
+      if(h.fecha){
+        try{
+          var d = h.fecha.toDate ? h.fecha.toDate() : new Date(h.fecha);
+          fechaTxt = d.toLocaleDateString('es-AR', {day: 'numeric', month: 'short', year: 'numeric'}) +
+            ' a las ' + d.toLocaleTimeString('es-AR', {hour: '2-digit', minute: '2-digit'});
+        }catch(e){}
+      }
+      html += '<div class="lp-hist-item">' +
+        '<div class="lp-hist-item-left">' +
+          '<div class="lp-hist-item-icon">' + eH(lpIniciales(h.proveedorNombre)) + '</div>' +
+          '<div>' +
+            '<p class="lp-hist-item-title">' + eH(h.proveedorNombre) + '</p>' +
+            '<p class="lp-hist-item-sub">' + eH(h.archivo || '') + ' · ' + eH(fechaTxt) + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="lp-hist-item-stats">' +
+          '<div class="lp-hist-stat"><strong>' + (h.actualizados || 0) + '</strong> <span style="color:var(--text-mute)">actualizados</span></div>' +
+          '<div class="lp-hist-stat"><strong style="color:#16a34a">' + (h.creados || 0) + '</strong> <span style="color:var(--text-mute)">nuevos</span></div>' +
+        '</div>' +
+      '</div>';
+    });
+    cont.innerHTML = html;
+  }catch(err){
+    console.error(err);
+    cont.innerHTML = '<div class="lp-empty" style="color:#dc2626">Error: ' + eH(err.message) + '</div>';
   }
 }
 
