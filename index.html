@@ -2472,6 +2472,22 @@
   .share-btn-pdf:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
   .share-btn-pdf .share-btn-icon{color:var(--accent-text)}
   .share-btn-afip{background:repeating-linear-gradient(45deg,var(--bg-2),var(--bg-2) 6px,var(--paper) 6px,var(--paper) 12px)}
+
+  /* COLOR PRESETS para Configuración */
+  .color-preset{
+    width:28px;
+    height:28px;
+    border:2px solid var(--line);
+    border-radius:var(--r-sm);
+    cursor:pointer;
+    transition:all .12s;
+    padding:0;
+  }
+  .color-preset:hover{
+    transform:scale(1.1);
+    border-color:var(--text);
+    box-shadow:var(--shadow-md);
+  }
   .barcode-type-select{
     background:var(--bg);
     border:1px solid var(--line);
@@ -4332,15 +4348,131 @@
       <div class="module" id="moduleConfiguracion">
         <header class="main-header">
           <h1 class="main-title">Configuración</h1>
+          <div class="main-actions">
+            <button class="btn btn-primary btn-sm" onclick="guardarConfigEmpresa()" id="btnGuardarConfig">&#128190; Guardar cambios</button>
+          </div>
         </header>
         <div class="main-body">
-          <div class="table-card">
-            <div class="empty-table">
-              <div class="empty-table-icon">&#9881;</div>
-              <div class="empty-table-title">Módulo en construcción</div>
-              <div class="empty-table-desc">Próximamente podrás personalizar tu empresa.</div>
+          <div class="alert error" id="configAlert"></div>
+
+          <!-- Sección: Identidad visual -->
+          <div class="table-card" style="padding:24px;margin-bottom:16px">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text);letter-spacing:-0.01em">Identidad visual</h3>
+            <p style="font-size:12px;color:var(--text-mute);margin-bottom:18px">Estos elementos aparecen en tus comprobantes, Excels y PDFs que enviás a tus clientes.</p>
+
+            <div class="form-row" style="margin-bottom:18px">
+              <div class="form-group">
+                <label class="form-label">Logo de tu empresa</label>
+                <div style="display:flex;gap:12px;align-items:flex-start">
+                  <div id="empresaLogoPreview" style="width:90px;height:90px;border:1.5px dashed var(--line-2);border-radius:var(--r-md);background:var(--bg-2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;cursor:pointer" onclick="document.getElementById('empresaLogoFile').click()">
+                    <span id="empresaLogoPlaceholder" style="font-size:30px;color:var(--text-mute);opacity:.5">&#128247;</span>
+                    <img id="empresaLogoImg" src="" alt="" style="display:none;width:100%;height:100%;object-fit:contain;background:#fff;padding:6px">
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <input type="file" id="empresaLogoFile" accept="image/*" style="display:none" onchange="empresaLogoUpload(event)">
+                    <button type="button" class="btn btn-line btn-sm" onclick="document.getElementById('empresaLogoFile').click()" id="btnSubirLogo" style="width:100%;justify-content:center">Subir imagen</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="empresaLogoQuitar()" id="btnQuitarLogo" style="display:none;width:100%;justify-content:center;color:var(--danger);margin-top:6px">&#128465; Quitar logo</button>
+                    <div style="font-size:10px;color:var(--text-mute);margin-top:6px;font-family:var(--mono);line-height:1.4">PNG/JPG · máx 2MB · recomendado cuadrado o ~400×400</div>
+                  </div>
+                </div>
+                <input type="hidden" id="empresaLogoUrl">
+                <input type="hidden" id="empresaLogoPath">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Color principal de tu marca</label>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                  <input type="color" id="empresaColor" value="#1a1a2e" style="width:50px;height:38px;border:1px solid var(--line);border-radius:var(--r-sm);cursor:pointer;background:transparent;padding:2px" onchange="actualizarPreviewColor()">
+                  <input type="text" class="form-input" id="empresaColorHex" placeholder="#1a1a2e" style="flex:1;font-family:var(--mono);text-transform:uppercase" oninput="syncColorPicker()">
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap" id="colorPresets">
+                  <button type="button" onclick="setColorEmpresa('#1a1a2e')" class="color-preset" style="background:#1a1a2e" title="Azul-noche (Comercia)"></button>
+                  <button type="button" onclick="setColorEmpresa('#dc2626')" class="color-preset" style="background:#dc2626" title="Rojo"></button>
+                  <button type="button" onclick="setColorEmpresa('#15803d')" class="color-preset" style="background:#15803d" title="Verde"></button>
+                  <button type="button" onclick="setColorEmpresa('#1d4ed8')" class="color-preset" style="background:#1d4ed8" title="Azul"></button>
+                  <button type="button" onclick="setColorEmpresa('#7c3aed')" class="color-preset" style="background:#7c3aed" title="Violeta"></button>
+                  <button type="button" onclick="setColorEmpresa('#ea580c')" class="color-preset" style="background:#ea580c" title="Naranja"></button>
+                  <button type="button" onclick="setColorEmpresa('#0891b2')" class="color-preset" style="background:#0891b2" title="Cian"></button>
+                  <button type="button" onclick="setColorEmpresa('#000000')" class="color-preset" style="background:#000000" title="Negro"></button>
+                </div>
+                <div style="font-size:10px;color:var(--text-mute);margin-top:6px;font-family:var(--mono)">Se aplica al header de tus comprobantes y Excels.</div>
+              </div>
+            </div>
+
+            <!-- Preview -->
+            <div style="margin-top:10px">
+              <label class="form-label" style="margin-bottom:8px">Vista previa</label>
+              <div id="configPreview" style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
+                <div id="configPreviewHeader" style="background:#1a1a2e;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:14px">
+                  <div id="configPreviewLogo" style="width:48px;height:48px;background:rgba(255,255,255,.1);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <span style="font-size:22px;opacity:.7" id="configPreviewLogoIcon">&#127970;</span>
+                    <img id="configPreviewLogoImg" src="" style="display:none;width:100%;height:100%;object-fit:contain;background:#fff;padding:4px;border-radius:6px">
+                  </div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:18px;font-weight:800;letter-spacing:-0.02em" id="configPreviewName">Ferretería Dany</div>
+                    <div style="font-size:10px;font-weight:600;opacity:.7;letter-spacing:0.08em;text-transform:uppercase;margin-top:2px" id="configPreviewTag">Gestión Profesional</div>
+                  </div>
+                  <div style="text-align:right;font-size:10px;opacity:.6;font-family:var(--mono);letter-spacing:0.06em">FACTURA<br><span style="font-size:14px;font-weight:700;color:#fff;font-family:var(--mono)">N° 0001</span></div>
+                </div>
+                <div style="padding:16px 22px;background:#fafafa;font-size:12px;color:#666;text-align:center;font-style:italic">
+                  Así se verá el header de tus comprobantes y reportes
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- Sección: Datos de la empresa -->
+          <div class="table-card" style="padding:24px">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text);letter-spacing:-0.01em">Datos de la empresa</h3>
+            <p style="font-size:12px;color:var(--text-mute);margin-bottom:18px">Información que aparece en comprobantes.</p>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nombre / Razón social</label>
+                <input class="form-input" type="text" id="empresaConfigNombre" placeholder="Ferretería Dany">
+              </div>
+              <div class="form-group">
+                <label class="form-label">CUIT</label>
+                <input class="form-input" type="text" id="empresaConfigCuit" placeholder="30-12345678-9">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Condición IVA</label>
+                <select class="form-input" id="empresaConfigIva">
+                  <option value="Responsable Inscripto">Responsable Inscripto</option>
+                  <option value="Monotributo">Monotributo</option>
+                  <option value="Exento">Exento</option>
+                  <option value="Consumidor Final">Consumidor Final</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ingresos Brutos</label>
+                <input class="form-input" type="text" id="empresaConfigIIBB" placeholder="Opcional">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Dirección</label>
+                <input class="form-input" type="text" id="empresaConfigDireccion" placeholder="Av. Siempre Viva 742">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Localidad</label>
+                <input class="form-input" type="text" id="empresaConfigLocalidad" placeholder="Buenos Aires">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Teléfono</label>
+                <input class="form-input" type="text" id="empresaConfigTel" placeholder="+54 11 ...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email de contacto</label>
+                <input class="form-input" type="email" id="empresaConfigEmail" placeholder="contacto@ferreteria.com">
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -5525,6 +5657,7 @@ function navTo(modulo){
   if(modulo==='clientes') initClientes();
   if(modulo==='ventas') initVentas();
   if(modulo==='ctacte') initCtaCte();
+  if(modulo==='configuracion') initConfiguracion();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -8572,13 +8705,14 @@ async function crearWorkbookPedido(items, colsActivas, tituloProv, conLogo){
   var wb = new ExcelJS.Workbook();
   wb.creator = 'Comercia';
   wb.created = new Date();
-  armarHojaPedido(wb, items, colsActivas, 'Pedido', true, tituloProv);
+  await armarHojaPedido(wb, items, colsActivas, 'Pedido', true, tituloProv);
   return wb;
 }
 
-function armarHojaPedido(wb, items, colsActivas, sheetName, conHeader, proveedorTitulo){
+async function armarHojaPedido(wb, items, colsActivas, sheetName, conHeader, proveedorTitulo){
+  var empColors = getEmpresaExcelColors();
   var ws = wb.addWorksheet(sheetName, {
-    properties: { tabColor: { argb: EXCEL_THEME.primary } },
+    properties: { tabColor: { argb: empColors.primary } },
     views: [{ state: 'frozen', ySplit: conHeader ? 5 : 3 }],
     pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, margins: {left:0.4,right:0.4,top:0.5,bottom:0.5,header:0.3,footer:0.3} }
   });
@@ -8599,29 +8733,44 @@ function armarHojaPedido(wb, items, colsActivas, sheetName, conHeader, proveedor
 
   var rowOffset = 0;
   if(conHeader){
-    // Logo/marca
+    // Cargar logo de la empresa si existe
+    var logoData = null;
+    try{ logoData = await obtenerLogoEmpresaParaExcel(); }catch(e){}
+
+    // Fila 1: nombre de la empresa con su color
     ws.mergeCells(1, 1, 1, colsActivas.length);
     var titleRow = ws.getRow(1);
-    titleRow.height = 36;
-    titleRow.getCell(1).value = (currentEmpresa ? currentEmpresa.nombre : 'COMERCIA').toUpperCase();
-    titleRow.getCell(1).font = { name:'Calibri', size:22, bold:true, color:{argb:EXCEL_THEME.text} };
-    titleRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.primary} };
-    titleRow.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
+    titleRow.height = logoData ? 56 : 42;
+    titleRow.getCell(1).value = (currentEmpresa ? currentEmpresa.nombre : 'MI EMPRESA').toUpperCase();
+    titleRow.getCell(1).font = { name:'Calibri', size:24, bold:true, color:{argb:'FFFFFFFF'} };
+    titleRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:empColors.primary} };
+    titleRow.getCell(1).alignment = { vertical:'middle', horizontal:logoData?'left':'center', indent:logoData?8:1 };
+    titleRow.getCell(1).border = { bottom: { style:'thick', color:{argb:EXCEL_THEME.accent} } };
 
-    // Subtítulo
+    // Insertar logo si hay
+    if(logoData){
+      try{
+        var imageId = wb.addImage({ buffer: logoData.buffer, extension: logoData.extension });
+        ws.addImage(imageId, { tl: { col: 0.15, row: 0.15 }, ext: { width: 60, height: 50 } });
+      }catch(e){ console.warn(e); }
+    }
+
+    // Subtítulo: tipo de documento + proveedor
     ws.mergeCells(2, 1, 2, colsActivas.length);
     var subRow = ws.getRow(2);
     subRow.height = 20;
     subRow.getCell(1).value = 'PEDIDO DE COMPRA' + (proveedorTitulo ? ' — ' + proveedorTitulo.toUpperCase() : '');
     subRow.getCell(1).font = { name:'Calibri', size:13, bold:true, color:{argb:EXCEL_THEME.white} };
-    subRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.text} };
+    subRow.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:empColors.primaryDark} };
     subRow.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
 
     // Info
     ws.mergeCells(3, 1, 3, colsActivas.length);
     var infoRow = ws.getRow(3);
     infoRow.height = 18;
-    infoRow.getCell(1).value = 'Generado: ' + new Date().toLocaleString('es-AR') + '  ·  Productos: ' + items.length;
+    var infoTxt = 'Generado: ' + new Date().toLocaleString('es-AR') + '  ·  Productos: ' + items.length;
+    if(currentEmpresa && currentEmpresa.cuit) infoTxt += '  ·  CUIT: ' + currentEmpresa.cuit;
+    infoRow.getCell(1).value = infoTxt;
     infoRow.getCell(1).font = { name:'Calibri', size:10, italic:true, color:{argb:EXCEL_THEME.textSoft} };
     infoRow.getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
 
@@ -8633,15 +8782,15 @@ function armarHojaPedido(wb, items, colsActivas, sheetName, conHeader, proveedor
     ws.getRow(1).height = 24;
     ws.getRow(1).getCell(1).value = proveedorTitulo ? ('PROVEEDOR: ' + proveedorTitulo.toUpperCase()) : sheetName;
     ws.getRow(1).getCell(1).font = { name:'Calibri', size:13, bold:true, color:{argb:EXCEL_THEME.white} };
-    ws.getRow(1).getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.text} };
+    ws.getRow(1).getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:empColors.primary} };
     ws.getRow(1).getCell(1).alignment = { vertical:'middle', horizontal:'left', indent:1 };
     ws.addRow([]);
     rowOffset = 2;
   }
 
-  // Header de tabla
+  // Header de tabla CON COLOR DE LA EMPRESA
   var headerRow = ws.getRow(rowOffset + 1);
-  applyHeaderRow(headerRow, headers);
+  applyHeaderRowEmpresa(headerRow, headers);
 
   // Datos
   var startDataRow = rowOffset + 2;
@@ -10371,6 +10520,36 @@ async function subirPdfAStorage(pdfBlob, v){
   return { url: url, path: path, expiraEl: expirationDate };
 }
 
+// Sube el HTML del comprobante directamente a Firebase Storage (alternativa al PDF).
+// El navegador del cliente lo abre como página web con el diseño exacto que ve el usuario.
+// Esto evita los problemas de html2canvas (recortes, escalado, etc.)
+async function subirHtmlAStorage(htmlString, v){
+  if(!currentEmpresaId || !storage) throw new Error('Storage no disponible');
+  var modoLbl = (v.modo || 'ticket').toLowerCase();
+  var fileName = modoLbl + '-' + (v.numero || 'sin-numero').replace(/[^a-zA-Z0-9-]/g,'_') + '.html';
+  var path = 'empresas/' + currentEmpresaId + '/comprobantes/' + (v._id || v.numero) + '/' + fileName;
+  var ref = storage.ref(path);
+  var expirationDate = new Date();
+  expirationDate.setDate(expirationDate.getDate() + 30);
+  // Convertir string a Blob con encoding UTF-8 explícito
+  var blob = new Blob([htmlString], { type: 'text/html;charset=utf-8' });
+  var metadata = {
+    contentType: 'text/html; charset=utf-8',
+    contentDisposition: 'inline',
+    cacheControl: 'public, max-age=3600',
+    customMetadata: {
+      ventaId: v._id || '',
+      ventaNumero: v.numero || '',
+      expiraEl: expirationDate.toISOString(),
+      empresaId: currentEmpresaId,
+      generadoEn: new Date().toISOString()
+    }
+  };
+  var snap = await ref.put(blob, metadata);
+  var url = await snap.ref.getDownloadURL();
+  return { url: url, path: path, expiraEl: expirationDate };
+}
+
 // Template por defecto del mensaje de WhatsApp (con promoción de Comercia)
 var WA_TEMPLATE_DEFAULT =
 'Hola {{cliente}}! 👋\n' +
@@ -10464,25 +10643,24 @@ async function compartirVentaWhatsApp(){
     }
   }
 
-  // 1. Generar PDF
-  toast('Generando PDF...', 'success');
-  var pdfBlob = null;
+  // 1. Generar HTML del comprobante (sin html2canvas, sin recortes posibles)
+  var htmlComprobante;
   try{
-    pdfBlob = await generarPdfVenta(v);
+    htmlComprobante = construirHtmlVentaA4(v);
   }catch(err){
-    console.error('Error generando PDF:', err);
-    toast('Error al generar PDF: '+(err.message||''), 'error');
+    console.error('Error generando HTML:', err);
+    toast('Error al generar comprobante: '+(err.message||''), 'error');
     return;
   }
 
-  // 2. Subir a Storage
+  // 2. Subir el HTML a Storage (mucho más confiable que PDF generado en cliente)
   toast('Subiendo a la nube (válido 30 días)...', 'success');
   var pdfInfo = null;
   try{
-    pdfInfo = await subirPdfAStorage(pdfBlob, v);
+    pdfInfo = await subirHtmlAStorage(htmlComprobante, v);
   }catch(err){
     console.error('Error subiendo a Storage:', err);
-    toast('Error al subir PDF: '+(err.message||'sin permisos de Storage'), 'error');
+    toast('Error al subir: '+(err.message||'sin permisos de Storage'), 'error');
     return;
   }
 
@@ -10590,7 +10768,7 @@ async function copiarLinkPdfVenta(){
   }
 }
 
-// EMAIL — descarga PDF para adjuntar y abre cliente de correo
+// EMAIL — sube HTML a Storage y abre cliente de correo con link
 async function compartirVentaEmail(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
@@ -10601,32 +10779,32 @@ async function compartirVentaEmail(){
   var modoLbl = (v.modo || 'ticket').toUpperCase();
   var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
   var asunto = modoLbl + ' N° ' + v.numero + ' - ' + empresaNombre;
-  var cuerpo = generarTextoVenta(v);
-  cuerpo = cuerpo.replace(/\*/g, '').replace(/_/g, '');
-  cuerpo += '\n\n(Te dejo adjunto el comprobante en PDF)';
 
-  // Descargar PDF para que el usuario lo adjunte
-  toast('Generando PDF para adjuntar...', 'success');
-  try{
-    var blob = await generarPdfVenta(v);
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = modoLbl.toLowerCase() + '-' + v.numero + '.pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-  }catch(err){
-    console.warn('No se pudo generar PDF:', err);
-  }
+  // 1. Generar HTML y subirlo
+  toast('Generando comprobante...', 'success');
+  var htmlComprobante;
+  try{ htmlComprobante = construirHtmlVentaA4(v); }
+  catch(err){ toast('Error generando: '+(err.message||''), 'error'); return; }
+  var pdfInfo;
+  try{ pdfInfo = await subirHtmlAStorage(htmlComprobante, v); }
+  catch(err){ toast('Error al subir: '+(err.message||''), 'error'); return; }
 
-  // Abrir cliente de correo
+  var expStr = pdfInfo.expiraEl.toLocaleDateString('es-AR');
+  var cuerpo = 'Hola,\n\n' +
+    'Te paso el comprobante de tu compra en ' + empresaNombre + ':\n\n' +
+    modoLbl + ' N° ' + v.numero + '\n' +
+    'Fecha: ' + new Date(v.fecha).toLocaleDateString('es-AR') + '\n' +
+    'Total: ' + fmtPeso(v.total) + '\n\n' +
+    'Ver y descargar comprobante:\n' + pdfInfo.url + '\n\n' +
+    '(Link válido hasta el ' + expStr + ')\n\n' +
+    '— ' + empresaNombre + '\n' +
+    'Generado con COMERCIA · Gestión inteligente para tu comercio';
+
   setTimeout(function(){
     var mailUrl = 'mailto:' + emailDestino + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
     window.location.href = mailUrl;
-    toast('PDF descargado. Adjuntalo al mail.', 'success');
-  }, 500);
+    toast('Cliente de correo abierto con el link', 'success');
+  }, 200);
 }
 
 // Genera un PDF Blob a partir del HTML A4 (con html2pdf)
@@ -10780,38 +10958,30 @@ function imprimirVentaA4(){
   }, 600);
 }
 
-// DESCARGAR PDF — genera el PDF real con html2pdf y lo descarga
-async function descargarVentaPDF(){
+// DESCARGAR PDF — abre el HTML en ventana nueva y dispara diálogo de impresión
+// (el navegador permite "Guardar como PDF" desde ahí con renderizado perfecto, sin html2canvas)
+function descargarVentaPDF(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
-  toast('Generando PDF...', 'success');
-  try{
-    var blob = await generarPdfVenta(v);
-    var modoLbl = (v.modo || 'ticket').toUpperCase();
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = modoLbl.toLowerCase() + '-' + v.numero + '.pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-    toast('PDF descargado', 'success');
-  }catch(err){
-    console.error('Error PDF:', err);
-    // Fallback: abrir A4 e ir a "Guardar como PDF"
-    toast('Usando método alternativo...', 'success');
-    var html = construirHtmlVentaA4(v);
-    var w = window.open('', '_blank', 'width=900,height=700');
-    w.document.write(html);
-    w.document.close();
-    setTimeout(function(){
-      try{
-        w.document.title = (v.modo||'venta') + '-' + v.numero;
-        w.print();
-      }catch(e){}
-    }, 500);
+  var html = construirHtmlVentaA4(v);
+  var modoLbl = (v.modo || 'ticket').toLowerCase();
+  var fileName = modoLbl + '-' + v.numero + '.pdf';
+  var w = window.open('', '_blank', 'width=900,height=700');
+  if(!w){
+    toast('Bloqueado por el navegador. Permití popups.', 'error');
+    return;
   }
+  // Inyectar título para que el archivo PDF tenga buen nombre
+  var htmlConTitle = html.replace('<title>', '<title>'+eH(fileName)+' — ');
+  w.document.write(htmlConTitle);
+  w.document.close();
+  setTimeout(function(){
+    try{
+      w.focus();
+      w.print();
+    }catch(e){ console.warn(e); }
+  }, 600);
+  toast('En el diálogo elegí "Guardar como PDF"', 'success');
 }
 
 // Construye el HTML del PDF — diseño Comercia (header oscuro azul-noche + acentos ámbar)
@@ -10822,6 +10992,20 @@ function construirHtmlVentaA4(v){
   var modoLbl = (v.modo || 'ticket').toUpperCase();
   var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Mi Empresa';
 
+  // Datos fiscales de la empresa (de config)
+  var empresaCuit = currentEmpresa && currentEmpresa.cuit ? currentEmpresa.cuit : '';
+  var empresaIva = currentEmpresa && currentEmpresa.condIva ? currentEmpresa.condIva : 'Responsable Inscripto';
+  var empresaIIBB = currentEmpresa && currentEmpresa.iibb ? currentEmpresa.iibb : '';
+  var empresaDir = currentEmpresa && currentEmpresa.direccion ? currentEmpresa.direccion : '';
+  var empresaLoc = currentEmpresa && currentEmpresa.localidad ? currentEmpresa.localidad : '';
+  var empresaTel = currentEmpresa && currentEmpresa.telefono ? currentEmpresa.telefono : (currentEmpresa && currentEmpresa.phone ? currentEmpresa.phone : '');
+  var empresaMail = currentEmpresa && currentEmpresa.email ? currentEmpresa.email : '';
+  var empresaLogo = currentEmpresa && currentEmpresa.logoUrl ? currentEmpresa.logoUrl : '';
+  var empresaColorBase = currentEmpresa && currentEmpresa.colorPrincipal ? currentEmpresa.colorPrincipal : '#1a1a2e';
+  // Gradiente del color de la empresa
+  var empresaColorDark = oscurecerColor(empresaColorBase, 22);
+  var headerGradient = 'linear-gradient(135deg, '+empresaColorBase+' 0%, '+empresaColorDark+' 100%)';
+
   // SVG inline del logo Comercia (cuadrado ámbar con gradiente + "C" estilizada)
   var logoComerciaSvg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="28" height="28" style="vertical-align:middle">'+
     '<defs><linearGradient id="gLogoPdf" x1="0%" y1="0%" x2="100%" y2="100%">'+
@@ -10829,6 +11013,12 @@ function construirHtmlVentaA4(v){
     '<rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gLogoPdf)"/>'+
     '<path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>'+
     '<circle cx="29" cy="20" r="2.4" fill="#fff"/></svg>';
+
+  // Logo de la empresa (si subió uno)
+  var empresaLogoHtml = '';
+  if(empresaLogo){
+    empresaLogoHtml = '<div style="width:64px;height:64px;background:#fff;border-radius:8px;padding:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15)"><img src="'+eH(empresaLogo)+'" alt="logo" style="max-width:100%;max-height:100%;object-fit:contain"></div>';
+  }
 
   // Items
   var itemsRows = '';
@@ -10862,7 +11052,7 @@ function construirHtmlVentaA4(v){
   var clienteTel = v.cliente && v.cliente.telefono ? v.cliente.telefono : '—';
   var clienteEmail = v.cliente && v.cliente.email ? v.cliente.email : '—';
 
-  // Color de acento por tipo
+  // Color de acento por tipo (sigue siendo el indicador del tipo de comprobante)
   var accentColor = '#fbbf24'; // ámbar default (factura)
   var accentDark = '#f59e0b';
   if(modoLbl === 'REMITO'){ accentColor = '#8b5cf6'; accentDark = '#7c3aed'; }
@@ -10878,21 +11068,22 @@ function construirHtmlVentaA4(v){
 /* CONTENEDOR A4 */
 '.doc{width:794px;min-height:1123px;margin:0 auto;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden}'+
 
-/* HEADER OSCURO AZUL-NOCHE CON GRADIENTE (estilo sidebar Comercia) */
-'.doc-head{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 55%,#0f3460 100%);color:#fff;padding:18mm 14mm 14mm;border-bottom:4px solid '+accentColor+';position:relative}'+
+/* HEADER CON COLOR DE LA EMPRESA (configurable) */
+'.doc-head{background:'+headerGradient+';color:#fff;padding:18mm 14mm 14mm;border-bottom:4px solid '+accentColor+';position:relative}'+
 '.doc-head::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent 0%,'+accentColor+' 50%,transparent 100%)}'+
 '.doc-head-grid{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:flex-start}'+
-'.doc-head-empresa{flex:1}'+
-'.doc-head-empresa-name{font-size:30px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin-bottom:8px;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.3)}'+
-'.doc-head-empresa-tag{font-size:11px;font-weight:600;color:'+accentColor+';letter-spacing:0.08em;text-transform:uppercase;margin-bottom:14px}'+
-'.doc-head-empresa-data{font-size:10.5px;color:rgba(232,234,240,.85);line-height:1.7}'+
+'.doc-head-empresa{flex:1;display:flex;gap:14px;align-items:flex-start}'+
+'.doc-head-empresa-info{flex:1;min-width:0}'+
+'.doc-head-empresa-name{font-size:28px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.3)}'+
+'.doc-head-empresa-tag{font-size:10.5px;font-weight:600;color:'+accentColor+';letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px}'+
+'.doc-head-empresa-data{font-size:10px;color:rgba(255,255,255,.85);line-height:1.6}'+
 '.doc-head-empresa-data strong{color:#fff;font-weight:600}'+
 
 '.doc-head-doc{text-align:right;background:rgba(255,255,255,.05);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:14px 18px;min-width:200px}'+
 '.doc-head-letra{font-size:36px;font-weight:900;color:'+accentColor+';line-height:1;letter-spacing:0.05em;margin-bottom:4px}'+
 '.doc-head-tipo{font-size:14px;font-weight:700;color:#fff;letter-spacing:0.08em;margin-bottom:10px;text-transform:uppercase}'+
 '.doc-head-numero{font-size:20px;font-weight:700;color:#fff;font-family:"SF Mono","Monaco","Courier New",monospace;margin-bottom:8px}'+
-'.doc-head-fecha-lbl{font-size:9px;color:rgba(232,234,240,.6);letter-spacing:0.08em;font-weight:600;margin-top:6px}'+
+'.doc-head-fecha-lbl{font-size:9px;color:rgba(255,255,255,.6);letter-spacing:0.08em;font-weight:600;margin-top:6px}'+
 '.doc-head-fecha-val{font-size:12px;color:#fff;font-family:"SF Mono",monospace;font-weight:600;margin-top:2px}'+
 
 /* CUERPO CLARO */
@@ -10910,7 +11101,7 @@ function construirHtmlVentaA4(v){
 /* TABLA DE ITEMS */
 '.items-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05)}'+
 '.items-table{width:100%;border-collapse:collapse}'+
-'.items-table thead th{background:#1a1a2e;color:#fff;padding:11px 10px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-bottom:3px solid '+accentColor+'}'+
+'.items-table thead th{background:'+empresaColorBase+';color:#fff;padding:11px 10px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;text-align:left;border-bottom:3px solid '+accentColor+'}'+
 '.items-table thead th.th-center{text-align:center}'+
 '.items-table thead th.th-right{text-align:right}'+
 '.items-table tbody td{padding:10px 10px;border-bottom:1px solid #f1f3f5;font-size:11px;vertical-align:top;line-height:1.45;background:#fff}'+
@@ -10942,7 +11133,7 @@ function construirHtmlVentaA4(v){
 '.totales-table td{padding:9px 16px;font-size:11.5px;border-bottom:1px solid #f1f3f5;background:#fff}'+
 '.totales-table .lbl-tot{color:#666;font-weight:500}'+
 '.totales-table .val-tot{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#1f1f23;width:140px}'+
-'.totales-table .row-total td{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;font-size:14px;font-weight:800;padding:14px 16px;border:none;letter-spacing:0.02em}'+
+'.totales-table .row-total td{background:'+headerGradient+';color:#fff;font-size:14px;font-weight:800;padding:14px 16px;border:none;letter-spacing:0.02em}'+
 '.totales-table .row-total .val-tot{color:'+accentColor+';font-size:18px;font-weight:900}'+
 
 /* OBSERVACIONES */
@@ -10963,23 +11154,39 @@ function construirHtmlVentaA4(v){
 /* MARCA DE AGUA */
 '.watermark{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-32deg);font-family:Impact,"Arial Black",sans-serif;font-size:200px;font-weight:900;color:#1a1a2e;opacity:0.025;letter-spacing:0.06em;white-space:nowrap;z-index:0;pointer-events:none}'+
 
-'@media print{body{margin:0}.doc{margin:0} .watermark{opacity:0.025 !important}-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+/* BOTÓN FLOTANTE DE IMPRIMIR (visible solo cuando el cliente abre el link) */
+'.print-fab{position:fixed;top:18px;right:18px;background:'+accentColor+';color:#1a1408;border:none;padding:12px 18px;border-radius:99px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:inherit;display:flex;align-items:center;gap:8px;z-index:100;transition:all .15s}'+
+'.print-fab:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.22)}'+
+'.print-fab:active{transform:translateY(0)}'+
+
+/* En mobile, el documento se ve más chico — mejoramos para visualización en celular */
+'@media (max-width:840px){.doc{width:100%;min-width:0;transform-origin:top left}.doc-head{padding:14mm 8mm 10mm}.doc-head-grid{grid-template-columns:1fr;gap:12px}.doc-head-doc{text-align:left;min-width:0}.doc-body{padding:10mm 6mm}.cliente-card{grid-template-columns:1fr}.items-card{overflow-x:auto}.pie-grid{grid-template-columns:1fr}.print-fab{padding:10px 14px;font-size:12px}}'+
+
+'@media print{body{margin:0}.doc{margin:0;width:794px} .print-fab{display:none !important} .watermark{opacity:0.025 !important}-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
 '@media print{.doc-head,.items-table thead th,.totales-table .row-total td,.doc-foot,.doc-type-badge{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}}'+
 '</style></head><body>'+
+
+'<button class="print-fab" onclick="window.print()">&#128424; Imprimir / Guardar PDF</button>'+
 
 '<div class="watermark">COMERCIA</div>'+
 
 '<div class="doc">'+
 
-/* HEADER OSCURO */
+/* HEADER CON COLOR DE LA EMPRESA */
 '<div class="doc-head">'+
   '<div class="doc-head-grid">'+
     '<div class="doc-head-empresa">'+
-      '<div class="doc-head-empresa-name">'+eH(empresaNombre)+'</div>'+
-      '<div class="doc-head-empresa-tag">Gestión Profesional · Comercia</div>'+
-      '<div class="doc-head-empresa-data">'+
-        '<div><strong>Cond. IVA:</strong> Responsable Inscripto</div>'+
-        '<div><strong>Emitido:</strong> '+fechaStr+' a las '+horaStr+'</div>'+
+      empresaLogoHtml+
+      '<div class="doc-head-empresa-info">'+
+        '<div class="doc-head-empresa-name">'+eH(empresaNombre)+'</div>'+
+        '<div class="doc-head-empresa-tag">Comprobante de venta</div>'+
+        '<div class="doc-head-empresa-data">'+
+          (empresaCuit ? '<div><strong>CUIT:</strong> '+eH(empresaCuit)+'</div>' : '')+
+          '<div><strong>Cond. IVA:</strong> '+eH(empresaIva)+'</div>'+
+          (empresaIIBB ? '<div><strong>IIBB:</strong> '+eH(empresaIIBB)+'</div>' : '')+
+          (empresaDir ? '<div>'+eH(empresaDir)+(empresaLoc?' · '+eH(empresaLoc):'')+'</div>' : '')+
+          ((empresaTel||empresaMail) ? '<div>'+(empresaTel?eH(empresaTel):'')+(empresaTel&&empresaMail?' · ':'')+(empresaMail?eH(empresaMail):'')+'</div>' : '')+
+        '</div>'+
       '</div>'+
     '</div>'+
     '<div class="doc-head-doc">'+
@@ -12420,6 +12627,139 @@ function applyTotalRow(row, fromCol, toCol){
 // BRANDING DE COMERCIA EN LOS EXCEL
 // ═══════════════════════════════════════════════════════
 
+// Convierte un color hex (#rrggbb) a ARGB que necesita ExcelJS (FFRRGGBB)
+function hexAExcelArgb(hex){
+  if(!hex) return EXCEL_THEME.text;
+  var clean = hex.replace('#','').toUpperCase();
+  if(clean.length !== 6) return EXCEL_THEME.text;
+  return 'FF' + clean;
+}
+
+// Devuelve los colores de la empresa para usar en Excel (con fallbacks)
+function getEmpresaExcelColors(){
+  var colorPrincipal = (currentEmpresa && currentEmpresa.colorPrincipal) ? currentEmpresa.colorPrincipal : '#1A1A2E';
+  return {
+    primary: hexAExcelArgb(colorPrincipal),
+    primaryDark: hexAExcelArgb(oscurecerColor(colorPrincipal, 22)),
+    primaryLight: hexAExcelArgb(aclararColor(colorPrincipal, 75)),
+    accent: EXCEL_THEME.accent  // mantenemos ámbar Comercia como acento secundario
+  };
+}
+
+// Devuelve la URL del logo de la empresa (o null si no tiene)
+function getEmpresaLogoUrl(){
+  return (currentEmpresa && currentEmpresa.logoUrl) ? currentEmpresa.logoUrl : null;
+}
+
+// Convierte un dataURL/URL a buffer para ExcelJS addImage
+async function obtenerLogoEmpresaParaExcel(){
+  var url = getEmpresaLogoUrl();
+  if(!url) return null;
+  try{
+    var res = await fetch(url);
+    if(!res.ok) return null;
+    var blob = await res.blob();
+    var buffer = await blob.arrayBuffer();
+    // Detectar tipo desde Content-Type
+    var ext = 'jpeg';
+    var mime = (blob.type || '').toLowerCase();
+    if(mime.indexOf('png') >= 0) ext = 'png';
+    else if(mime.indexOf('gif') >= 0) ext = 'gif';
+    return { buffer: buffer, extension: ext };
+  }catch(e){
+    console.warn('No se pudo cargar logo:', e);
+    return null;
+  }
+}
+
+// Cabezal de hoja CON BRANDING DE LA EMPRESA (logo + color + nombre)
+// Devuelve la siguiente fila libre.
+async function addEmpresaBrandHeader(wb, ws, numCols){
+  numCols = numCols || ws.columns.length || 4;
+  var colors = getEmpresaExcelColors();
+  var nombreEmpresa = (currentEmpresa && currentEmpresa.nombre) ? currentEmpresa.nombre : 'Mi Empresa';
+
+  // Cargar logo si existe (no bloquea si falla)
+  var logoData = null;
+  try{ logoData = await obtenerLogoEmpresaParaExcel(); }catch(e){}
+
+  // Fila 1: nombre grande con color de empresa
+  ws.mergeCells(1, 1, 1, numCols);
+  var row1 = ws.getRow(1);
+  row1.height = logoData ? 60 : 42;
+  row1.getCell(1).value = nombreEmpresa.toUpperCase();
+  row1.getCell(1).font = {
+    name: EXCEL_THEME.fontTitle,
+    size: 26,
+    bold: true,
+    color: { argb: 'FFFFFFFF' }
+  };
+  row1.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:colors.primary} };
+  row1.getCell(1).alignment = { vertical:'middle', horizontal: logoData ? 'left' : 'center', indent: logoData ? 8 : 1 };
+  row1.getCell(1).border = {
+    bottom: { style:'thick', color:{argb:EXCEL_THEME.accent} }
+  };
+
+  // Si hay logo, insertarlo como imagen flotante a la izquierda
+  if(logoData){
+    try{
+      var imageId = wb.addImage({
+        buffer: logoData.buffer,
+        extension: logoData.extension
+      });
+      ws.addImage(imageId, {
+        tl: { col: 0.15, row: 0.15 },
+        ext: { width: 60, height: 50 }
+      });
+    }catch(e){ console.warn('No se pudo insertar logo:', e); }
+  }
+
+  // Fila 2: datos de empresa (CUIT, dirección si los hay)
+  var emp = currentEmpresa || {};
+  var infoEmpresa = [];
+  if(emp.cuit) infoEmpresa.push('CUIT: ' + emp.cuit);
+  if(emp.condIva) infoEmpresa.push(emp.condIva);
+  if(emp.direccion) infoEmpresa.push(emp.direccion);
+  if(emp.localidad) infoEmpresa.push(emp.localidad);
+  if(emp.telefono) infoEmpresa.push('Tel: ' + emp.telefono);
+
+  if(infoEmpresa.length > 0){
+    ws.mergeCells(2, 1, 2, numCols);
+    var row2 = ws.getRow(2);
+    row2.height = 18;
+    row2.getCell(1).value = infoEmpresa.join(' · ');
+    row2.getCell(1).font = {
+      name: EXCEL_THEME.fontBody,
+      size: 9,
+      color: { argb: EXCEL_THEME.textSoft }
+    };
+    row2.getCell(1).alignment = { vertical:'middle', horizontal:'center' };
+    row2.getCell(1).fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXCEL_THEME.bg} };
+    ws.getRow(3).height = 6;
+    return 4;
+  }
+  ws.getRow(2).height = 6;
+  return 3;
+}
+
+// Header de tabla con color de la empresa
+function applyHeaderRowEmpresa(row, headers){
+  var colors = getEmpresaExcelColors();
+  row.values = headers;
+  row.height = 26;
+  row.eachCell(function(cell){
+    cell.font = { name:EXCEL_THEME.fontBody, size:11, bold:true, color:{argb:'FFFFFFFF'} };
+    cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:colors.primary} };
+    cell.alignment = { vertical:'middle', horizontal:'center' };
+    cell.border = {
+      top:{style:'thin', color:{argb:colors.primary}},
+      bottom:{style:'thin', color:{argb:EXCEL_THEME.accent}},
+      left:{style:'thin', color:{argb:colors.primary}},
+      right:{style:'thin', color:{argb:colors.primary}}
+    };
+  });
+}
+
 // Header con marca grande arriba de una hoja. Devuelve la siguiente fila libre.
 // `numCols` es la cantidad de columnas a abarcar para el merge.
 function addComerciaBrandHeader(ws, numCols){
@@ -13465,6 +13805,191 @@ function scanParaProductos(){
     subtitle: 'Apuntá al código de barras del producto para buscarlo.',
     autoClose: true
   });
+}
+
+// ═══════════════════════════════════════════════════════
+// CONFIGURACIÓN DE EMPRESA — logo, color, datos
+// ═══════════════════════════════════════════════════════
+
+function initConfiguracion(){
+  if(!currentEmpresa) return;
+  var emp = currentEmpresa;
+  // Datos
+  document.getElementById('empresaConfigNombre').value = emp.nombre || '';
+  document.getElementById('empresaConfigCuit').value = emp.cuit || '';
+  document.getElementById('empresaConfigIva').value = emp.condIva || 'Responsable Inscripto';
+  document.getElementById('empresaConfigIIBB').value = emp.iibb || '';
+  document.getElementById('empresaConfigDireccion').value = emp.direccion || '';
+  document.getElementById('empresaConfigLocalidad').value = emp.localidad || '';
+  document.getElementById('empresaConfigTel').value = emp.telefono || emp.phone || '';
+  document.getElementById('empresaConfigEmail').value = emp.email || emp.ownerEmail || '';
+  // Logo
+  document.getElementById('empresaLogoUrl').value = emp.logoUrl || '';
+  document.getElementById('empresaLogoPath').value = emp.logoPath || '';
+  if(emp.logoUrl){
+    document.getElementById('empresaLogoImg').src = emp.logoUrl;
+    document.getElementById('empresaLogoImg').style.display = 'block';
+    document.getElementById('empresaLogoPlaceholder').style.display = 'none';
+    document.getElementById('btnQuitarLogo').style.display = '';
+  } else {
+    document.getElementById('empresaLogoImg').style.display = 'none';
+    document.getElementById('empresaLogoPlaceholder').style.display = '';
+    document.getElementById('btnQuitarLogo').style.display = 'none';
+  }
+  // Color
+  var color = emp.colorPrincipal || '#1a1a2e';
+  document.getElementById('empresaColor').value = color;
+  document.getElementById('empresaColorHex').value = color.toUpperCase();
+  actualizarPreviewColor();
+}
+
+function setColorEmpresa(color){
+  document.getElementById('empresaColor').value = color;
+  document.getElementById('empresaColorHex').value = color.toUpperCase();
+  actualizarPreviewColor();
+}
+
+function syncColorPicker(){
+  var hex = document.getElementById('empresaColorHex').value.trim();
+  if(/^#[0-9a-fA-F]{6}$/.test(hex)){
+    document.getElementById('empresaColor').value = hex;
+    actualizarPreviewColor();
+  }
+}
+
+function actualizarPreviewColor(){
+  var color = document.getElementById('empresaColor').value;
+  var nombre = document.getElementById('empresaConfigNombre').value || (currentEmpresa ? currentEmpresa.nombre : 'Tu empresa');
+  var logoUrl = document.getElementById('empresaLogoUrl').value;
+  // Generar gradiente sutil del color
+  var gradient = 'linear-gradient(135deg, '+color+' 0%, '+oscurecerColor(color, 20)+' 100%)';
+  document.getElementById('configPreviewHeader').style.background = gradient;
+  document.getElementById('configPreviewName').textContent = nombre;
+  if(logoUrl){
+    document.getElementById('configPreviewLogoImg').src = logoUrl;
+    document.getElementById('configPreviewLogoImg').style.display = 'block';
+    document.getElementById('configPreviewLogoIcon').style.display = 'none';
+  } else {
+    document.getElementById('configPreviewLogoImg').style.display = 'none';
+    document.getElementById('configPreviewLogoIcon').style.display = '';
+  }
+}
+
+// Oscurece un color hex en X% (para gradientes)
+function oscurecerColor(hex, percent){
+  var num = parseInt(hex.replace('#',''), 16);
+  var r = (num >> 16) & 0xff;
+  var g = (num >> 8) & 0xff;
+  var b = num & 0xff;
+  var factor = (100 - percent) / 100;
+  r = Math.round(r * factor);
+  g = Math.round(g * factor);
+  b = Math.round(b * factor);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Aclara un color hex (para footers/badges)
+function aclararColor(hex, percent){
+  var num = parseInt(hex.replace('#',''), 16);
+  var r = (num >> 16) & 0xff;
+  var g = (num >> 8) & 0xff;
+  var b = num & 0xff;
+  var factor = percent / 100;
+  r = Math.round(r + (255 - r) * factor);
+  g = Math.round(g + (255 - g) * factor);
+  b = Math.round(b + (255 - b) * factor);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+async function empresaLogoUpload(event){
+  var file = event.target.files[0];
+  if(!file) return;
+  if(file.size > 2 * 1024 * 1024){ toast('Imagen muy grande (máx 2MB)','error'); return; }
+  if(!file.type.startsWith('image/')){ toast('Debe ser imagen','error'); return; }
+
+  toast('Subiendo logo...','success');
+  try{
+    // Comprimir y subir
+    var blob = await comprimirImagen(file, 400, 0.9);
+    // Borrar anterior si había
+    var pathPrevio = document.getElementById('empresaLogoPath').value;
+    if(pathPrevio){
+      try{ await storage.ref(pathPrevio).delete(); }catch(e){}
+    }
+    var path = 'empresas/' + currentEmpresaId + '/branding/logo-' + Date.now() + '.jpg';
+    var ref = storage.ref(path);
+    await ref.put(blob, { contentType: 'image/jpeg' });
+    var url = await ref.getDownloadURL();
+    document.getElementById('empresaLogoUrl').value = url;
+    document.getElementById('empresaLogoPath').value = path;
+    document.getElementById('empresaLogoImg').src = url;
+    document.getElementById('empresaLogoImg').style.display = 'block';
+    document.getElementById('empresaLogoPlaceholder').style.display = 'none';
+    document.getElementById('btnQuitarLogo').style.display = '';
+    actualizarPreviewColor();
+    toast('Logo subido','success');
+  }catch(err){
+    console.error('Error subiendo logo:', err);
+    toast('Error al subir: '+(err.message||''),'error');
+  }
+}
+
+async function empresaLogoQuitar(){
+  if(!confirm('¿Quitar el logo?')) return;
+  var pathPrevio = document.getElementById('empresaLogoPath').value;
+  if(pathPrevio){
+    try{ await storage.ref(pathPrevio).delete(); }catch(e){ console.warn(e); }
+  }
+  document.getElementById('empresaLogoUrl').value = '';
+  document.getElementById('empresaLogoPath').value = '';
+  document.getElementById('empresaLogoImg').style.display = 'none';
+  document.getElementById('empresaLogoPlaceholder').style.display = '';
+  document.getElementById('btnQuitarLogo').style.display = 'none';
+  document.getElementById('empresaLogoFile').value = '';
+  actualizarPreviewColor();
+}
+
+async function guardarConfigEmpresa(){
+  if(!currentEmpresaId) return;
+  var btn = document.getElementById('btnGuardarConfig');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  hideAlerts();
+  try{
+    var data = {
+      nombre: document.getElementById('empresaConfigNombre').value.trim(),
+      cuit: document.getElementById('empresaConfigCuit').value.trim(),
+      condIva: document.getElementById('empresaConfigIva').value,
+      iibb: document.getElementById('empresaConfigIIBB').value.trim(),
+      direccion: document.getElementById('empresaConfigDireccion').value.trim(),
+      localidad: document.getElementById('empresaConfigLocalidad').value.trim(),
+      telefono: document.getElementById('empresaConfigTel').value.trim(),
+      email: document.getElementById('empresaConfigEmail').value.trim(),
+      logoUrl: document.getElementById('empresaLogoUrl').value,
+      logoPath: document.getElementById('empresaLogoPath').value,
+      colorPrincipal: document.getElementById('empresaColor').value,
+      updatedAt: new Date().toISOString()
+    };
+    if(!data.nombre){
+      showAlert('configAlert','El nombre de la empresa es obligatorio.');
+      btn.disabled = false;
+      btn.innerHTML = '&#128190; Guardar cambios';
+      return;
+    }
+    await db.collection('empresas').doc(currentEmpresaId).update(data);
+    // Actualizar memoria
+    Object.assign(currentEmpresa, data);
+    // Refrescar UI del sidebar si cambió el nombre
+    var bizEl = document.getElementById('appUserBusiness');
+    if(bizEl) bizEl.textContent = data.nombre;
+    toast('Configuración guardada','success');
+  }catch(err){
+    console.error(err);
+    showAlert('configAlert','Error: '+(err.message||''));
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = '&#128190; Guardar cambios';
+  }
 }
 
 </script>
