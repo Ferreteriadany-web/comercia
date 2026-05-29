@@ -5010,6 +5010,41 @@
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL EDITAR MENSAJE DE WHATSAPP ═══════════════════ -->
+<div class="modal-overlay" id="modalWaEditarMensaje">
+  <div class="modal" style="max-width:560px;max-height:92vh;overflow-y:auto;border-top-color:#25D366">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow" style="color:#25D366">&#128241; WhatsApp</div>
+    <h2 class="modal-title">Personalizá el mensaje</h2>
+    <p class="modal-subtitle" id="waDestinatarioInfo">Revisá el mensaje antes de enviarlo.</p>
+
+    <div class="form-group">
+      <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Mensaje a enviar</span>
+        <button type="button" class="btn-link" onclick="waResetearTemplate()" style="font-size:11px;background:transparent;border:none;color:var(--accent-text);cursor:pointer;text-decoration:underline">Restaurar por defecto</button>
+      </label>
+      <textarea class="form-input" id="waMensajeInput" rows="11" style="font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap"></textarea>
+      <div style="font-size:10px;color:var(--text-mute);font-family:var(--mono);margin-top:6px">
+        <strong>Variables:</strong> {{cliente}} · {{empresa}} · {{numero}} · {{tipo}} · {{fecha}} · {{total}} · {{link}}
+      </div>
+    </div>
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-soft);cursor:pointer;margin-bottom:12px;padding:8px 10px;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md)">
+      <input type="checkbox" id="waGuardarPlantilla" style="accent-color:var(--accent)">
+      <span>Guardar como mi plantilla por defecto para futuros envíos</span>
+    </label>
+
+    <div style="background:rgba(37,211,102,0.08);border:1px solid #25D366;border-radius:var(--r-md);padding:10px 12px;margin-bottom:14px;font-size:11px;color:#15803d">
+      <strong>Vista previa:</strong> el cliente verá el link clickeable que abre el PDF con el diseño Comercia.
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" onclick="waEnviarMensaje()" style="flex:2;background:#25D366;border-color:#25D366;color:#fff">&#128241; Enviar por WhatsApp</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL CREAR OBRA RÁPIDO (desde POS) ═══════════════════ -->
 <div class="modal-overlay" id="modalCrearObraQuick">
   <div class="modal" style="max-width:440px;border-top-color:var(--purple)">
@@ -10336,41 +10371,100 @@ async function subirPdfAStorage(pdfBlob, v){
   return { url: url, path: path, expiraEl: expirationDate };
 }
 
+// Template por defecto del mensaje de WhatsApp (con promoción de Comercia)
+var WA_TEMPLATE_DEFAULT =
+'Hola {{cliente}}! 👋\n' +
+'\n' +
+'Te paso el comprobante de tu compra en *{{empresa}}*:\n' +
+'\n' +
+'📄 *{{tipo}} N° {{numero}}*\n' +
+'📅 Fecha: {{fecha}}\n' +
+'💰 Total: *{{total}}*\n' +
+'\n' +
+'Mirá el detalle completo acá:\n' +
+'👉 {{link}}\n' +
+'\n' +
+'_Gracias por tu compra!_\n' +
+'\n' +
+'────────────\n' +
+'Comprobante generado con *COMERCIA* 🚀\n' +
+'_Gestión inteligente para tu comercio_';
+
+// Estado temporal para el envío de WhatsApp
+var _waContexto = null;
+
+// Aplica las variables del template con los datos de la venta
+function waAplicarVariables(template, v, link){
+  var clienteNombre = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || 'cliente') : 'cliente';
+  // Si el nombre es muy largo (razón social), usar solo el primer apellido/palabra
+  var clienteCorto = clienteNombre.split(/[\s,]/)[0];
+  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
+  var modoLbl = (v.modo || 'ticket').toUpperCase();
+  var fechaStr = new Date(v.fecha).toLocaleDateString('es-AR');
+
+  return template
+    .replace(/\{\{cliente\}\}/g, clienteCorto)
+    .replace(/\{\{clienteCompleto\}\}/g, clienteNombre)
+    .replace(/\{\{empresa\}\}/g, empresaNombre)
+    .replace(/\{\{numero\}\}/g, v.numero || '-')
+    .replace(/\{\{tipo\}\}/g, modoLbl)
+    .replace(/\{\{fecha\}\}/g, fechaStr)
+    .replace(/\{\{total\}\}/g, fmtPeso(v.total))
+    .replace(/\{\{link\}\}/g, link);
+}
+
+// Restaurar template por defecto en el modal
+function waResetearTemplate(){
+  var v = _waContexto ? _waContexto.venta : null;
+  var link = _waContexto ? _waContexto.link : '';
+  if(!v) return;
+  document.getElementById('waMensajeInput').value = waAplicarVariables(WA_TEMPLATE_DEFAULT, v, link);
+}
+
+// Cargar template guardado del usuario (si tiene uno)
+async function waCargarTemplateUsuario(){
+  if(!currentUser || !db) return WA_TEMPLATE_DEFAULT;
+  try{
+    var ref = db.collection('usuarios_global').doc(currentUser.uid);
+    var doc = await ref.get();
+    if(doc.exists){
+      var data = doc.data();
+      if(data && data.waTemplate) return data.waTemplate;
+    }
+  }catch(e){ console.warn('No se pudo cargar template WA:', e); }
+  return WA_TEMPLATE_DEFAULT;
+}
+
+// Guardar template del usuario
+async function waGuardarTemplateUsuario(template){
+  if(!currentUser || !db) return;
+  try{
+    var ref = db.collection('usuarios_global').doc(currentUser.uid);
+    await ref.set({ waTemplate: template }, { merge: true });
+  }catch(e){ console.warn('No se pudo guardar template WA:', e); }
+}
+
 async function compartirVentaWhatsApp(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
-  var textoBase = generarTextoVenta(v);
 
   // Determinar teléfono del cliente con normalización inteligente para Argentina
-  // Acepta formatos: 11-1234-5678, (011) 1234-5678, +54 9 11 1234 5678, 11 12345678, etc.
   var tel = '';
   if(v.cliente && v.cliente.telefono){
     var raw = v.cliente.telefono.replace(/[^0-9]/g, '');
     if(raw.length >= 8){
-      // Limpiar prefijos comunes
-      // Si empieza con 549 → +54 9 (móvil arg) → mantener
-      // Si empieza con 54 → código de país → mantener
-      // Si empieza con 0 → quitar el 0 (prefijo nacional argentino)
       if(raw.charAt(0) === '0') raw = raw.substring(1);
-      // Si empieza con 15 después de código área → quitar el 15 (prefijo móvil viejo)
-      // Aplicar solo si el tel tiene formato "área(2-4 dig) + 15 + número"
-      // ej: 1115-1234-5678 → 11-1234-5678
-      // Esto es heurística simple: si tiene 11 dígitos y los dígitos 3-4 son "15"
       if(raw.length === 11 && raw.substring(2,4) === '15'){
         raw = raw.substring(0,2) + raw.substring(4);
       }
-      // Agregar código de país 54 si no lo tiene
       if(!raw.startsWith('54')) raw = '54' + raw;
-      // Insertar el 9 después del 54 si no está (móviles argentinos requieren 549 + área + número)
-      // Solo si la longitud sugiere que es móvil (54 + 10 dígitos = 12 totales sin el 9, 13 con el 9)
       if(raw.length === 12 && raw.charAt(2) !== '9') raw = '54' + '9' + raw.substring(2);
       tel = raw;
-      // Verificar que tenga sentido (entre 11 y 15 dígitos totales para internacional)
       if(tel.length < 11 || tel.length > 15) tel = '';
     }
   }
 
-  // 1. Generar PDF (espera a que esté listo)
+  // 1. Generar PDF
   toast('Generando PDF...', 'success');
   var pdfBlob = null;
   try{
@@ -10381,7 +10475,7 @@ async function compartirVentaWhatsApp(){
     return;
   }
 
-  // 2. Subir a Firebase Storage para obtener link público
+  // 2. Subir a Storage
   toast('Subiendo a la nube (válido 30 días)...', 'success');
   var pdfInfo = null;
   try{
@@ -10392,32 +10486,87 @@ async function compartirVentaWhatsApp(){
     return;
   }
 
-  // 3. Armar mensaje SOLO con el link clickeable (el cliente lo abre desde su WhatsApp)
-  var modoLbl = (v.modo || 'ticket').toUpperCase();
-  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
-  var expStr = pdfInfo.expiraEl.toLocaleDateString('es-AR');
+  // 3. Cargar template del usuario y aplicar variables
+  var template = await waCargarTemplateUsuario();
+  var mensajeRenderizado = waAplicarVariables(template, v, pdfInfo.url);
 
-  // Mensaje corto + link al PDF (el detalle completo está en el PDF)
-  var mensaje =
-    '*' + empresaNombre + '*\n' +
-    modoLbl + ' N° ' + v.numero + '\n' +
-    'Fecha: ' + new Date(v.fecha).toLocaleDateString('es-AR') + '\n' +
-    'Total: *' + fmtPeso(v.total) + '*\n' +
-    '\n' +
-    '📄 Ver comprobante completo:\n' +
-    pdfInfo.url + '\n' +
-    '\n' +
-    '_Link válido hasta el ' + expStr + '_\n' +
-    '\n' +
-    '— Generado con COMERCIA';
+  // 4. Guardar contexto y abrir modal de edición
+  _waContexto = {
+    venta: v,
+    link: pdfInfo.url,
+    tel: tel,
+    template: template
+  };
 
-  // 4. Abrir WhatsApp con el mensaje (el cliente recibe el link y lo abre en su navegador)
+  // Mostrar info del destinatario
+  var infoEl = document.getElementById('waDestinatarioInfo');
+  if(infoEl){
+    if(tel){
+      var clienteName = v.cliente.razonSocial || v.cliente.nombre || '';
+      infoEl.innerHTML = 'Se enviará a <strong>' + eH(clienteName) + '</strong> (' + eH(v.cliente.telefono) + ')';
+    } else {
+      infoEl.textContent = 'Vas a elegir el contacto en WhatsApp.';
+    }
+  }
+
+  // Cargar mensaje en el textarea
+  document.getElementById('waMensajeInput').value = mensajeRenderizado;
+  document.getElementById('waGuardarPlantilla').checked = false;
+
+  closeModals();
+  document.getElementById('modalWaEditarMensaje').classList.add('show');
+  setTimeout(function(){
+    var inp = document.getElementById('waMensajeInput');
+    if(inp) inp.focus();
+  }, 100);
+}
+
+// Envía el mensaje desde el modal (puede haber sido editado)
+async function waEnviarMensaje(){
+  if(!_waContexto) return;
+  var mensaje = document.getElementById('waMensajeInput').value;
+  if(!mensaje || !mensaje.trim()){
+    toast('El mensaje no puede estar vacío', 'error');
+    return;
+  }
+
+  // Si pidió guardar como plantilla, convertir el mensaje editado a template
+  // (reemplaza los valores específicos por placeholders)
+  var guardar = document.getElementById('waGuardarPlantilla').checked;
+  if(guardar){
+    var v = _waContexto.venta;
+    var link = _waContexto.link;
+    var template = mensaje;
+    // Reemplazar valores específicos por placeholders (en orden de longitud para no chocar)
+    var empresaNombre = currentEmpresa ? currentEmpresa.nombre : '';
+    var clienteCompleto = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : '';
+    var clienteCorto = clienteCompleto.split(/[\s,]/)[0];
+    var modoLbl = (v.modo || 'ticket').toUpperCase();
+    var fechaStr = new Date(v.fecha).toLocaleDateString('es-AR');
+    var totalStr = fmtPeso(v.total);
+
+    if(link) template = template.split(link).join('{{link}}');
+    if(empresaNombre) template = template.split(empresaNombre).join('{{empresa}}');
+    if(clienteCompleto) template = template.split(clienteCompleto).join('{{cliente}}');
+    if(clienteCorto && clienteCorto !== clienteCompleto) template = template.split(clienteCorto).join('{{cliente}}');
+    if(v.numero) template = template.split(v.numero).join('{{numero}}');
+    if(modoLbl) template = template.split(modoLbl).join('{{tipo}}');
+    if(fechaStr) template = template.split(fechaStr).join('{{fecha}}');
+    if(totalStr) template = template.split(totalStr).join('{{total}}');
+
+    await waGuardarTemplateUsuario(template);
+    toast('Plantilla guardada como predeterminada', 'success');
+  }
+
+  // Abrir WhatsApp
+  var tel = _waContexto.tel;
   var wUrl = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(mensaje);
   window.open(wUrl, '_blank');
+  closeModals();
   if(tel){
-    toast('WhatsApp abierto. Mensaje listo para enviar al cliente.', 'success');
+    toast('WhatsApp abierto con el cliente', 'success');
   } else {
-    toast('WhatsApp abierto. Elegí el contacto para enviar.', 'success');
+    toast('WhatsApp abierto, elegí el contacto', 'success');
   }
 }
 
@@ -10512,7 +10661,7 @@ function generarPdfVenta(v){
     container.style.position = 'fixed';
     container.style.left = '-99999px';
     container.style.top = '0';
-    container.style.width = '210mm';
+    container.style.width = '794px';  // A4 ancho en px @ 96dpi
     container.style.background = '#fff';
     container.style.zIndex = '-1';
 
@@ -10539,10 +10688,12 @@ function generarPdfVenta(v){
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
-          windowWidth: element.scrollWidth,
-          windowHeight: element.scrollHeight
+          width: 794,        // ancho A4 en px @ 96dpi
+          windowWidth: 794,  // forzar viewport para que respete el ancho
+          letterRendering: true
         },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
       html2pdf()
@@ -10671,7 +10822,7 @@ function construirHtmlVentaA4(v){
 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:#1f1f23;font-size:11px;line-height:1.45;-webkit-font-smoothing:antialiased}'+
 
 /* CONTENEDOR A4 */
-'.doc{width:210mm;min-height:297mm;margin:0 auto;background:#fff;position:relative;display:flex;flex-direction:column}'+
+'.doc{width:794px;min-height:1123px;margin:0 auto;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden}'+
 
 /* HEADER OSCURO AZUL-NOCHE CON GRADIENTE (estilo sidebar Comercia) */
 '.doc-head{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 55%,#0f3460 100%);color:#fff;padding:18mm 14mm 14mm;border-bottom:4px solid '+accentColor+';position:relative}'+
