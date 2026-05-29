@@ -10479,7 +10479,8 @@ function generarPdfVenta(v){
     iframe.onload = function(){
       setTimeout(function(){
         var doc = iframe.contentDocument || iframe.contentWindow.document;
-        var element = doc.querySelector('.doc-wrap');
+        // El nuevo HTML usa .doc en vez de .doc-wrap
+        var element = doc.querySelector('.doc') || doc.querySelector('.doc-wrap') || doc.body;
         if(!element){
           document.body.removeChild(iframe);
           reject(new Error('No se pudo encontrar contenido para PDF'));
