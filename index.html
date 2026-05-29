@@ -5077,6 +5077,7 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
 const firebaseConfig = {
@@ -10305,30 +10306,79 @@ function generarTextoVenta(v){
   return txt;
 }
 
-// WHATSAPP — abre wa.me con el mensaje pre-armado
-function compartirVentaWhatsApp(){
+// WHATSAPP — genera PDF real, lo descarga, abre WhatsApp con mensaje
+// En mobile usa Web Share API (puede adjuntar PDF al chat directamente)
+async function compartirVentaWhatsApp(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
   var texto = generarTextoVenta(v);
+
+  // Generar PDF
+  toast('Generando PDF...', 'success');
+  var pdfBlob = null;
+  try{
+    pdfBlob = await generarPdfVenta(v);
+  }catch(err){
+    console.error('Error generando PDF:', err);
+    toast('Error al generar PDF: '+(err.message||''), 'error');
+  }
+
+  // Determinar teléfono del cliente (si tiene)
   var tel = '';
-  // Si hay cliente con teléfono, incluirlo
   if(v.cliente && v.cliente.telefono){
     tel = v.cliente.telefono.replace(/[^0-9]/g, '');
-    // Si no empieza con código país, agregar 54 (Argentina)
     if(tel.length === 10 && tel.charAt(0) !== '5'){
       tel = '54' + tel;
     } else if(tel.length === 8 || tel.length === 9){
-      // No tiene código de área completo
       tel = '';
     }
   }
-  var url = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(texto);
-  window.open(url, '_blank');
-  toast('Abriendo WhatsApp...', 'success');
+
+  // Intentar Web Share API (mobile) primero — puede compartir el PDF directamente
+  if(pdfBlob && navigator.canShare && navigator.share){
+    var modoLbl = (v.modo || 'ticket').toUpperCase();
+    var fileName = modoLbl.toLowerCase() + '-' + v.numero + '.pdf';
+    var pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    var shareData = {
+      title: modoLbl + ' N° ' + v.numero,
+      text: texto,
+      files: [pdfFile]
+    };
+    if(navigator.canShare(shareData)){
+      try{
+        await navigator.share(shareData);
+        toast('Compartido', 'success');
+        return;
+      }catch(err){
+        if(err.name === 'AbortError') return; // usuario canceló
+        console.warn('Share API falló, usando fallback:', err);
+      }
+    }
+  }
+
+  // Fallback (desktop o Web Share no soportado): descargar PDF + abrir WhatsApp Web
+  if(pdfBlob){
+    var modoLbl2 = (v.modo || 'ticket').toUpperCase();
+    var url = URL.createObjectURL(pdfBlob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = modoLbl2.toLowerCase() + '-' + v.numero + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // Mostrar instrucciones al usuario
+  setTimeout(function(){
+    var wUrl = 'https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(texto);
+    window.open(wUrl, '_blank');
+    toast('PDF descargado. Arrastralo al chat de WhatsApp.', 'success');
+  }, 400);
 }
 
-// EMAIL — abre mailto con el cuerpo armado
-function compartirVentaEmail(){
+// EMAIL — descarga PDF para adjuntar y abre cliente de correo
+async function compartirVentaEmail(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
   var emailDestino = '';
@@ -10339,14 +10389,85 @@ function compartirVentaEmail(){
   var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
   var asunto = modoLbl + ' N° ' + v.numero + ' - ' + empresaNombre;
   var cuerpo = generarTextoVenta(v);
-  // Quitar asteriscos de Markdown (mailto no los renderiza)
   cuerpo = cuerpo.replace(/\*/g, '').replace(/_/g, '');
-  var url = 'mailto:' + emailDestino + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
-  window.location.href = url;
-  toast('Abriendo cliente de correo...', 'success');
+  cuerpo += '\n\n(Te dejo adjunto el comprobante en PDF)';
+
+  // Descargar PDF para que el usuario lo adjunte
+  toast('Generando PDF para adjuntar...', 'success');
+  try{
+    var blob = await generarPdfVenta(v);
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = modoLbl.toLowerCase() + '-' + v.numero + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }catch(err){
+    console.warn('No se pudo generar PDF:', err);
+  }
+
+  // Abrir cliente de correo
+  setTimeout(function(){
+    var mailUrl = 'mailto:' + emailDestino + '?subject=' + encodeURIComponent(asunto) + '&body=' + encodeURIComponent(cuerpo);
+    window.location.href = mailUrl;
+    toast('PDF descargado. Adjuntalo al mail.', 'success');
+  }, 500);
 }
 
-// IMPRIMIR EN A4 — formato profesional con marca Comercia
+// Genera un PDF Blob a partir del HTML A4 (con html2pdf)
+function generarPdfVenta(v){
+  return new Promise(function(resolve, reject){
+    if(typeof html2pdf === 'undefined'){
+      reject(new Error('Librería html2pdf no cargada'));
+      return;
+    }
+    var html = construirHtmlVentaA4(v);
+    // Crear iframe oculto para renderizar
+    var iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '0';
+    iframe.style.width = '210mm';
+    iframe.style.height = '297mm';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    iframe.onload = function(){
+      setTimeout(function(){
+        var doc = iframe.contentDocument || iframe.contentWindow.document;
+        var element = doc.querySelector('.doc-wrap');
+        if(!element){
+          document.body.removeChild(iframe);
+          reject(new Error('No se pudo encontrar contenido para PDF'));
+          return;
+        }
+        var modoLbl = (v.modo || 'ticket').toUpperCase();
+        var opts = {
+          margin: 0,
+          filename: modoLbl.toLowerCase() + '-' + v.numero + '.pdf',
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().from(element).set(opts).outputPdf('blob').then(function(blob){
+          document.body.removeChild(iframe);
+          resolve(blob);
+        }).catch(function(err){
+          document.body.removeChild(iframe);
+          reject(err);
+        });
+      }, 300);
+    };
+
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+  });
+}
+
+// IMPRIMIR EN A4 — abre ventana de impresión con HTML formateado
 function imprimirVentaA4(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
@@ -10356,33 +10477,57 @@ function imprimirVentaA4(){
   w.document.close();
   setTimeout(function(){
     try{ w.print(); }catch(e){}
-  }, 500);
+  }, 600);
 }
 
-// DESCARGAR PDF — abre el A4 con prompt para guardar como PDF
-function descargarVentaPDF(){
+// DESCARGAR PDF — genera el PDF real con html2pdf y lo descarga
+async function descargarVentaPDF(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
-  var html = construirHtmlVentaA4(v);
-  var w = window.open('', '_blank', 'width=900,height=700');
-  w.document.write(html);
-  w.document.close();
-  // El usuario hace "Guardar como PDF" desde el diálogo de impresión
-  setTimeout(function(){
-    try{
-      w.document.title = (v.modo||'venta') + '-' + v.numero;
-      w.print();
-    }catch(e){}
-  }, 500);
-  toast('En el diálogo elegí "Guardar como PDF"', 'success');
+  toast('Generando PDF...', 'success');
+  try{
+    var blob = await generarPdfVenta(v);
+    var modoLbl = (v.modo || 'ticket').toUpperCase();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = modoLbl.toLowerCase() + '-' + v.numero + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast('PDF descargado', 'success');
+  }catch(err){
+    console.error('Error PDF:', err);
+    // Fallback: abrir A4 e ir a "Guardar como PDF"
+    toast('Usando método alternativo...', 'success');
+    var html = construirHtmlVentaA4(v);
+    var w = window.open('', '_blank', 'width=900,height=700');
+    w.document.write(html);
+    w.document.close();
+    setTimeout(function(){
+      try{
+        w.document.title = (v.modo||'venta') + '-' + v.numero;
+        w.print();
+      }catch(e){}
+    }, 500);
+  }
 }
 
-// Construye el HTML para imprimir en A4 (con marca Comercia)
+// Construye el HTML para imprimir en A4 (con marca Comercia + logo + watermark)
 function construirHtmlVentaA4(v){
   var fecha = new Date(v.fecha);
   var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
   var modoLbl = (v.modo || 'ticket').toUpperCase();
-  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
+  var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Mi Empresa';
+
+  // SVG inline del logo Comercia (ícono cuadrado con gradiente + "C" estilizada)
+  var logoComerciaSvg = '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" width="36" height="36">'+
+    '<defs><linearGradient id="gLogoPdf" x1="0%" y1="0%" x2="100%" y2="100%">'+
+    '<stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs>'+
+    '<rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gLogoPdf)"/>'+
+    '<path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>'+
+    '<circle cx="29" cy="20" r="2.4" fill="#fff"/></svg>';
 
   // Items HTML
   var itemsRows = v.items.map(function(it){
@@ -10410,59 +10555,125 @@ function construirHtmlVentaA4(v){
     ? '<div><strong>Cliente:</strong> '+eH(v.cliente.razonSocial)+(v.cliente.nombre?' '+eH(v.cliente.nombre):'')+'</div>'+
       (v.cliente.numDoc?'<div><strong>'+(v.cliente.tipoDoc||'CUIT')+':</strong> '+eH(v.cliente.numDoc)+'</div>':'')+
       (v.cliente.direccion?'<div><strong>Dirección:</strong> '+eH(v.cliente.direccion)+'</div>':'')+
-      (v.cliente.catFiscal?'<div><strong>Cat. Fiscal:</strong> '+eH(v.cliente.catFiscal)+'</div>':'')
+      (v.cliente.catFiscal?'<div><strong>Cat. Fiscal:</strong> '+eH(v.cliente.catFiscal)+'</div>':'')+
+      (v.cliente.telefono?'<div><strong>Tel:</strong> '+eH(v.cliente.telefono)+'</div>':'')
     : '<div><strong>Cliente:</strong> Consumidor Final</div>';
 
-  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+modoLbl+' '+v.numero+'</title>'+
+  // Color del comprobante según el modo
+  var colorTipo = '#1a1a23';
+  var colorBg = '#fbbf24';
+  if(modoLbl === 'REMITO'){ colorTipo = '#8b5cf6'; colorBg = '#ddd6fe'; }
+  else if(modoLbl === 'PRESUPUESTO'){ colorTipo = '#f97316'; colorBg = '#fed7aa'; }
+  else if(modoLbl === 'FACTURA'){ colorTipo = '#1a1a23'; colorBg = '#fbbf24'; }
+
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+modoLbl+' '+v.numero+' - '+eH(empresaNombre)+'</title>'+
 '<style>'+
-'@page{size:A4;margin:18mm}'+
-'*{box-sizing:border-box}'+
-'body{font-family:Arial,Helvetica,sans-serif;color:#1a1a23;margin:0;padding:0;font-size:13px;line-height:1.45}'+
-'.doc-wrap{max-width:780px;margin:0 auto}'+
-'.doc-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:3px solid #fbbf24}'+
-'.empresa-block{flex:1}'+
-'.empresa-nombre{font-size:24px;font-weight:800;color:#1a1a23;letter-spacing:-0.01em;margin-bottom:2px}'+
-'.empresa-meta{font-size:11px;color:#666}'+
-'.tipo-block{text-align:right;padding-left:20px}'+
-'.tipo-letra{display:inline-block;font-size:32px;font-weight:900;border:3px solid #1a1a23;padding:4px 22px;background:#fff;letter-spacing:0.05em}'+
-'.tipo-label{font-size:10px;font-weight:700;color:#666;margin-top:4px;letter-spacing:0.06em}'+
-'.doc-numero{font-size:18px;font-weight:700;margin-top:10px;font-family:Consolas,monospace}'+
-'.doc-fecha{font-size:11px;color:#666;font-family:Consolas,monospace}'+
-'.cliente-block{margin:18px 0;padding:12px 16px;background:#fafaf8;border-left:3px solid #fbbf24;border-radius:3px}'+
-'.cliente-block div{margin-bottom:3px}'+
-'.items-title{font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}'+
-'table{width:100%;border-collapse:collapse;margin-bottom:14px}'+
-'th{background:#1a1a23;color:#fff;padding:9px 8px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;border-bottom:2px solid #fbbf24}'+
-'td{padding:7px 8px;border-bottom:1px solid #e5e7eb;font-size:12px}'+
-'tr:nth-child(even) td{background:#fafaf8}'+
+'@page{size:A4;margin:0}'+
+'*{box-sizing:border-box;margin:0;padding:0}'+
+'body{font-family:Arial,Helvetica,sans-serif;color:#1a1a23;font-size:13px;line-height:1.45;background:#fff}'+
+'.doc-wrap{max-width:210mm;min-height:297mm;margin:0 auto;padding:14mm 16mm;position:relative;background:#fff}'+
+
+/* MARCA DE AGUA DIAGONAL */
+'.watermark{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;display:flex;align-items:center;justify-content:center;z-index:0;overflow:hidden}'+
+'.watermark-text{font-family:Impact,"Arial Black",sans-serif;font-size:160px;font-weight:900;color:#fbbf24;opacity:0.04;transform:rotate(-30deg);letter-spacing:0.05em;white-space:nowrap}'+
+
+'.doc-content{position:relative;z-index:1}'+
+
+/* HEADER: BARRA SUPERIOR CON GRADIENTE Y EMPRESA */
+'.brand-strip{display:flex;align-items:center;gap:14px;padding:14px 18px;margin:-14mm -16mm 0 -16mm;background:linear-gradient(135deg,#fbbf24 0%,#f97316 100%);border-bottom:4px solid #1a1a23}'+
+'.brand-strip-empresa{flex:1;color:#1a1a23}'+
+'.brand-strip-empresa-name{font-size:28px;font-weight:900;letter-spacing:-0.02em;line-height:1.1;text-shadow:0 1px 0 rgba(255,255,255,.3)}'+
+'.brand-strip-empresa-tag{font-size:11px;font-weight:600;opacity:.75;margin-top:3px;letter-spacing:0.04em;text-transform:uppercase}'+
+'.brand-strip-doc{text-align:right;color:#1a1a23}'+
+'.brand-strip-doc-label{font-size:10px;font-weight:700;opacity:.75;letter-spacing:0.08em}'+
+'.brand-strip-doc-fecha{font-size:12px;font-family:"Courier New",monospace;font-weight:700;margin-top:2px}'+
+
+/* SECCIÓN TIPO COMPROBANTE */
+'.tipo-section{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;padding:22px 0 14px;border-bottom:2px solid '+colorBg+'}'+
+'.tipo-letra{display:inline-block;font-size:54px;font-weight:900;border:4px solid '+colorTipo+';padding:6px 26px;background:#fff;color:'+colorTipo+';letter-spacing:0.05em;line-height:1;font-family:Arial,sans-serif}'+
+'.tipo-info{text-align:center}'+
+'.tipo-info-name{font-size:22px;font-weight:700;color:'+colorTipo+';letter-spacing:0.05em;margin-bottom:2px}'+
+'.tipo-info-numero{font-size:18px;font-weight:700;font-family:"Courier New",monospace;color:#1a1a23}'+
+'.tipo-info-fecha{font-size:11px;color:#666;font-family:"Courier New",monospace;margin-top:3px}'+
+'.tipo-orig{font-size:9px;font-weight:700;background:'+colorBg+';color:'+colorTipo+';padding:6px 12px;border-radius:4px;letter-spacing:0.08em;text-transform:uppercase}'+
+
+/* CLIENTE */
+'.cliente-block{margin:18px 0;padding:14px 18px;background:#fafaf8;border-left:4px solid '+colorTipo+';border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.04)}'+
+'.cliente-block>div{margin-bottom:4px;font-size:12px}'+
+'.cliente-block strong{color:#1a1a23;font-weight:700}'+
+
+/* TABLA ITEMS */
+'.items-title{font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;margin-top:6px}'+
+'table.items-table{width:100%;border-collapse:collapse;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);border-radius:4px;overflow:hidden}'+
+'.items-table th{background:#1a1a23;color:#fff;padding:11px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;border-bottom:3px solid '+colorBg+'}'+
+'.items-table td{padding:9px 10px;border-bottom:1px solid #e5e7eb;font-size:12px}'+
+'.items-table tr:nth-child(even) td{background:#fafaf8}'+
+'.items-table tr:last-child td{border-bottom:none}'+
+
+/* TOTALES */
 '.totales-block{display:flex;justify-content:flex-end;margin-top:6px}'+
-'.totales-tabla{min-width:300px;font-size:12px}'+
-'.totales-tabla div{display:flex;justify-content:space-between;padding:4px 0}'+
-'.totales-tabla .total-row{border-top:2px solid #1a1a23;margin-top:6px;padding-top:8px;font-size:16px;font-weight:800;color:#1a1a23}'+
-'.pagos-block{margin-top:16px;padding:10px 14px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:3px}'+
-'.pago-row{display:flex;justify-content:space-between;padding:2px 0;font-size:12px}'+
-'.obs-block{margin-top:14px;padding:10px;background:#fef3c7;border-left:3px solid #fbbf24;border-radius:3px;font-size:11px}'+
-'.footer-brand{margin-top:30px;padding-top:14px;border-top:1px dashed #ccc;text-align:center}'+
-'.footer-brand-name{font-family:Impact,Arial Black,sans-serif;font-size:22px;letter-spacing:0.08em;color:#1a1a23;margin-bottom:2px}'+
-'.footer-brand-tag{font-size:10px;color:#666;font-style:italic;margin-bottom:6px}'+
-'.footer-brand-desc{font-size:9px;color:#999}'+
-'@media print{body{margin:0}.doc-wrap{max-width:100%}}'+
-'</style></head><body><div class="doc-wrap">'+
-'<div class="doc-header">'+
-  '<div class="empresa-block">'+
-    '<div class="empresa-nombre">'+eH(empresaNombre)+'</div>'+
-    '<div class="empresa-meta">Gestión profesional</div>'+
+'.totales-tabla{min-width:300px;font-size:13px;background:#fafaf8;padding:14px 18px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.06)}'+
+'.totales-tabla>div{display:flex;justify-content:space-between;padding:4px 0;color:#666}'+
+'.totales-tabla>div span:last-child{font-family:"Courier New",monospace;color:#1a1a23;font-weight:600}'+
+'.totales-tabla .total-row{border-top:3px double '+colorTipo+';margin-top:8px;padding-top:10px;font-size:18px;font-weight:800;color:'+colorTipo+'}'+
+'.totales-tabla .total-row span{color:'+colorTipo+' !important}'+
+
+/* PAGOS */
+'.pagos-block{margin-top:18px;padding:12px 16px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.04)}'+
+'.pagos-title{font-size:10px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px}'+
+'.pago-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px}'+
+'.pago-row span:last-child{font-family:"Courier New",monospace;font-weight:600}'+
+
+/* OBSERVACIONES */
+'.obs-block{margin-top:16px;padding:11px 14px;background:#fefce8;border-left:4px solid #facc15;border-radius:3px;font-size:11px;color:#713f12}'+
+
+/* FOOTER COMERCIA */
+'.footer-brand{margin-top:42px;padding:18px 0 0;border-top:2px dashed #ddd;position:relative}'+
+'.footer-brand-inner{display:flex;align-items:center;justify-content:center;gap:14px;text-align:center}'+
+'.footer-brand-logo{display:flex;align-items:center;gap:10px}'+
+'.footer-brand-name{font-family:Impact,"Arial Black",sans-serif;font-size:28px;letter-spacing:0.1em;color:#1a1a23;line-height:1}'+
+'.footer-brand-tag{font-size:10px;color:#666;font-style:italic;letter-spacing:0.04em}'+
+'.footer-brand-desc{margin-top:10px;text-align:center;font-size:9px;color:#999;line-height:1.5}'+
+'.footer-brand-desc strong{color:#666}'+
+
+'@media print{body{margin:0}.doc-wrap{max-width:100%;padding:14mm 16mm} .watermark-text{opacity:0.04 !important}}'+
+'</style></head><body>'+
+'<div class="doc-wrap">'+
+
+/* MARCA DE AGUA */
+'<div class="watermark"><div class="watermark-text">COMERCIA</div></div>'+
+
+'<div class="doc-content">'+
+
+/* BRAND STRIP SUPERIOR */
+'<div class="brand-strip">'+
+  '<div class="brand-strip-empresa">'+
+    '<div class="brand-strip-empresa-name">'+eH(empresaNombre)+'</div>'+
+    '<div class="brand-strip-empresa-tag">Gestión profesional</div>'+
   '</div>'+
-  '<div class="tipo-block">'+
-    '<div class="tipo-letra">'+modoLbl.charAt(0)+'</div>'+
-    '<div class="tipo-label">'+modoLbl+'</div>'+
-    '<div class="doc-numero">N° '+eH(v.numero)+'</div>'+
-    '<div class="doc-fecha">'+fechaStr+'</div>'+
+  '<div class="brand-strip-doc">'+
+    '<div class="brand-strip-doc-label">FECHA DE EMISIÓN</div>'+
+    '<div class="brand-strip-doc-fecha">'+fechaStr+'</div>'+
   '</div>'+
 '</div>'+
+
+/* TIPO COMPROBANTE */
+'<div class="tipo-section">'+
+  '<div class="tipo-letra">'+modoLbl.charAt(0)+'</div>'+
+  '<div class="tipo-info">'+
+    '<div class="tipo-info-name">'+modoLbl+'</div>'+
+    '<div class="tipo-info-numero">N° '+eH(v.numero)+'</div>'+
+    '<div class="tipo-info-fecha">'+fechaStr+'</div>'+
+  '</div>'+
+  '<div class="tipo-orig">ORIGINAL</div>'+
+'</div>'+
+
+/* CLIENTE */
 '<div class="cliente-block">'+clienteHtml+'</div>'+
-'<div class="items-title">Detalle</div>'+
-'<table><thead><tr>'+
+
+/* ITEMS */
+'<div class="items-title">Detalle de productos / servicios</div>'+
+'<table class="items-table"><thead><tr>'+
   '<th style="width:14%">Código</th>'+
   '<th>Descripción</th>'+
   '<th style="width:8%;text-align:center">Cant.</th>'+
@@ -10470,20 +10681,36 @@ function construirHtmlVentaA4(v){
   '<th style="width:16%;text-align:right">Subtotal</th>'+
   '<th style="width:14%">Obra</th>'+
 '</tr></thead><tbody>'+itemsRows+'</tbody></table>'+
+
+/* TOTALES */
 '<div class="totales-block"><div class="totales-tabla">'+
   '<div><span>Subtotal neto:</span><span>'+fmtPeso(v.neto||0)+'</span></div>'+
   '<div><span>IVA ('+(v.ivaPct||0)+'%):</span><span>'+fmtPeso(v.ivaMonto||0)+'</span></div>'+
   (v.descuentoPct>0?'<div><span>Descuento ('+v.descuentoPct+'%):</span><span>-'+fmtPeso(v.descuentoMonto)+'</span></div>':'')+
   '<div class="total-row"><span>TOTAL:</span><span>'+fmtPeso(v.total)+'</span></div>'+
 '</div></div>'+
-(pagosHtml ? '<div class="pagos-block"><div class="items-title" style="color:#15803d;margin-bottom:4px">Forma de pago</div>'+pagosHtml+'</div>' : '')+
+
+/* PAGOS */
+(pagosHtml ? '<div class="pagos-block"><div class="pagos-title">Forma de pago</div>'+pagosHtml+'</div>' : '')+
+
+/* OBSERVACIONES */
 (v.observaciones ? '<div class="obs-block"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
+
+/* FOOTER COMERCIA */
 '<div class="footer-brand">'+
-  '<div class="footer-brand-name">COMERCIA</div>'+
-  '<div class="footer-brand-tag">Gestión inteligente para tu comercio</div>'+
-  '<div class="footer-brand-desc">Este comprobante fue generado con Comercia · Sistema de gestión para comercios</div>'+
+  '<div class="footer-brand-inner">'+
+    '<div class="footer-brand-logo">'+logoComerciaSvg+'<span class="footer-brand-name">COMERCIA</span></div>'+
+    '<div style="border-left:1px solid #ddd;padding-left:14px"><span class="footer-brand-tag">Gestión inteligente para tu comercio</span></div>'+
+  '</div>'+
+  '<div class="footer-brand-desc">'+
+    '<strong>'+eH(empresaNombre)+'</strong> usa <strong>Comercia</strong> · Plataforma de gestión para comercios argentinos<br>'+
+    'Este comprobante es de carácter <strong>'+(modoLbl==='FACTURA'?'fiscal':'no fiscal')+'</strong> · Generado el '+fechaStr+
+  '</div>'+
 '</div>'+
-'</div><script>window.onload=function(){window.print();}<\/script></body></html>';
+
+'</div>'+ /* /doc-content */
+'</div>'+ /* /doc-wrap */
+'</body></html>';
 }
 
 // AFIP — placeholder (requiere certificado digital + backend)
