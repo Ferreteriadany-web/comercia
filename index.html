@@ -3914,6 +3914,14 @@
   /* ═══════════════════════════════════════════════════════
      LISTAS DE PROVEEDORES
      ═══════════════════════════════════════════════════════ */
+  /* Alias de variables que el módulo usa pero no estaban definidas
+     (se mapean a las del tema para que funcione en claro y oscuro) */
+  :root{
+    --bg-soft:var(--bg-2);
+    --bg-card:var(--paper);
+    --border:var(--line);
+    --border-strong:var(--line-2);
+  }
   .lp-tabs{
     display:flex;
     gap:4px;
@@ -4334,6 +4342,75 @@
     flex-wrap:wrap;
   }
   .lp-hist-stat strong{font-weight:600}
+
+  /* Segmented control: modo de importación */
+  .lp-modo-import{
+    display:inline-flex;
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:3px;
+    gap:3px;
+    margin-bottom:16px;
+  }
+  .lp-modo-btn{
+    background:transparent;
+    border:none;
+    padding:8px 16px;
+    font-size:13px;
+    border-radius:6px;
+    cursor:pointer;
+    color:var(--text-mute);
+    font-family:inherit;
+    font-weight:500;
+    transition:all .15s;
+  }
+  .lp-modo-btn:hover{color:var(--text)}
+  .lp-modo-btn.active{
+    background:var(--bg-card);
+    color:var(--text);
+    box-shadow:0 1px 3px rgba(0,0,0,.1);
+    font-weight:600;
+  }
+
+  /* Input de descuento por producto en la tabla de preview */
+  .lp-desc-input{
+    width:62px;
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:4px 6px;
+    font-size:12px;
+    color:var(--text);
+    font-family:inherit;
+    text-align:right;
+  }
+  .lp-desc-input:focus{outline:none;border-color:var(--accent);background:var(--bg-card)}
+  .lp-col-desc{width:78px;text-align:right}
+
+  /* Columna proveedor (solo visible en modo sábana) */
+  .lp-col-prov{
+    display:none;
+    max-width:140px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    font-size:12px;
+    color:var(--text-mute);
+  }
+  .lp-show-prov .lp-col-prov{display:table-cell}
+
+  /* Badge de proveedor auto-creado en sábana */
+  .lp-prov-auto-badge{
+    display:inline-block;
+    font-size:10px;
+    padding:1px 7px;
+    border-radius:10px;
+    background:var(--accent-soft);
+    color:var(--accent);
+    margin-left:6px;
+    font-weight:600;
+  }
 
 </style>
 </head>
@@ -5615,6 +5692,7 @@
                 <p class="lp-pane-title">Proveedores configurados</p>
                 <p class="lp-pane-sub" id="lpProvCount">Cargando...</p>
               </div>
+              <button class="btn btn-sm btn-primary" id="lpBtnConfigTodos" style="display:none" onclick="lpConfigurarTodosAuto()">&#9881; Configurar todos automáticamente</button>
             </div>
             <div id="lpProveedoresList">
               <div class="lp-empty">Cargando proveedores...</div>
@@ -5627,10 +5705,17 @@
               <div class="lp-pane-header">
                 <div>
                   <p class="lp-pane-title">Importar nueva lista</p>
-                  <p class="lp-pane-sub">Elegí el proveedor y subí el Excel con la lista de precios</p>
+                  <p class="lp-pane-sub" id="lpImportSub">Elegí el proveedor y subí el Excel con la lista de precios</p>
                 </div>
               </div>
-              <div class="lp-form-row">
+
+              <!-- Modo de importación -->
+              <div class="lp-modo-import">
+                <button class="lp-modo-btn active" id="lpModoSimpleBtn" onclick="lpSetModoImport('simple')">&#128230; Un proveedor</button>
+                <button class="lp-modo-btn" id="lpModoSabanaBtn" onclick="lpSetModoImport('sabana')">&#128202; Lista sábana (todos)</button>
+              </div>
+
+              <div class="lp-form-row" id="lpImpProveedorRow">
                 <label>Proveedor</label>
                 <select id="lpImpProveedor" class="search-input" style="max-width:380px"></select>
               </div>
@@ -5640,15 +5725,27 @@
                 <p class="lp-dropzone-title">Arrastrá el Excel aquí o hacé click para elegirlo</p>
                 <p class="lp-dropzone-sub">Formatos: .xlsx, .xls &middot; Se procesa automáticamente</p>
               </div>
-              <div class="lp-help-box">
+              <div class="lp-help-box" id="lpHelpSimple">
                 <strong>Formato esperado del Excel:</strong>
                 <ul>
                   <li>Una columna con el código del proveedor</li>
                   <li>Una columna con la descripción del producto</li>
                   <li>Una columna con el precio neto (sin IVA)</li>
                   <li>Opcionalmente: columna con IVA específico</li>
+                  <li>Opcionalmente: columna con descuento por producto (%)</li>
                 </ul>
                 Vamos a detectar las columnas automáticamente. Si nos equivocamos, te dejamos corregir el mapeo.
+              </div>
+              <div class="lp-help-box" id="lpHelpSabana" style="display:none">
+                <strong>Lista sábana — todos los proveedores en un solo Excel:</strong>
+                <ul>
+                  <li>Una columna con el <strong>nombre del proveedor</strong> (obligatoria)</li>
+                  <li>Una columna con el código del producto</li>
+                  <li>Una columna con la descripción</li>
+                  <li>Una columna con el precio neto (sin IVA)</li>
+                  <li>Opcionalmente: columnas de IVA y descuento por producto (%)</li>
+                </ul>
+                Cada proveedor nuevo se configura solo con valores por defecto (IVA 21%, ganancia escalonada estándar). Después podés ajustar cada uno desde Configuración. Ideal para cargar todo de una sin configurar proveedor por proveedor.
               </div>
             </div>
 
@@ -5697,13 +5794,15 @@
 
               <!-- Tabla -->
               <div class="lp-table-wrap">
-                <table class="lp-table">
+                <table class="lp-table" id="lpPreviewTable">
                   <thead>
                     <tr>
                       <th class="lp-col-check"><input type="checkbox" id="lpCheckAll" checked onchange="lpToggleAll(this.checked)"></th>
+                      <th class="lp-col-prov">Proveedor</th>
                       <th class="lp-col-codigo">Código</th>
                       <th>Descripción</th>
                       <th class="lp-col-num">Costo</th>
+                      <th class="lp-col-desc">Desc %</th>
                       <th class="lp-col-num">Actual</th>
                       <th class="lp-col-num">Nuevo</th>
                       <th class="lp-col-num">Cambio</th>
@@ -16378,14 +16477,34 @@ var lpState = {
   proveedores: [],          // array de proveedores configurados
   proveedorEditando: null,  // ID del proveedor que se está editando
   tramosEditando: [],       // tramos en el modal abierto
-  importacion: null,        // { proveedor, archivo, rows: [{...}] }
+  importacion: null,        // { modo, proveedor, archivo, rows: [{...}], provManagers }
   importPage: 0,
   importPageSize: 50,
   importFiltro: 'todos',
   importBusqueda: '',
+  modoImport: 'simple',     // 'simple' | 'sabana'
   historial: [],
   initialized: false
 };
+
+// Config por defecto para un proveedor nuevo / auto-creado
+function lpProvDefault(nombre){
+  return {
+    id: lpSanitizarId(nombre),
+    proveedorNombre: nombre,
+    descuentoProveedor: 0,
+    ivaDefault: 21,
+    baseGanancia: 'conDescuento',
+    tramos: [
+      { desde: 0, hasta: 500, ganancia: 50 },
+      { desde: 500, hasta: 5000, ganancia: 40 },
+      { desde: 5000, hasta: 50000, ganancia: 35 },
+      { desde: 50000, hasta: null, ganancia: 30 }
+    ],
+    _configurado: false,
+    _autoCreado: true
+  };
+}
 
 function initListasProveedores(){
   if(!currentEmpresaId) return;
@@ -16411,6 +16530,7 @@ function lpCambiarTab(tab){
   } else if(tab === 'importar'){
     document.getElementById('lpPaneImportar').classList.add('active');
     lpPoblarSelectorImport();
+    lpSetModoImport(lpState.modoImport || 'simple');
   } else if(tab === 'historial'){
     document.getElementById('lpPaneHistorial').classList.add('active');
     lpCargarHistorial();
@@ -16442,8 +16562,10 @@ function lpCalcularPrecio(precioNeto, proveedor){
   var pn = Number(precioNeto) || 0;
   if(pn <= 0) return { neto: pn, conDesc: 0, base: 0, margen: 0, costoFinal: 0, conIva: 0, final: 0, tramoIdx: -1 };
   var desc = Number(proveedor.descuentoProveedor) || 0;
+  var descProd = Number(proveedor.descProducto) || 0;
   var iva = Number(proveedor.ivaDefault) || 0;
-  var conDesc = pn * (1 - desc/100);
+  var conDescProv = pn * (1 - desc/100);            // tras descuento del proveedor
+  var conDesc = conDescProv * (1 - descProd/100);   // tras descuento por producto (encima)
   var base = (proveedor.baseGanancia === 'neto') ? pn : conDesc;
   // Buscar tramo
   var tramos = proveedor.tramos || [];
@@ -16465,7 +16587,9 @@ function lpCalcularPrecio(precioNeto, proveedor){
   var final = Math.ceil(conIva); // redondeo hacia arriba
   return {
     neto: pn,
+    conDescProv: conDescProv,
     conDesc: conDesc,
+    descProd: descProd,
     base: base,
     margen: margen,
     costoFinal: costoFinal,
@@ -16544,6 +16668,13 @@ async function lpCargarProveedores(){
     });
     document.getElementById('lpProvCount').textContent =
       configCount + ' configurados · ' + sinConfigCount + ' detectados sin configurar';
+
+    // Botón "Configurar todos automáticamente": solo si hay detectados sin configurar
+    var btnTodos = document.getElementById('lpBtnConfigTodos');
+    if(btnTodos){
+      btnTodos.style.display = (sinConfigCount > 0) ? '' : 'none';
+      if(sinConfigCount > 0) btnTodos.innerHTML = '&#9881; Configurar ' + sinConfigCount + ' automáticamente';
+    }
 
     if(lista.length === 0){
       cont.innerHTML = '<div class="lp-empty">Todavía no hay proveedores. Tocá <strong>+ Nuevo proveedor</strong> para crear uno, o asigná el campo "proveedor" a algunos productos.</div>';
@@ -16828,6 +16959,63 @@ async function lpEliminarProveedor(){
 // IMPORTACIÓN: dropzone + parser
 // ═══════════════════════════════════════════════════════════
 
+function lpSetModoImport(modo){
+  lpState.modoImport = modo;
+  var sb = document.getElementById('lpModoSimpleBtn');
+  var bb = document.getElementById('lpModoSabanaBtn');
+  if(sb) sb.classList.toggle('active', modo === 'simple');
+  if(bb) bb.classList.toggle('active', modo === 'sabana');
+  var provRow = document.getElementById('lpImpProveedorRow');
+  if(provRow) provRow.style.display = (modo === 'simple') ? '' : 'none';
+  var hs = document.getElementById('lpHelpSimple');
+  var hb = document.getElementById('lpHelpSabana');
+  if(hs) hs.style.display = (modo === 'simple') ? '' : 'none';
+  if(hb) hb.style.display = (modo === 'sabana') ? '' : 'none';
+  var sub = document.getElementById('lpImportSub');
+  if(sub) sub.textContent = (modo === 'simple')
+    ? 'Elegí el proveedor y subí el Excel con la lista de precios'
+    : 'Subí un solo Excel con TODOS los proveedores y productos (necesita columna "Proveedor")';
+}
+
+// Crea la config de todos los proveedores detectados que aún no están configurados
+async function lpConfigurarTodosAuto(){
+  var sinConfig = lpState.proveedores.filter(function(p){ return !p._configurado; });
+  if(sinConfig.length === 0){ toast('Ya están todos configurados', 'success'); return; }
+  if(!confirm('¿Configurar ' + sinConfig.length + ' proveedor(es) detectado(s) con valores por defecto?\n\n' +
+              'IVA 21% · sin descuento de proveedor · ganancia escalonada estándar (50/40/35/30%).\n\n' +
+              'Después podés ajustar cada uno con el botón Editar.')){ return; }
+  var btn = document.getElementById('lpBtnConfigTodos');
+  if(btn){ btn.disabled = true; btn.textContent = 'Configurando...'; }
+  try{
+    var BATCH = 400;
+    for(var s = 0; s < sinConfig.length; s += BATCH){
+      var slice = sinConfig.slice(s, s + BATCH);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        var def = lpProvDefault(p.proveedorNombre);
+        var ref = db.collection('empresas').doc(currentEmpresaId)
+          .collection('listas_proveedores').doc(p.id);
+        batch.set(ref, {
+          proveedorNombre: p.proveedorNombre,
+          descuentoProveedor: 0,
+          ivaDefault: 21,
+          baseGanancia: 'conDescuento',
+          tramos: def.tramos,
+          actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+      await batch.commit();
+    }
+    toast('✅ ' + sinConfig.length + ' proveedor(es) configurado(s)', 'success');
+    lpCargarProveedores();
+  }catch(err){
+    console.error(err);
+    toast('Error: ' + err.message, 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '&#9881; Configurar todos automáticamente'; }
+  }
+}
+
 function lpPoblarSelectorImport(){
   var sel = document.getElementById('lpImpProveedor');
   // Solo los configurados pueden importar
@@ -16867,10 +17055,14 @@ function lpSetupDropzone(){
 }
 
 async function lpProcesarArchivo(file){
-  var provId = document.getElementById('lpImpProveedor').value;
-  if(!provId){ toast('Primero elegí el proveedor', 'error'); return; }
-  var prov = lpState.proveedores.find(function(p){ return p.id === provId; });
-  if(!prov || !prov._configurado){ toast('Proveedor no configurado', 'error'); return; }
+  var modo = lpState.modoImport || 'simple';
+  var prov = null;
+  if(modo === 'simple'){
+    var provId = document.getElementById('lpImpProveedor').value;
+    if(!provId){ toast('Primero elegí el proveedor', 'error'); return; }
+    prov = lpState.proveedores.find(function(p){ return p.id === provId; });
+    if(!prov || !prov._configurado){ toast('Proveedor no configurado', 'error'); return; }
+  }
 
   toast('Leyendo Excel...', 'info');
 
@@ -16894,14 +17086,27 @@ async function lpProcesarArchivo(file){
     if(headerRowIdx < 0) headerRowIdx = 0;
     var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
 
-    // Detectar columnas
-    var colCodigo = lpDetectarCol(headers, ['codigo', 'cod', 'sku', 'articulo', 'referencia', 'ref']);
-    var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc']);
-    var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista']);
-    var colIva = lpDetectarCol(headers, ['iva', 'i.v.a.', '% iva']);
+    // Detectar columnas. OJO: detectar descuento y proveedor PRIMERO y excluirlas,
+    // porque "descuento" contiene "desc" y se confundiría con "descripción".
+    var colDescuento = lpDetectarCol(headers, ['descuento', 'dto', 'dcto', 'bonif', 'bonificacion', 'bonificación', '% desc', 'desc %', 'desc.']);
+    var colProveedor = lpDetectarCol(headers, ['proveedor', 'prov', 'fabricante', 'marca proveedor']);
+    var colIva = lpDetectarCol(headers, ['iva', 'i.v.a.', '% iva', 'alicuota', 'alícuota']);
+    var excl = [];
+    if(colDescuento >= 0) excl.push(colDescuento);
+    if(colProveedor >= 0) excl.push(colProveedor);
+    if(colIva >= 0) excl.push(colIva);
+    var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'artículo', 'referencia', 'ref'], excl);
+    if(colCodigo >= 0) excl.push(colCodigo);
+    var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc'], excl);
+    if(colDesc >= 0) excl.push(colDesc);
+    var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
 
     if(colCodigo < 0 || colPrecio < 0){
       toast('No pude detectar las columnas de código y precio. Revisá el formato del Excel.', 'error');
+      return;
+    }
+    if(modo === 'sabana' && colProveedor < 0){
+      toast('No encontré la columna "Proveedor". En lista sábana es obligatoria.', 'error');
       return;
     }
 
@@ -16915,12 +17120,24 @@ async function lpProcesarArchivo(file){
       if(!codigo || isNaN(precio) || precio <= 0) continue;
       var desc = colDesc >= 0 ? String(r[colDesc] || '').trim() : '';
       var iva = colIva >= 0 ? Number(r[colIva]) : null;
-      rows.push({
+      // Descuento por producto (opcional)
+      var descProd = null;
+      if(colDescuento >= 0){
+        var dv = Number(r[colDescuento]);
+        if(!isNaN(dv)) descProd = Math.max(0, Math.min(100, dv));
+      }
+      var fila = {
         codigoProv: codigo,
         descripcion: desc,
         precioNeto: precio,
-        ivaCustom: (isNaN(iva) || iva === null) ? null : iva
-      });
+        ivaCustom: (isNaN(iva) || iva === null) ? null : iva,
+        descProducto: descProd  // null = no vino en el Excel
+      };
+      if(modo === 'sabana'){
+        var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
+        fila._provNombre = pnombre || 'Sin proveedor';
+      }
+      rows.push(fila);
     }
 
     if(rows.length === 0){
@@ -16928,14 +17145,43 @@ async function lpProcesarArchivo(file){
       return;
     }
 
+    // Resolver proveedores
+    var provManagers = {};
+    if(modo === 'sabana'){
+      rows.forEach(function(fila){
+        var key = lpSanitizarId(fila._provNombre);
+        if(!provManagers[key]){
+          var existente = lpState.proveedores.find(function(p){
+            return p._configurado && (p.id === key || lpSanitizarId(p.proveedorNombre) === key);
+          });
+          provManagers[key] = existente ? existente : lpProvDefault(fila._provNombre);
+        }
+        fila._provId = key;
+        fila._prov = provManagers[key];
+        fila._provNombre = provManagers[key].proveedorNombre;
+      });
+    } else {
+      rows.forEach(function(fila){
+        fila._provId = prov.id;
+        fila._prov = prov;
+        fila._provNombre = prov.proveedorNombre;
+      });
+    }
+
     lpState.importacion = {
+      modo: modo,
       proveedor: prov,
       archivo: file.name,
-      rows: rows
+      rows: rows,
+      provManagers: provManagers
     };
     lpProcesarMatching();
     lpMostrarVistaPrevia();
-    toast(rows.length + ' ítems leídos', 'success');
+
+    var extra = '';
+    if(modo === 'sabana') extra = ' · ' + Object.keys(provManagers).length + ' proveedores';
+    if(colDescuento >= 0) extra += ' · con descuentos del Excel';
+    toast(rows.length + ' ítems leídos' + extra, 'success');
   }catch(err){
     console.error(err);
     toast('Error al leer Excel: ' + err.message, 'error');
@@ -16951,15 +17197,20 @@ function lpLeerArchivo(file){
   });
 }
 
-function lpDetectarCol(headers, candidatos){
+function lpDetectarCol(headers, candidatos, exclude){
+  exclude = exclude || [];
+  function ex(i){ return exclude.indexOf(i) >= 0; }
+  // Pasada exacta / empieza-con
   for(var i = 0; i < headers.length; i++){
+    if(ex(i)) continue;
     var h = headers[i];
     for(var j = 0; j < candidatos.length; j++){
       if(h === candidatos[j] || h.indexOf(candidatos[j]) === 0) return i;
     }
   }
-  // Búsqueda más laxa
+  // Búsqueda más laxa (contiene)
   for(var i2 = 0; i2 < headers.length; i2++){
+    if(ex(i2)) continue;
     for(var j2 = 0; j2 < candidatos.length; j2++){
       if(headers[i2].indexOf(candidatos[j2]) >= 0) return i2;
     }
@@ -16971,7 +17222,6 @@ function lpDetectarCol(headers, candidatos){
 function lpProcesarMatching(){
   var imp = lpState.importacion;
   if(!imp) return;
-  var prov = imp.proveedor;
 
   // Index de productos por código
   var index = {};
@@ -16987,31 +17237,60 @@ function lpProcesarMatching(){
     var key = String(row.codigoProv).trim().toLowerCase();
     var matched = index[key];
 
-    var ivaUsar = (row.ivaCustom !== null) ? row.ivaCustom : prov.ivaDefault;
-    var provParaCalc = Object.assign({}, prov, { ivaDefault: ivaUsar });
-    var calc = lpCalcularPrecio(row.precioNeto, provParaCalc);
-
     row.matched = !!matched;
     row.productoActual = matched ? {
       docId: matched._id,
       precioVenta: matched.precioVenta || 0,
       descripcionActual: matched.descripcion || matched.nombre || ''
     } : null;
-    row.calc = calc;
-    row.nuevoPrecio = calc.final;
-    row.cambio = matched && matched.precioVenta > 0 ?
-      ((calc.final - matched.precioVenta) / matched.precioVenta) * 100 : null;
-    row.seleccionado = true;
-    row.editado = false;
-    // Clasificar
-    if(!matched){
-      row.estado = 'crear';
-    } else if(row.cambio !== null && Math.abs(row.cambio) > 50){
-      row.estado = 'alerta';
-    } else {
-      row.estado = 'actualizar';
+
+    // Descuento por producto:
+    //  1) el del Excel (si vino),
+    //  2) sino el guardado en el producto (de una importación previa),
+    //  3) sino 0 (solo aplica el descuento del proveedor).
+    if(row.descProducto == null){
+      row.descProducto = (matched && matched.descuentoProducto != null) ? matched.descuentoProducto : 0;
     }
+
+    row.seleccionado = true;
+    if(row.editado == null) row.editado = false;
+    lpRecalcularFila(row);
   });
+}
+
+// Recalcula precio + clasificación de una sola fila (usado al editar descuento)
+function lpRecalcularFila(row){
+  var imp = lpState.importacion;
+  var prov = row._prov || (imp && imp.proveedor) || {};
+  var ivaUsar = (row.ivaCustom != null) ? row.ivaCustom : (prov.ivaDefault != null ? prov.ivaDefault : 21);
+  var descProd = Number(row.descProducto) || 0;
+  var provParaCalc = Object.assign({}, prov, { ivaDefault: ivaUsar, descProducto: descProd });
+  var calc = lpCalcularPrecio(row.precioNeto, provParaCalc);
+  row.calc = calc;
+  row.nuevoPrecio = calc.final;
+  row.cambio = (row.productoActual && row.productoActual.precioVenta > 0) ?
+    ((calc.final - row.productoActual.precioVenta) / row.productoActual.precioVenta) * 100 : null;
+  if(!row.matched){
+    row.estado = 'crear';
+  } else if(row.cambio !== null && Math.abs(row.cambio) > 50){
+    row.estado = 'alerta';
+  } else {
+    row.estado = 'actualizar';
+  }
+}
+
+// Editar el descuento por producto desde la vista previa
+function lpEditarDescProducto(idx, val){
+  var imp = lpState.importacion;
+  if(!imp || !imp.rows[idx]) return;
+  var d = Number(val);
+  if(isNaN(d)) d = 0;
+  d = Math.max(0, Math.min(100, d));
+  imp.rows[idx].descProducto = d;
+  imp.rows[idx].editado = true;
+  lpRecalcularFila(imp.rows[idx]);
+  lpActualizarStats();
+  lpRenderPreview();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -17022,8 +17301,17 @@ function lpMostrarVistaPrevia(){
   document.getElementById('lpImportarPaso1').style.display = 'none';
   document.getElementById('lpImportarPaso2').style.display = 'block';
   var imp = lpState.importacion;
-  document.getElementById('lpPreviewSubtitle').textContent =
-    imp.proveedor.proveedorNombre + ' · ' + imp.archivo + ' · ' + imp.rows.length + ' ítems';
+  // Subtítulo y columna proveedor según modo
+  var subt;
+  if(imp.modo === 'sabana'){
+    var nProv = Object.keys(imp.provManagers || {}).length;
+    subt = 'Lista sábana · ' + nProv + ' proveedor' + (nProv === 1 ? '' : 'es') + ' · ' + imp.archivo + ' · ' + imp.rows.length + ' ítems';
+  } else {
+    subt = imp.proveedor.proveedorNombre + ' · ' + imp.archivo + ' · ' + imp.rows.length + ' ítems';
+  }
+  document.getElementById('lpPreviewSubtitle').textContent = subt;
+  var tabla = document.getElementById('lpPreviewTable');
+  if(tabla) tabla.classList.toggle('lp-show-prov', imp.modo === 'sabana');
   lpState.importPage = 0;
   lpState.importFiltro = 'todos';
   lpState.importBusqueda = '';
@@ -17087,7 +17375,7 @@ function lpFiltrarRows(){
     if(filtro === 'alerta' && r.estado !== 'alerta') return false;
     if(filtro === 'sinmatch' && r.estado !== 'sinmatch') return false;
     if(busq){
-      var hay = (r.codigoProv + ' ' + (r.descripcion || '') + ' ' + ((r.productoActual && r.productoActual.descripcionActual) || '')).toLowerCase();
+      var hay = (r.codigoProv + ' ' + (r.descripcion || '') + ' ' + ((r.productoActual && r.productoActual.descripcionActual) || '') + ' ' + (r._provNombre || '')).toLowerCase();
       if(hay.indexOf(busq) < 0) return false;
     }
     return true;
@@ -17112,7 +17400,7 @@ function lpRenderPreview(){
     html += lpRenderRow(r, idx);
   });
   if(slice.length === 0){
-    html = '<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--text-mute)">Sin resultados</td></tr>';
+    html = '<tr><td colspan="10" style="padding:32px;text-align:center;color:var(--text-mute)">Sin resultados</td></tr>';
   }
   document.getElementById('lpPreviewTbody').innerHTML = html;
 
@@ -17156,12 +17444,16 @@ function lpRenderRow(r, idx){
   }
 
   var descTxt = r.descripcion || (r.productoActual && r.productoActual.descripcionActual) || '';
+  var provCell = '<td class="lp-col-prov" title="' + eH(r._provNombre || '') + '">' + eH(r._provNombre || '') + '</td>';
+  var descInputCell = '<td class="lp-col-desc"><input type="number" class="lp-desc-input" min="0" max="100" step="0.5" value="' + (Number(r.descProducto) || 0) + '" onchange="lpEditarDescProducto(' + idx + ', this.value)"></td>';
 
   return '<tr class="' + rowCls + '">' +
     '<td class="lp-col-check"><input type="checkbox" ' + (r.seleccionado ? 'checked' : '') + ' onchange="lpToggleRow(' + idx + ', this.checked)"></td>' +
+    provCell +
     '<td class="lp-col-codigo">' + eH(r.codigoProv) + '</td>' +
     '<td><div class="lp-row-desc" title="' + eH(descTxt) + '">' + eH(descTxt) + '</div></td>' +
     '<td class="lp-col-num">' + lpFmt(calc.neto) + '</td>' +
+    descInputCell +
     '<td class="lp-col-num">' + precioActualTxt + '</td>' +
     '<td class="lp-col-num" style="font-weight:600">' + lpFmt(calc.final) + '</td>' +
     '<td class="lp-col-num">' + cambioTxt + '</td>' +
@@ -17206,7 +17498,6 @@ async function lpAplicarSoloNuevos(){
 
 async function lpEjecutarAplicar(filas){
   var imp = lpState.importacion;
-  var prov = imp.proveedor;
   var btn = document.getElementById('lpBtnAplicar');
   var btnNuevos = document.getElementById('lpBtnSoloNuevos');
   btn.disabled = true;
@@ -17214,9 +17505,12 @@ async function lpEjecutarAplicar(filas){
   btn.textContent = 'Aplicando 0 / ' + filas.length + '...';
 
   var batchSize = 400; // Firestore: max 500 por batch
-  var actualizados = 0;
-  var creados = 0;
-  var errores = 0;
+  var porProv = {};    // provId -> { nombre, prov, actualizados, creados }
+
+  function bump(provId, provNombre, provObj, esCrear){
+    if(!porProv[provId]) porProv[provId] = { nombre: provNombre, prov: provObj, actualizados: 0, creados: 0 };
+    if(esCrear) porProv[provId].creados++; else porProv[provId].actualizados++;
+  }
 
   try{
     for(var start = 0; start < filas.length; start += batchSize){
@@ -17226,31 +17520,36 @@ async function lpEjecutarAplicar(filas){
       var nowIso = new Date().toISOString();
 
       slice.forEach(function(r){
+        var provNombre = r._provNombre || (imp.proveedor && imp.proveedor.proveedorNombre) || '';
+        var provId = r._provId || (imp.proveedor && imp.proveedor.id) || lpSanitizarId(provNombre);
+        var descProd = Number(r.descProducto) || 0;
         // Datos para Firestore (con serverTimestamp)
         var dataFs = {
           precioVenta: r.calc.final,
           precioCosto: Math.round(r.calc.conDesc),
-          proveedor: prov.proveedorNombre,
+          proveedor: provNombre,
+          descuentoProducto: descProd,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         // Datos para cache local (con Date string)
         var dataLocal = {
           precioVenta: r.calc.final,
           precioCosto: Math.round(r.calc.conDesc),
-          proveedor: prov.proveedorNombre,
+          proveedor: provNombre,
+          descuentoProducto: descProd,
           fechaUltimoCambioPrecio: nowIso
         };
-        if(r.estado === 'crear'){
+        var esCrear = (r.estado === 'crear');
+        if(esCrear){
           dataFs.codigo = r.codigoProv;
           dataFs.descripcion = r.descripcion || r.codigoProv;
           dataFs.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
           dataLocal.codigo = r.codigoProv;
           dataLocal.descripcion = r.descripcion || r.codigoProv;
           dataLocal.fechaCreacion = nowIso;
-          creados++;
-        } else {
-          actualizados++;
         }
+        bump(provId, provNombre, r._prov, esCrear);
+
         var docId = r.productoActual && r.productoActual.docId ?
           r.productoActual.docId :
           lpSanitizarIdProducto(r.codigoProv);
@@ -17264,29 +17563,57 @@ async function lpEjecutarAplicar(filas){
       });
 
       await batch.commit();
-      // Actualizar IDB cache para que se vean al toque
       try{ await idbGuardarBatch(currentEmpresaId, newProds); }catch(e){ console.warn('IDB cache skip', e); }
       btn.textContent = 'Aplicando ' + Math.min(start + batchSize, filas.length) + ' / ' + filas.length + '...';
     }
 
-    // Marcar última actualización del proveedor
-    await db.collection('empresas').doc(currentEmpresaId)
-      .collection('listas_proveedores').doc(prov.id)
-      .set({ ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp() }, {merge: true});
+    var totalActualizados = 0, totalCreados = 0;
+    Object.keys(porProv).forEach(function(pid){
+      totalActualizados += porProv[pid].actualizados;
+      totalCreados += porProv[pid].creados;
+    });
 
-    // Historial
-    await db.collection('empresas').doc(currentEmpresaId)
-      .collection('listas_proveedores_historial').add({
-        proveedorId: prov.id,
-        proveedorNombre: prov.proveedorNombre,
+    // Guardar config de proveedores (auto-creados) + marcar última actualización
+    var provBatch = db.batch();
+    Object.keys(porProv).forEach(function(pid){
+      var pp = porProv[pid];
+      var ref = db.collection('empresas').doc(currentEmpresaId)
+        .collection('listas_proveedores').doc(pid);
+      var payload = { ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp() };
+      if(pp.prov && pp.prov._autoCreado){
+        payload.proveedorNombre = pp.prov.proveedorNombre;
+        payload.descuentoProveedor = pp.prov.descuentoProveedor || 0;
+        payload.ivaDefault = pp.prov.ivaDefault || 21;
+        payload.baseGanancia = pp.prov.baseGanancia || 'conDescuento';
+        payload.tramos = pp.prov.tramos || [];
+        payload.actualizadoEn = firebase.firestore.FieldValue.serverTimestamp();
+        pp.prov._autoCreado = false; // ya quedó persistido
+      }
+      provBatch.set(ref, payload, {merge: true});
+    });
+    await provBatch.commit();
+
+    // Historial: una entrada por proveedor
+    var histBatch = db.batch();
+    Object.keys(porProv).forEach(function(pid){
+      var pp = porProv[pid];
+      var ref = db.collection('empresas').doc(currentEmpresaId)
+        .collection('listas_proveedores_historial').doc();
+      histBatch.set(ref, {
+        proveedorId: pid,
+        proveedorNombre: pp.nombre,
         archivo: imp.archivo,
+        modo: imp.modo,
         totalLeidos: imp.rows.length,
-        actualizados: actualizados,
-        creados: creados,
+        actualizados: pp.actualizados,
+        creados: pp.creados,
         fecha: firebase.firestore.FieldValue.serverTimestamp()
       });
+    });
+    await histBatch.commit();
 
-    toast('✅ Aplicado: ' + actualizados + ' actualizados, ' + creados + ' nuevos', 'success');
+    var provTxt = (imp.modo === 'sabana') ? (' en ' + Object.keys(porProv).length + ' proveedores') : '';
+    toast('✅ Aplicado: ' + totalActualizados + ' actualizados, ' + totalCreados + ' nuevos' + provTxt, 'success');
     lpState.importacion = null;
     lpVolverAPaso1();
     document.getElementById('lpFileInput').value = '';
