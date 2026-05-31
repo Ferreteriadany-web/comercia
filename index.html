@@ -4412,6 +4412,65 @@
     font-weight:600;
   }
 
+  /* Moneda / cotización */
+  .lp-moneda-badge{
+    display:inline-block;
+    font-size:10px;
+    padding:1px 7px;
+    border-radius:10px;
+    background:var(--success-soft);
+    color:var(--success);
+    margin-left:6px;
+    font-weight:700;
+    letter-spacing:.02em;
+  }
+  .lp-cotiz-box{
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    margin-bottom:16px;
+  }
+  .lp-cotiz-row{
+    display:flex;
+    gap:12px;
+    align-items:flex-end;
+    flex-wrap:wrap;
+  }
+  .lp-cotiz-field{ display:flex; flex-direction:column; gap:4px; }
+  .lp-cotiz-field label{ font-size:11px; color:var(--text-mute); font-weight:600; }
+  .lp-cotiz-input{
+    width:150px;
+    background:var(--bg-card);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:14px;
+    color:var(--text);
+    font-family:var(--mono);
+  }
+  .lp-cotiz-input:focus{ outline:none; border-color:var(--accent); }
+  .lp-cotiz-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .lp-cotiz-chip{
+    border:1px solid var(--border);
+    background:var(--bg-card);
+    border-radius:8px;
+    padding:6px 10px;
+    cursor:pointer;
+    font-size:12px;
+    color:var(--text);
+    transition:all .12s;
+    font-family:inherit;
+    text-align:left;
+    line-height:1.25;
+  }
+  .lp-cotiz-chip:hover{ border-color:var(--accent); }
+  .lp-cotiz-chip.active{ border-color:var(--accent); background:var(--accent-soft); }
+  .lp-cotiz-chip b{ display:block; font-family:var(--mono); font-size:13px; }
+  .lp-cotiz-chip small{ color:var(--text-mute); font-size:10px; }
+  .lp-cotiz-note{ font-size:11px; color:var(--text-mute); margin-top:8px; }
+  .lp-cost-usd{ display:block; font-size:10px; color:var(--text-mute); font-family:var(--mono); }
+
 </style>
 </head>
 <body>
@@ -5717,8 +5776,29 @@
 
               <div class="lp-form-row" id="lpImpProveedorRow">
                 <label>Proveedor</label>
-                <select id="lpImpProveedor" class="search-input" style="max-width:380px"></select>
+                <select id="lpImpProveedor" class="search-input" style="max-width:380px" onchange="lpOnCambiaProvImport()"></select>
               </div>
+
+              <!-- Moneda y cotización -->
+              <div class="lp-cotiz-box">
+                <div class="lp-cotiz-row">
+                  <div class="lp-cotiz-field" id="lpMonedaImportField">
+                    <label>Moneda de la lista</label>
+                    <select id="lpMonedaImport" class="lp-cotiz-input" style="width:160px" onchange="lpSetMonedaImport(this.value)">
+                      <option value="ARS">Pesos ($)</option>
+                      <option value="USD">Dólares (US$)</option>
+                    </select>
+                  </div>
+                  <div class="lp-cotiz-field" id="lpCotizField" style="display:none">
+                    <label>Cotización US$ → $ (pesos por dólar)</label>
+                    <input type="number" id="lpCotizInput" class="lp-cotiz-input" step="0.01" min="0" placeholder="0.00" oninput="lpState.cotizacionUsd = Number(this.value)||0; lpRefrescarCalculo()">
+                  </div>
+                  <button type="button" class="btn btn-sm btn-light" id="lpCotizBtn" style="display:none" onclick="lpTraerCotizaciones()">&#128178; Traer dólar de hoy</button>
+                </div>
+                <div class="lp-cotiz-chips" id="lpCotizChips" style="display:none"></div>
+                <div class="lp-cotiz-note" id="lpCotizNote" style="display:none">Elegí una cotización o escribí el valor a mano. Se aplica solo a los ítems en dólares.</div>
+              </div>
+
               <div class="lp-dropzone" id="lpDropzone">
                 <input type="file" id="lpFileInput" accept=".xlsx,.xls" style="display:none">
                 <div class="lp-dropzone-icon">&#128228;</div>
@@ -5873,6 +5953,14 @@
                   <option value="neto">Neto (sin descuento)</option>
                 </select>
               </div>
+            </div>
+            <div class="lp-form-row">
+              <label>Moneda de las listas de este proveedor</label>
+              <select class="search-input" id="lpModalMoneda" style="max-width:280px">
+                <option value="ARS">Pesos ($)</option>
+                <option value="USD">Dólares (US$)</option>
+              </select>
+              <p class="lp-form-help">Si elegís dólares, al importar te vamos a pedir la cotización para convertir a pesos. Podés cambiarla en cada importación.</p>
             </div>
             <div class="lp-form-row">
               <label>Tramos de ganancia por monto</label>
@@ -16483,6 +16571,9 @@ var lpState = {
   importFiltro: 'todos',
   importBusqueda: '',
   modoImport: 'simple',     // 'simple' | 'sabana'
+  monedaImport: 'ARS',      // moneda elegida al importar (modo simple)
+  cotizacionUsd: 0,         // pesos por dólar para esta importación
+  cotizaciones: [],         // cotizaciones traídas de la API
   historial: [],
   initialized: false
 };
@@ -16495,6 +16586,7 @@ function lpProvDefault(nombre){
     descuentoProveedor: 0,
     ivaDefault: 21,
     baseGanancia: 'conDescuento',
+    moneda: 'ARS',
     tramos: [
       { desde: 0, hasta: 500, ganancia: 50 },
       { desde: 500, hasta: 5000, ganancia: 40 },
@@ -16560,7 +16652,12 @@ function lpIniciales(nombre){
 // Calcula el precio final aplicando descuento + tramo + IVA + redondeo
 function lpCalcularPrecio(precioNeto, proveedor){
   var pn = Number(precioNeto) || 0;
-  if(pn <= 0) return { neto: pn, conDesc: 0, base: 0, margen: 0, costoFinal: 0, conIva: 0, final: 0, tramoIdx: -1 };
+  if(pn <= 0) return { neto: pn, conDesc: 0, base: 0, margen: 0, costoFinal: 0, conIva: 0, final: 0, tramoIdx: -1, moneda: 'ARS', netoOrigen: pn, cotizacion: 0 };
+  // Conversión de moneda: si la lista está en dólares, pasar a pesos antes de todo.
+  var moneda = proveedor.moneda || 'ARS';
+  var cotiz = Number(proveedor.cotizacion) || 0;
+  var netoOrigen = pn;
+  if(moneda === 'USD' && cotiz > 0){ pn = pn * cotiz; }
   var desc = Number(proveedor.descuentoProveedor) || 0;
   var descProd = Number(proveedor.descProducto) || 0;
   var iva = Number(proveedor.ivaDefault) || 0;
@@ -16587,6 +16684,9 @@ function lpCalcularPrecio(precioNeto, proveedor){
   var final = Math.ceil(conIva); // redondeo hacia arriba
   return {
     neto: pn,
+    netoOrigen: netoOrigen,
+    moneda: moneda,
+    cotizacion: cotiz,
     conDescProv: conDescProv,
     conDesc: conDesc,
     descProd: descProd,
@@ -16740,7 +16840,7 @@ function lpRenderProveedorCard(p){
       '<div class="lp-prov-head-left">' +
         '<div class="lp-prov-avatar">' + eH(ini) + '</div>' +
         '<div>' +
-          '<p class="lp-prov-name">' + eH(p.proveedorNombre) + ' <span style="font-size:12px;color:var(--text-mute);font-weight:400">· ' + p._productosCount + ' productos</span></p>' +
+          '<p class="lp-prov-name">' + eH(p.proveedorNombre) + ' <span style="font-size:12px;color:var(--text-mute);font-weight:400">· ' + p._productosCount + ' productos</span>' + (p.moneda === 'USD' ? '<span class="lp-moneda-badge">US$</span>' : '') + '</p>' +
           '<p class="lp-prov-meta">' + eH(fechaTxt) + '</p>' +
         '</div>' +
       '</div>' +
@@ -16795,6 +16895,7 @@ function lpAbrirNuevoProveedor(){
   document.getElementById('lpModalDescuento').value = 0;
   document.getElementById('lpModalIva').value = '21';
   document.getElementById('lpModalBase').value = 'conDescuento';
+  document.getElementById('lpModalMoneda').value = 'ARS';
   document.getElementById('lpBtnEliminarProv').style.display = 'none';
   lpRenderTramos();
   lpRecalcularPreview();
@@ -16828,6 +16929,7 @@ function lpAbrirEditarProveedor(provId){
   document.getElementById('lpModalDescuento').value = prov.descuentoProveedor || 0;
   document.getElementById('lpModalIva').value = String(prov.ivaDefault || 21);
   document.getElementById('lpModalBase').value = prov.baseGanancia || 'conDescuento';
+  document.getElementById('lpModalMoneda').value = prov.moneda || 'ARS';
   document.getElementById('lpBtnEliminarProv').style.display = prov._configurado ? 'inline-block' : 'none';
   lpRenderTramos();
   lpRecalcularPreview();
@@ -16923,6 +17025,7 @@ async function lpGuardarProveedor(){
     descuentoProveedor: Number(document.getElementById('lpModalDescuento').value) || 0,
     ivaDefault: Number(document.getElementById('lpModalIva').value) || 21,
     baseGanancia: document.getElementById('lpModalBase').value || 'conDescuento',
+    moneda: document.getElementById('lpModalMoneda').value || 'ARS',
     tramos: tramosOrdenados,
     actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -16959,6 +17062,90 @@ async function lpEliminarProveedor(){
 // IMPORTACIÓN: dropzone + parser
 // ═══════════════════════════════════════════════════════════
 
+// Muestra/oculta el campo de cotización según la moneda elegida (modo simple)
+function lpSetMonedaImport(moneda){
+  lpState.monedaImport = moneda;
+  var esUsd = (moneda === 'USD');
+  var cf = document.getElementById('lpCotizField');
+  var cb = document.getElementById('lpCotizBtn');
+  var cn = document.getElementById('lpCotizNote');
+  if(cf) cf.style.display = esUsd ? '' : 'none';
+  if(cb) cb.style.display = esUsd ? '' : 'none';
+  if(cn) cn.style.display = esUsd ? '' : 'none';
+  if(esUsd && lpState.cotizaciones.length === 0){ /* el usuario puede tocar "Traer dólar de hoy" */ }
+}
+
+// Al cambiar el proveedor en modo simple, ajusta la moneda por defecto del proveedor
+function lpOnCambiaProvImport(){
+  var provId = document.getElementById('lpImpProveedor').value;
+  var prov = lpState.proveedores.find(function(p){ return p.id === provId; });
+  var moneda = (prov && prov.moneda) ? prov.moneda : 'ARS';
+  var sel = document.getElementById('lpMonedaImport');
+  if(sel) sel.value = moneda;
+  lpSetMonedaImport(moneda);
+}
+
+// Trae las cotizaciones del día desde DolarApi y las muestra como chips
+async function lpTraerCotizaciones(){
+  var btn = document.getElementById('lpCotizBtn');
+  var chips = document.getElementById('lpCotizChips');
+  if(btn){ btn.disabled = true; btn.textContent = 'Buscando...'; }
+  try{
+    var resp = await fetch('https://dolarapi.com/v1/dolares');
+    if(!resp.ok) throw new Error('No se pudo consultar la cotización');
+    var data = await resp.json();
+    // Ordenar: oficial, blue, mayorista, bolsa(MEP), contadoconliqui(CCL), tarjeta, cripto
+    var orden = { oficial:1, blue:2, mayorista:3, bolsa:4, contadoconliqui:5, tarjeta:6, cripto:7 };
+    data.sort(function(a,b){ return (orden[a.casa]||99) - (orden[b.casa]||99); });
+    lpState.cotizaciones = data;
+    lpRenderCotizaciones();
+    if(chips) chips.style.display = 'flex';
+    toast('Cotizaciones actualizadas', 'success');
+  }catch(err){
+    console.error(err);
+    toast('No se pudo traer el dólar. Cargá el valor a mano.', 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '&#128178; Traer dólar de hoy'; }
+  }
+}
+
+function lpRenderCotizaciones(){
+  var cont = document.getElementById('lpCotizChips');
+  if(!cont) return;
+  var html = '';
+  lpState.cotizaciones.forEach(function(c){
+    var venta = Number(c.venta) || 0;
+    var activo = (Number(lpState.cotizacionUsd) === venta) ? ' active' : '';
+    html += '<button type="button" class="lp-cotiz-chip' + activo + '" onclick="lpElegirCotizacion(' + venta + ', this)">' +
+      '<b>$' + lpFmt(venta) + '</b><small>' + eH(c.nombre || c.casa) + '</small></button>';
+  });
+  cont.innerHTML = html;
+}
+
+function lpElegirCotizacion(valor, btn){
+  lpState.cotizacionUsd = Number(valor) || 0;
+  var input = document.getElementById('lpCotizInput');
+  if(input) input.value = valor;
+  // marcar chip activo
+  var chips = document.querySelectorAll('#lpCotizChips .lp-cotiz-chip');
+  chips.forEach(function(c){ c.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  lpRefrescarCalculo();
+}
+
+// Recalcula todas las filas (al cambiar cotización) y refresca la vista previa si está abierta
+function lpRefrescarCalculo(){
+  var imp = lpState.importacion;
+  if(!imp || !imp.rows) return;
+  imp.rows.forEach(function(row){ lpRecalcularFila(row); });
+  // Si la vista previa está visible, re-renderizar
+  var paso2 = document.getElementById('lpImportarPaso2');
+  if(paso2 && paso2.style.display !== 'none'){
+    lpActualizarStats();
+    lpRenderPreview();
+  }
+}
+
 function lpSetModoImport(modo){
   lpState.modoImport = modo;
   var sb = document.getElementById('lpModoSimpleBtn');
@@ -16975,6 +17162,23 @@ function lpSetModoImport(modo){
   if(sub) sub.textContent = (modo === 'simple')
     ? 'Elegí el proveedor y subí el Excel con la lista de precios'
     : 'Subí un solo Excel con varios proveedores. Si no tiene columna "Proveedor", lo detectamos de tus productos ya cargados';
+
+  // Moneda: en simple se elige acá (default del proveedor); en sábana sale de cada
+  // proveedor o de la columna del Excel, así que se oculta el selector pero queda
+  // disponible la cotización (se mostrará si la lista trae ítems en US$).
+  var monField = document.getElementById('lpMonedaImportField');
+  if(monField) monField.style.display = (modo === 'simple') ? '' : 'none';
+  if(modo === 'simple'){
+    lpOnCambiaProvImport();
+  } else {
+    // sábana: ocultar campo cotización hasta que se detecten ítems en USD al leer
+    var cf = document.getElementById('lpCotizField');
+    var cb = document.getElementById('lpCotizBtn');
+    var cn = document.getElementById('lpCotizNote');
+    if(cf) cf.style.display = 'none';
+    if(cb) cb.style.display = 'none';
+    if(cn) cn.style.display = 'none';
+  }
 }
 
 // Crea la config de todos los proveedores detectados que aún no están configurados
@@ -17092,10 +17296,12 @@ async function lpProcesarArchivo(file){
     var colDescuento = lpDetectarCol(headers, ['descuento', 'dto', 'dcto', 'bonif', 'bonificacion', 'bonificación', '% desc', 'desc %', 'desc.']);
     var colProveedor = lpDetectarCol(headers, ['proveedor', 'prov', 'fabricante', 'marca proveedor']);
     var colIva = lpDetectarCol(headers, ['iva', 'i.v.a.', '% iva', 'alicuota', 'alícuota']);
+    var colMoneda = lpDetectarCol(headers, ['moneda', 'divisa', 'currency']);
     var excl = [];
     if(colDescuento >= 0) excl.push(colDescuento);
     if(colProveedor >= 0) excl.push(colProveedor);
     if(colIva >= 0) excl.push(colIva);
+    if(colMoneda >= 0) excl.push(colMoneda);
     var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'artículo', 'referencia', 'ref'], excl);
     if(colCodigo >= 0) excl.push(colCodigo);
     var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc'], excl);
@@ -17133,6 +17339,13 @@ async function lpProcesarArchivo(file){
         ivaCustom: (isNaN(iva) || iva === null) ? null : iva,
         descProducto: descProd  // null = no vino en el Excel
       };
+      // Moneda por fila (opcional): normaliza textos tipo "u$s", "dolar", "usd" → USD
+      if(colMoneda >= 0){
+        var mv = String(r[colMoneda] || '').trim().toLowerCase();
+        if(mv){
+          fila._monedaRaw = /u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv) ? 'USD' : 'ARS';
+        }
+      }
       if(modo === 'sabana'){
         var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
         // null = no vino columna (se infiere del producto en el matching)
@@ -17178,6 +17391,20 @@ async function lpProcesarArchivo(file){
     }
     if(colDescuento >= 0) extra += ' · con descuentos del Excel';
     toast(rows.length + ' ítems leídos' + extra, 'success');
+
+    // Aviso si hay ítems en dólares y todavía no se cargó cotización
+    var hayUsd = lpState.importacion.rows.some(function(r){ return r._moneda === 'USD'; });
+    if(hayUsd && (Number(lpState.cotizacionUsd) || 0) <= 0){
+      toast('Hay ítems en dólares: cargá la cotización para convertir a pesos', 'info');
+    }
+    if(hayUsd){
+      var cf = document.getElementById('lpCotizField');
+      var cb = document.getElementById('lpCotizBtn');
+      var cn = document.getElementById('lpCotizNote');
+      if(cf) cf.style.display = '';
+      if(cb) cb.style.display = '';
+      if(cn) cn.style.display = '';
+    }
   }catch(err){
     console.error(err);
     toast('Error al leer Excel: ' + err.message, 'error');
@@ -17286,7 +17513,14 @@ function lpRecalcularFila(row){
   var prov = row._prov || (imp && imp.proveedor) || {};
   var ivaUsar = (row.ivaCustom != null) ? row.ivaCustom : (prov.ivaDefault != null ? prov.ivaDefault : 21);
   var descProd = Number(row.descProducto) || 0;
-  var provParaCalc = Object.assign({}, prov, { ivaDefault: ivaUsar, descProducto: descProd });
+  // Moneda de la fila: columna del Excel > moneda del proveedor > moneda elegida (simple) > ARS
+  var moneda = row._monedaRaw
+            || prov.moneda
+            || (imp && imp.modo === 'simple' ? lpState.monedaImport : null)
+            || 'ARS';
+  var cotiz = (moneda === 'USD') ? (Number(lpState.cotizacionUsd) || 0) : 0;
+  row._moneda = moneda;
+  var provParaCalc = Object.assign({}, prov, { ivaDefault: ivaUsar, descProducto: descProd, moneda: moneda, cotizacion: cotiz });
   var calc = lpCalcularPrecio(row.precioNeto, provParaCalc);
   row.calc = calc;
   row.nuevoPrecio = calc.final;
@@ -17468,13 +17702,22 @@ function lpRenderRow(r, idx){
   var descTxt = r.descripcion || (r.productoActual && r.productoActual.descripcionActual) || '';
   var provCell = '<td class="lp-col-prov" title="' + eH(r._provNombre || '') + '">' + eH(r._provNombre || '') + '</td>';
   var descInputCell = '<td class="lp-col-desc"><input type="number" class="lp-desc-input" min="0" max="100" step="0.5" value="' + (Number(r.descProducto) || 0) + '" onchange="lpEditarDescProducto(' + idx + ', this.value)"></td>';
+  // Costo: si es USD, muestra el valor en pesos (ya convertido) + el original en dólares
+  var costoCell;
+  if(calc.moneda === 'USD'){
+    var usdTxt = 'US$ ' + lpFmt(calc.netoOrigen) + (calc.cotizacion > 0 ? '' : ' (falta cotiz.)');
+    costoCell = '<td class="lp-col-num">' + (calc.cotizacion > 0 ? lpFmt(calc.neto) : '—') +
+      '<span class="lp-cost-usd">' + usdTxt + '</span></td>';
+  } else {
+    costoCell = '<td class="lp-col-num">' + lpFmt(calc.neto) + '</td>';
+  }
 
   return '<tr class="' + rowCls + '">' +
     '<td class="lp-col-check"><input type="checkbox" ' + (r.seleccionado ? 'checked' : '') + ' onchange="lpToggleRow(' + idx + ', this.checked)"></td>' +
     provCell +
     '<td class="lp-col-codigo">' + eH(r.codigoProv) + '</td>' +
     '<td><div class="lp-row-desc" title="' + eH(descTxt) + '">' + eH(descTxt) + '</div></td>' +
-    '<td class="lp-col-num">' + lpFmt(calc.neto) + '</td>' +
+    costoCell +
     descInputCell +
     '<td class="lp-col-num">' + precioActualTxt + '</td>' +
     '<td class="lp-col-num" style="font-weight:600">' + lpFmt(calc.final) + '</td>' +
@@ -17520,6 +17763,12 @@ async function lpAplicarSoloNuevos(){
 
 async function lpEjecutarAplicar(filas){
   var imp = lpState.importacion;
+  // Bloquear si hay ítems en dólares sin cotización
+  var faltaCotiz = filas.some(function(r){ return r._moneda === 'USD' && (Number(lpState.cotizacionUsd) || 0) <= 0; });
+  if(faltaCotiz){
+    toast('Cargá la cotización del dólar antes de aplicar (hay ítems en US$)', 'error');
+    return;
+  }
   var btn = document.getElementById('lpBtnAplicar');
   var btnNuevos = document.getElementById('lpBtnSoloNuevos');
   btn.disabled = true;
