@@ -7310,12 +7310,17 @@ async function registrarConInvitacion(){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ return showAlert('invAlert','El email no es válido.'); }
 
   var btn = document.getElementById('btnInvitacion');
-  btn.disabled = true; btn.textContent = 'Verificando código...';
+  btn.disabled = true; btn.textContent = 'Verificando...';
   window._registrationInProgress = true;
 
   var createdUid = null;
   try{
-    // 1) Buscar la invitación por código
+    // 1) Crear el usuario en Auth PRIMERO (para quedar autenticado y poder
+    //    leer la invitación; las reglas exigen request.auth != null).
+    var cred = await auth.createUserWithEmailAndPassword(email, password);
+    createdUid = cred.user.uid;
+
+    // 2) Ahora sí, validar el código (ya autenticado)
     var codDoc = await db.collection('invitaciones_codigos').doc(codigo).get();
     if(!codDoc.exists){ throw new Error('El código no existe o ya fue usado.'); }
     var codData = codDoc.data();
@@ -7325,15 +7330,11 @@ async function registrarConInvitacion(){
 
     var empresaId = codData.empresaId;
 
-    // 2) Leer la invitación completa (para el rol y permisos)
+    // 3) Leer la invitación completa (rol y permisos)
     var invSnap = await db.collection('empresas').doc(empresaId).collection('invitaciones').where('codigo','==',codigo).limit(1).get();
     if(invSnap.empty){ throw new Error('No se encontró la invitación.'); }
     var invDoc = invSnap.docs[0];
     var inv = invDoc.data();
-
-    // 3) Crear el usuario en Auth
-    var cred = await auth.createUserWithEmailAndPassword(email, password);
-    createdUid = cred.user.uid;
 
     // 4) Crear su registro en usuarios_global vinculado a la empresa
     await db.collection('usuarios_global').doc(createdUid).set({
@@ -7636,6 +7637,19 @@ var prodSearchTimer = null;
 // ═══════════════════════════════════════════════════════
 // NAVEGACIÓN ENTRE MÓDULOS
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// TOAST (notificación flotante) — usado en todo el sistema
+// ═══════════════════════════════════════════════════════
+var _toastTimer = null;
+function toast(msg, tipo){
+  var el = document.getElementById('toast');
+  if(!el){ console.log('[toast]', msg); return; }
+  el.textContent = msg;
+  el.className = 'toast show' + (tipo ? ' ' + tipo : '');
+  if(_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 3200);
+}
+
 function navTo(modulo){
   // Control de acceso: si el usuario no tiene permiso para este módulo, bloquear
   if(!puedeAcceder(modulo)){
