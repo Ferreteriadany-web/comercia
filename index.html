@@ -8229,11 +8229,32 @@ function esIrAPaso2(subtitulo){
   esRender();
 }
 
-// Busca un producto por código (exacto, case-insensitive)
+// Busca un producto por código. Estrategia en capas:
+//  1) código exacto
+//  2) PREFIJO + código (ej. tu código interno es "BULONFER401.8.100" y la
+//     factura trae "401.8.100"); el prefijo se infiere de los proveedores
+//     cuyos productos terminan con ese código.
 function esBuscarProducto(codigo){
   var k = String(codigo).trim().toLowerCase();
-  return productos.find(function(p){ return p.codigo && String(p.codigo).trim().toLowerCase() === k; });
+  // 1) match directo
+  var directo = productos.find(function(p){ return p.codigo && String(p.codigo).trim().toLowerCase() === k; });
+  if(directo) return directo;
+  // 2) match exacto con prefijo de proveedor: el código interno = PREFIJO + códigoProveedor
+  //    Buscamos un producto cuyo código sea (algo) + k, donde "algo" sea solo letras
+  //    (el nombre del proveedor pegado, ej "BULONFER"). Evita falsos positivos tipo 125.8 vs 25.8.
+  var conPrefijo = productos.find(function(p){
+    if(!p.codigo) return false;
+    var pc = String(p.codigo).trim().toLowerCase();
+    if(pc.length <= k.length) return false;
+    if(!esEndsWith(pc, k)) return false;
+    var prefijo = pc.slice(0, pc.length - k.length);
+    // El prefijo debe ser solo letras (nombre de proveedor), sin dígitos ni puntos,
+    // para no confundir 125.8 (prefijo "1") con 25.8.
+    return /^[a-z]+$/.test(prefijo);
+  });
+  return conPrefijo || null;
 }
+function esEndsWith(s, suf){ return s.indexOf(suf, s.length - suf.length) !== -1; }
 
 // Agrega/actualiza una fila por código + cantidad
 function esAgregarFila(codigo, cantidad, descripcionOCR){
