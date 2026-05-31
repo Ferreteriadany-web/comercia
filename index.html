@@ -4586,6 +4586,39 @@
   /* Ocultar botones de edición de productos para roles sin permiso */
   body.no-editar-productos .requiere-editar-productos{ display:none !important; }
 
+  /* Entrada de Stock */
+  .es-metodos{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .es-metodo{
+    display:flex; flex-direction:column; gap:6px; align-items:flex-start;
+    text-align:left; padding:20px; border:1px solid var(--line); border-radius:14px;
+    background:var(--paper); cursor:pointer; transition:all .15s; font-family:inherit;
+  }
+  .es-metodo:hover{ border-color:var(--accent); transform:translateY(-2px); box-shadow:var(--shadow-md,0 4px 12px rgba(0,0,0,.08)); }
+  .es-metodo-icon{ font-size:30px; }
+  .es-metodo-tit{ font-size:15px; font-weight:700; color:var(--text); }
+  .es-metodo-desc{ font-size:12px; color:var(--text-mute); line-height:1.4; }
+  .es-col-cant{ width:120px; }
+  .es-col-estado{ width:90px; }
+  .es-cant-input{
+    width:84px; background:var(--bg-soft); border:1px solid var(--border);
+    border-radius:6px; padding:6px 8px; font-size:14px; color:var(--text);
+    font-family:var(--mono); text-align:right;
+  }
+  .es-cant-input:focus{ outline:none; border-color:var(--accent); background:var(--bg-card); }
+  .es-resumen{
+    margin-top:14px; padding:12px 16px; background:var(--bg-soft);
+    border-radius:10px; font-size:13px; color:var(--text-mute);
+  }
+  .es-resumen strong{ color:var(--text); }
+  .es-ocr-prog{ display:flex; align-items:center; gap:12px; margin-bottom:14px; font-size:13px; color:var(--text-mute); }
+  .es-ocr-bar{ flex:1; height:8px; background:var(--bg-2); border-radius:5px; overflow:hidden; max-width:300px; }
+  .es-ocr-fill{ height:100%; width:0%; background:var(--accent); transition:width .3s; }
+  .es-row-nuevo td{ background:rgba(245,158,11,.06); }
+  .es-badge{ font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
+  .es-badge.ok{ background:var(--success-soft,#e6f7ed); color:var(--success,#1a7f4c); }
+  .es-badge.nuevo{ background:var(--warning-soft,#fff3e0); color:var(--warning,#c77700); }
+  .es-badge.error{ background:#fde8e8; color:#c0392b; }
+
 </style>
 </head>
 <body>
@@ -4819,6 +4852,9 @@
         </div>
         <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
           <span class="nav-item-icon">&#128722;</span><span>Pedidos</span>
+        </a>
+        <a class="nav-item" data-module="entradaStock" onclick="navTo('entradaStock')">
+          <span class="nav-item-icon">&#128229;</span><span>Entrada de Stock</span>
         </a>
         <a class="nav-item" data-module="listasProveedores" onclick="navTo('listasProveedores')">
           <span class="nav-item-icon">&#128200;</span><span>Listas Proveedores</span>
@@ -5572,6 +5608,88 @@
 
 
       <!-- ═══ MÓDULO EMPLEADOS ═══ -->
+      <!-- ═══ MÓDULO: ENTRADA DE STOCK ═══ -->
+      <div class="module" id="moduleEntradaStock">
+        <header class="main-header">
+          <h1 class="main-title">Entrada de Stock</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="esVerHistorial()">&#128338; Historial</button>
+          </div>
+        </header>
+        <div class="main-body">
+          <div id="esPaso1">
+            <p style="color:var(--text-mute);font-size:14px;margin:0 0 18px">Cargá la mercadería que llegó. Elegí cómo querés ingresar los productos y al confirmar se suma al stock actual.</p>
+            <div class="es-metodos">
+              <button class="es-metodo" onclick="esElegirMetodo('manual')">
+                <span class="es-metodo-icon">&#128269;</span>
+                <span class="es-metodo-tit">Buscar / Escanear</span>
+                <span class="es-metodo-desc">Agregá productos uno por uno, con búsqueda o escaneando el código de barras.</span>
+              </button>
+              <button class="es-metodo" onclick="esElegirMetodo('excel')">
+                <span class="es-metodo-icon">&#128228;</span>
+                <span class="es-metodo-tit">Subir Excel</span>
+                <span class="es-metodo-desc">Un Excel con código y cantidad. Detecta las columnas solo.</span>
+              </button>
+              <button class="es-metodo" onclick="esElegirMetodo('foto')">
+                <span class="es-metodo-icon">&#128247;</span>
+                <span class="es-metodo-tit">Foto de la boleta (OCR)</span>
+                <span class="es-metodo-desc">Sacá una foto y leemos los códigos. Siempre revisás antes de aplicar.</span>
+              </button>
+            </div>
+            <input type="file" id="esExcelInput" accept=".xlsx,.xls" style="display:none">
+            <input type="file" id="esFotoInput" accept="image/*" capture="environment" style="display:none">
+          </div>
+
+          <!-- Vista de carga (lista editable) -->
+          <div id="esPaso2" style="display:none">
+            <div class="lp-pane-header">
+              <div>
+                <p class="lp-pane-title">Productos a ingresar</p>
+                <p class="lp-pane-sub" id="esSubtitulo">—</p>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-sm btn-light" id="esBtnAgregar" onclick="esAgregarManual()">&#43; Agregar producto</button>
+                <button class="btn btn-sm btn-light" id="esBtnEscanear" onclick="esEscanear()">&#128247; Escanear</button>
+              </div>
+            </div>
+            <div id="esOcrProgreso" style="display:none" class="es-ocr-prog">
+              <div class="es-ocr-bar"><div class="es-ocr-fill" id="esOcrFill"></div></div>
+              <span id="esOcrTexto">Leyendo imagen...</span>
+            </div>
+            <div class="lp-table-wrap">
+              <table class="lp-table" id="esTabla">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Producto</th>
+                    <th class="lp-col-num">Stock actual</th>
+                    <th class="es-col-cant">Cantidad +</th>
+                    <th class="lp-col-num">Stock final</th>
+                    <th class="es-col-estado">Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="esTbody"></tbody>
+              </table>
+            </div>
+            <div class="es-resumen" id="esResumen"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap">
+              <button class="btn btn-sm btn-light" onclick="esCancelar()">Cancelar</button>
+              <button class="btn btn-sm btn-primary" id="esBtnAplicar" onclick="esAplicar()">Aplicar entrada de stock</button>
+            </div>
+          </div>
+
+          <!-- Historial -->
+          <div id="esPaso3" style="display:none">
+            <div class="lp-pane-header">
+              <div><p class="lp-pane-title">Historial de entradas</p><p class="lp-pane-sub">Últimas cargas de mercadería</p></div>
+              <button class="btn btn-sm btn-light" onclick="esVolverInicio()">&#8592; Volver</button>
+            </div>
+            <div id="esHistorialLista"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="module" id="moduleEmpleados">
         <header class="main-header">
           <h1 class="main-title">Empleados</h1>
@@ -7150,6 +7268,7 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
@@ -7672,6 +7791,7 @@ function navTo(modulo){
   if(modulo && modulo.indexOf('int') === 0) initIntegracion(modulo);
   if(modulo==='afip') initAfip();
   if(modulo==='empleados') initEmpleados();
+  if(modulo==='entradaStock') initEntradaStock();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -7688,6 +7808,7 @@ var PERMISOS_DISPONIBLES = [
   { id: 'editar_productos',   modulo: null,                label: 'Editar productos/precios', desc: 'Crear, editar y borrar productos y precios' },
   { id: 'clientes',           modulo: 'clientes',          label: 'Clientes',                desc: 'Ver y administrar clientes' },
   { id: 'pedidos',            modulo: 'pedidos',           label: 'Pedidos',                 desc: 'Armar y gestionar pedidos' },
+  { id: 'entrada_stock',      modulo: 'entradaStock',      label: 'Entrada de stock',        desc: 'Cargar mercadería recibida y sumar stock' },
   { id: 'listas_proveedores', modulo: 'listasProveedores', label: 'Listas de proveedores',   desc: 'Importar listas y actualizar precios' },
   { id: 'ctacte',             modulo: 'ctacte',            label: 'Cuentas corrientes',      desc: 'Ver y mover cuentas corrientes' },
   { id: 'integraciones',      modulo: 'integraciones',     label: 'Integraciones',           desc: 'Mercado Libre, Tienda Nube, etc.' },
@@ -7710,8 +7831,8 @@ var ROLES_PRESET = {
   },
   deposito: {
     label: 'Depósito',
-    desc: 'Productos y pedidos',
-    permisos: ['ver_productos', 'pedidos']
+    desc: 'Productos, pedidos y entrada de stock',
+    permisos: ['ver_productos', 'pedidos', 'entrada_stock']
   }
 };
 
@@ -8054,6 +8175,344 @@ async function empEliminar(uid){
     toast('Empleado quitado', 'success');
     empCargar();
   }catch(err){ console.error(err); toast('Error: ' + err.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO: ENTRADA DE STOCK
+// ═══════════════════════════════════════════════════════
+var esState = { filas: [], metodo: null };
+
+function initEntradaStock(){
+  if(!currentEmpresaId) return;
+  esVolverInicio();
+  // enganchar inputs de archivo una vez
+  var ex = document.getElementById('esExcelInput');
+  if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', function(){ if(ex.files[0]) esProcesarExcel(ex.files[0]); }); }
+  var fo = document.getElementById('esFotoInput');
+  if(fo && !fo._wired){ fo._wired = true; fo.addEventListener('change', function(){ if(fo.files[0]) esProcesarFoto(fo.files[0]); }); }
+}
+
+function esVolverInicio(){
+  document.getElementById('esPaso1').style.display = 'block';
+  document.getElementById('esPaso2').style.display = 'none';
+  document.getElementById('esPaso3').style.display = 'none';
+}
+
+function esCancelar(){
+  if(esState.filas.length && !confirm('¿Descartar la entrada de stock sin aplicar?')) return;
+  esState = { filas: [], metodo: null };
+  esVolverInicio();
+}
+
+function esElegirMetodo(metodo){
+  esState.metodo = metodo;
+  if(metodo === 'manual'){
+    esState.filas = [];
+    esIrAPaso2('Carga manual');
+    esAgregarManual();
+  } else if(metodo === 'excel'){
+    document.getElementById('esExcelInput').value = '';
+    document.getElementById('esExcelInput').click();
+  } else if(metodo === 'foto'){
+    document.getElementById('esFotoInput').value = '';
+    document.getElementById('esFotoInput').click();
+  }
+}
+
+function esIrAPaso2(subtitulo){
+  document.getElementById('esPaso1').style.display = 'none';
+  document.getElementById('esPaso2').style.display = 'block';
+  document.getElementById('esPaso3').style.display = 'none';
+  document.getElementById('esSubtitulo').textContent = subtitulo || '';
+  esRender();
+}
+
+// Busca un producto por código (exacto, case-insensitive)
+function esBuscarProducto(codigo){
+  var k = String(codigo).trim().toLowerCase();
+  return productos.find(function(p){ return p.codigo && String(p.codigo).trim().toLowerCase() === k; });
+}
+
+// Agrega/actualiza una fila por código + cantidad
+function esAgregarFila(codigo, cantidad, descripcionOCR){
+  codigo = String(codigo || '').trim();
+  if(!codigo) return;
+  cantidad = Number(cantidad) || 0;
+  // ¿ya está en la lista? sumar
+  var existente = esState.filas.find(function(f){ return f.codigo.toLowerCase() === codigo.toLowerCase(); });
+  if(existente){ existente.cantidad += (cantidad || 1); esRender(); return; }
+  var prod = esBuscarProducto(codigo);
+  esState.filas.push({
+    codigo: codigo,
+    cantidad: cantidad || 1,
+    prod: prod || null,
+    descripcion: prod ? (prod.descripcion || prod.nombre || '') : (descripcionOCR || ''),
+    stockActual: prod ? (Number(prod.stock) || 0) : null
+  });
+  esRender();
+}
+
+function esRender(){
+  var tbody = document.getElementById('esTbody');
+  if(esState.filas.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:var(--text-mute)">Sin productos todavía. Agregá o escaneá.</td></tr>';
+  } else {
+    var html = '';
+    esState.filas.forEach(function(f, idx){
+      var encontrado = !!f.prod;
+      var stockFinal = encontrado ? ((Number(f.stockActual) || 0) + (Number(f.cantidad) || 0)) : '—';
+      var estado = encontrado
+        ? '<span class="es-badge ok">OK</span>'
+        : '<span class="es-badge error">No existe</span>';
+      html += '<tr class="' + (encontrado ? '' : 'es-row-nuevo') + '">' +
+        '<td class="lp-col-codigo">' + eH(f.codigo) + '</td>' +
+        '<td><div class="lp-row-desc" title="' + eH(f.descripcion) + '">' + eH(f.descripcion || '(no encontrado en tu catálogo)') + '</div></td>' +
+        '<td class="lp-col-num">' + (encontrado ? (Number(f.stockActual)||0) : '—') + '</td>' +
+        '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCant(' + idx + ', this.value)"></td>' +
+        '<td class="lp-col-num" style="font-weight:600">' + stockFinal + '</td>' +
+        '<td class="es-col-estado">' + estado + '</td>' +
+        '<td><button class="btn btn-xs btn-light" onclick="esQuitarFila(' + idx + ')">&times;</button></td>' +
+      '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+  // Resumen
+  var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
+  var noEncontrados = esState.filas.filter(function(f){ return !f.prod; }).length;
+  var totalUnidades = validas.reduce(function(a, f){ return a + (Number(f.cantidad)||0); }, 0);
+  var res = '<strong>' + validas.length + '</strong> producto(s) · <strong>' + totalUnidades + '</strong> unidades a sumar';
+  if(noEncontrados > 0) res += ' · <span style="color:var(--danger)">' + noEncontrados + ' no encontrado(s) (se ignoran)</span>';
+  document.getElementById('esResumen').innerHTML = res;
+  var btn = document.getElementById('esBtnAplicar');
+  btn.disabled = validas.length === 0;
+}
+
+function esEditarCant(idx, val){
+  if(!esState.filas[idx]) return;
+  esState.filas[idx].cantidad = Math.max(0, Number(val) || 0);
+  esRender();
+}
+
+function esQuitarFila(idx){ esState.filas.splice(idx, 1); esRender(); }
+
+// ─── Agregar manual (búsqueda) ───
+function esAgregarManual(){
+  // Reutiliza el buscador de productos si existe; sino, prompt simple
+  var codigo = prompt('Código del producto:');
+  if(!codigo) return;
+  var prod = esBuscarProducto(codigo);
+  if(!prod){
+    if(!confirm('Ese código no está en tu catálogo. ¿Agregarlo igual para revisar?')) return;
+  }
+  var cant = prompt('Cantidad que llegó:', '1');
+  if(cant === null) return;
+  esAgregarFila(codigo, Number(cant) || 1);
+}
+
+// ─── Escanear código de barras ───
+function esEscanear(){
+  if(typeof abrirScanner !== 'function'){ toast('Escáner no disponible', 'error'); return; }
+  abrirScanner(function(codigo){
+    esAgregarFila(codigo, 1);
+    toast('Agregado: ' + codigo, 'success');
+  }, { title: 'Escanear producto', subtitle: 'Apuntá al código de barras. Se suma 1 por escaneo.', continuous: true, autoClose: false });
+}
+
+// ─── Excel ───
+async function esProcesarExcel(file){
+  esIrAPaso2('Leyendo Excel...');
+  esState.filas = [];
+  try{
+    var data = await lpLeerArchivo(file);
+    var wb = XLSX.read(data, { type: 'array' });
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    var rowsRaw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+    var headerRowIdx = -1;
+    for(var i = 0; i < Math.min(40, rowsRaw.length); i++){
+      var row = rowsRaw[i];
+      if(!row) continue;
+      var s = row.join('|').toLowerCase();
+      if(/\bcod|\barti|\breferenc|\bsku/i.test(s) && /\bcant|\bunidad|\bstock|\bingreso/i.test(s)){ headerRowIdx = i; break; }
+    }
+    if(headerRowIdx < 0) headerRowIdx = 0;
+    var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
+    var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'referencia', 'ref']);
+    var colCant = lpDetectarCol(headers, ['cantidad', 'cant', 'unidades', 'stock', 'ingreso', 'qty']);
+    if(colCodigo < 0 || colCant < 0){
+      toast('No detecté columnas de código y cantidad. Revisá el Excel.', 'error');
+      esVolverInicio();
+      return;
+    }
+    for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
+      var r = rowsRaw[j];
+      if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
+      var codigo = String(r[colCodigo] || '').trim();
+      var cant = Number(r[colCant]);
+      if(!codigo || isNaN(cant) || cant <= 0) continue;
+      esAgregarFila(codigo, cant);
+    }
+    document.getElementById('esSubtitulo').textContent = file.name + ' · ' + esState.filas.length + ' ítems';
+    if(esState.filas.length === 0){ toast('No encontré filas válidas', 'error'); }
+  }catch(err){
+    console.error(err);
+    toast('Error al leer Excel: ' + err.message, 'error');
+    esVolverInicio();
+  }
+}
+
+// ─── Foto con OCR ───
+async function esProcesarFoto(file){
+  esIrAPaso2('Foto de boleta · leyendo con OCR...');
+  esState.filas = [];
+  if(typeof Tesseract === 'undefined'){
+    toast('La librería de OCR aún se está cargando. Probá de nuevo en unos segundos.', 'error');
+    return;
+  }
+  var prog = document.getElementById('esOcrProgreso');
+  var fill = document.getElementById('esOcrFill');
+  var txt = document.getElementById('esOcrTexto');
+  prog.style.display = 'flex';
+  fill.style.width = '5%';
+  txt.textContent = 'Preparando lector...';
+
+  try{
+    var url = URL.createObjectURL(file);
+    var result = await Tesseract.recognize(url, 'spa+eng', {
+      logger: function(m){
+        if(m.status === 'recognizing text'){
+          fill.style.width = Math.round(m.progress * 100) + '%';
+          txt.textContent = 'Leyendo texto... ' + Math.round(m.progress * 100) + '%';
+        } else {
+          txt.textContent = m.status;
+        }
+      }
+    });
+    URL.revokeObjectURL(url);
+    prog.style.display = 'none';
+
+    var texto = (result && result.data && result.data.text) || '';
+    var detectadas = esParsearTextoOCR(texto);
+    if(detectadas.length === 0){
+      toast('No pude detectar códigos claros. Revisá la foto o cargá manual.', 'error');
+      document.getElementById('esSubtitulo').textContent = 'OCR sin resultados claros — agregá manualmente';
+      return;
+    }
+    detectadas.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad); });
+    document.getElementById('esSubtitulo').textContent = 'OCR: ' + detectadas.length + ' líneas detectadas — REVISÁ antes de aplicar';
+    toast('Leí ' + detectadas.length + ' líneas. Revisá bien antes de aplicar.', 'info');
+  }catch(err){
+    console.error(err);
+    prog.style.display = 'none';
+    toast('Error en OCR: ' + (err.message || 'no se pudo leer'), 'error');
+  }
+}
+
+// Heurística simple: por cada línea, busca un código (alfanumérico) y una cantidad (número chico al final)
+function esParsearTextoOCR(texto){
+  var lineas = texto.split('\n');
+  var out = [];
+  lineas.forEach(function(linea){
+    var l = linea.trim();
+    if(l.length < 3) return;
+    // Buscar tokens tipo código: letras+números o números con / o -
+    var tokens = l.split(/\s+/);
+    if(tokens.length < 2) return;
+    // El código suele ser el primer token con al menos 3 chars alfanuméricos
+    var codigo = null;
+    for(var i = 0; i < tokens.length; i++){
+      if(/^[A-Za-z0-9][A-Za-z0-9\/\-\.]{2,}$/.test(tokens[i])){ codigo = tokens[i]; break; }
+    }
+    if(!codigo) return;
+    // La cantidad: último token que sea un número entero chico (1-9999)
+    var cantidad = 1;
+    for(var j = tokens.length - 1; j >= 0; j--){
+      var n = tokens[j].replace(/[^0-9]/g, '');
+      if(n && /^\d{1,4}$/.test(n) && tokens[j] !== codigo){ cantidad = Number(n); break; }
+    }
+    out.push({ codigo: codigo, cantidad: cantidad });
+  });
+  return out;
+}
+
+// ─── Aplicar ───
+async function esAplicar(){
+  var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
+  if(validas.length === 0){ toast('No hay productos válidos para aplicar', 'error'); return; }
+  if(!confirm('Vas a sumar stock a ' + validas.length + ' producto(s). ¿Confirmás?')) return;
+
+  var btn = document.getElementById('esBtnAplicar');
+  btn.disabled = true; btn.textContent = 'Aplicando...';
+  try{
+    var B = 400, localUpdates = [];
+    for(var i = 0; i < validas.length; i += B){
+      var slice = validas.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(f){
+        var nuevoStock = (Number(f.stockActual) || 0) + (Number(f.cantidad) || 0);
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(f.prod._id);
+        batch.update(ref, { stock: nuevoStock, updatedAt: new Date().toISOString() });
+        var prodLocal = productos.find(function(p){ return p._id === f.prod._id; });
+        if(prodLocal){ prodLocal.stock = nuevoStock; localUpdates.push(prodLocal); }
+      });
+      await batch.commit();
+      btn.textContent = 'Aplicando ' + Math.min(i + B, validas.length) + ' / ' + validas.length + '...';
+    }
+    if(localUpdates.length){ try{ await idbGuardarBatch(currentEmpresaId, localUpdates); }catch(e){} }
+
+    // Historial
+    try{
+      var totalUni = validas.reduce(function(a, f){ return a + (Number(f.cantidad)||0); }, 0);
+      await db.collection('empresas').doc(currentEmpresaId).collection('entradas_stock').add({
+        metodo: esState.metodo || 'manual',
+        cantidadProductos: validas.length,
+        totalUnidades: totalUni,
+        detalle: validas.map(function(f){ return { codigo: f.codigo, cantidad: f.cantidad }; }).slice(0, 500),
+        usuario: (currentUserData && currentUserData.nombre) || '',
+        fecha: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(e){ console.warn('No se pudo guardar historial', e); }
+
+    toast('✅ Stock actualizado: ' + validas.length + ' productos', 'success');
+    esState = { filas: [], metodo: null };
+    esVolverInicio();
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
+  }catch(err){
+    console.error(err);
+    toast('Error al aplicar: ' + err.message, 'error');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Aplicar entrada de stock';
+  }
+}
+
+// ─── Historial ───
+async function esVerHistorial(){
+  document.getElementById('esPaso1').style.display = 'none';
+  document.getElementById('esPaso2').style.display = 'none';
+  document.getElementById('esPaso3').style.display = 'block';
+  var cont = document.getElementById('esHistorialLista');
+  cont.innerHTML = '<div class="lp-empty">Cargando...</div>';
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('entradas_stock').orderBy('fecha', 'desc').limit(50).get();
+    if(snap.empty){ cont.innerHTML = '<div class="lp-empty">Todavía no registraste entradas de stock.</div>'; return; }
+    var html = '<div class="table-card"><div style="padding:4px 0">';
+    snap.docs.forEach(function(d){
+      var e = d.data();
+      var fecha = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleString('es-AR') : '';
+      var metodoTxt = { manual: 'Manual', excel: 'Excel', foto: 'Foto/OCR' }[e.metodo] || e.metodo || '';
+      html += '<div class="emp-card">' +
+        '<div class="emp-avatar" style="background:var(--accent-soft);color:var(--accent)">&#128229;</div>' +
+        '<div class="emp-info"><div class="emp-nombre">' + (e.cantidadProductos || 0) + ' productos · ' + (e.totalUnidades || 0) + ' unidades</div>' +
+        '<div class="emp-email">' + fecha + (e.usuario ? ' · ' + eH(e.usuario) : '') + '</div></div>' +
+        '<span class="emp-rol-badge">' + metodoTxt + '</span></div>';
+    });
+    html += '</div></div>';
+    cont.innerHTML = html;
+  }catch(err){
+    console.error(err);
+    cont.innerHTML = '<div class="lp-empty">Error al cargar historial</div>';
+  }
 }
 
 
