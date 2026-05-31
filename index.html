@@ -5737,15 +5737,15 @@
                 Vamos a detectar las columnas automáticamente. Si nos equivocamos, te dejamos corregir el mapeo.
               </div>
               <div class="lp-help-box" id="lpHelpSabana" style="display:none">
-                <strong>Lista sábana — todos los proveedores en un solo Excel:</strong>
+                <strong>Lista sábana — varios proveedores en un solo Excel:</strong>
                 <ul>
-                  <li>Una columna con el <strong>nombre del proveedor</strong> (obligatoria)</li>
                   <li>Una columna con el código del producto</li>
-                  <li>Una columna con la descripción</li>
                   <li>Una columna con el precio neto (sin IVA)</li>
+                  <li>Una columna con la descripción</li>
+                  <li><strong>Proveedor (opcional):</strong> si tu Excel tiene columna "Proveedor", la usamos. Si no la tiene —como tu lista sincronizada de productos— detectamos el proveedor de cada ítem mirando el que ya tenés cargado (match por código).</li>
                   <li>Opcionalmente: columnas de IVA y descuento por producto (%)</li>
                 </ul>
-                Cada proveedor nuevo se configura solo con valores por defecto (IVA 21%, ganancia escalonada estándar). Después podés ajustar cada uno desde Configuración. Ideal para cargar todo de una sin configurar proveedor por proveedor.
+                Cada proveedor nuevo se configura solo con valores por defecto (IVA 21%, ganancia escalonada estándar). Los ítems que no podamos asociar a ningún proveedor quedan como "Sin proveedor" para que los revises.
               </div>
             </div>
 
@@ -16974,7 +16974,7 @@ function lpSetModoImport(modo){
   var sub = document.getElementById('lpImportSub');
   if(sub) sub.textContent = (modo === 'simple')
     ? 'Elegí el proveedor y subí el Excel con la lista de precios'
-    : 'Subí un solo Excel con TODOS los proveedores y productos (necesita columna "Proveedor")';
+    : 'Subí un solo Excel con varios proveedores. Si no tiene columna "Proveedor", lo detectamos de tus productos ya cargados';
 }
 
 // Crea la config de todos los proveedores detectados que aún no están configurados
@@ -17072,9 +17072,10 @@ async function lpProcesarArchivo(file){
     var sheet = wb.Sheets[wb.SheetNames[0]];
     var rowsRaw = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
 
-    // Detectar fila de headers
+    // Detectar fila de headers (busca hasta 40 filas: las listas suelen
+    // traer bloques de horarios/condiciones antes de la tabla real)
     var headerRowIdx = -1;
-    for(var i = 0; i < Math.min(20, rowsRaw.length); i++){
+    for(var i = 0; i < Math.min(40, rowsRaw.length); i++){
       var row = rowsRaw[i];
       if(!row) continue;
       var rowStr = row.join('|').toLowerCase();
@@ -17105,10 +17106,9 @@ async function lpProcesarArchivo(file){
       toast('No pude detectar las columnas de código y precio. Revisá el formato del Excel.', 'error');
       return;
     }
-    if(modo === 'sabana' && colProveedor < 0){
-      toast('No encontré la columna "Proveedor". En lista sábana es obligatoria.', 'error');
-      return;
-    }
+    // En sábana, la columna proveedor es OPCIONAL: si no está, el proveedor de
+    // cada fila se infiere del producto que ya tenés cargado (match por código).
+    var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
 
     // Mapear filas
     var rows = [];
@@ -17135,7 +17135,8 @@ async function lpProcesarArchivo(file){
       };
       if(modo === 'sabana'){
         var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
-        fila._provNombre = pnombre || 'Sin proveedor';
+        // null = no vino columna (se infiere del producto en el matching)
+        fila._provNombreRaw = pnombre || null;
       }
       rows.push(fila);
     }
@@ -17145,41 +17146,36 @@ async function lpProcesarArchivo(file){
       return;
     }
 
-    // Resolver proveedores
+    // Resolver proveedores.
+    //  - simple: todas las filas usan el proveedor elegido.
+    //  - sábana: se resuelve fila por fila en el matching (puede inferirse del
+    //    producto ya cargado cuando no hay columna proveedor en el Excel).
     var provManagers = {};
-    if(modo === 'sabana'){
-      rows.forEach(function(fila){
-        var key = lpSanitizarId(fila._provNombre);
-        if(!provManagers[key]){
-          var existente = lpState.proveedores.find(function(p){
-            return p._configurado && (p.id === key || lpSanitizarId(p.proveedorNombre) === key);
-          });
-          provManagers[key] = existente ? existente : lpProvDefault(fila._provNombre);
-        }
-        fila._provId = key;
-        fila._prov = provManagers[key];
-        fila._provNombre = provManagers[key].proveedorNombre;
-      });
-    } else {
+    if(modo === 'simple'){
       rows.forEach(function(fila){
         fila._provId = prov.id;
         fila._prov = prov;
         fila._provNombre = prov.proveedorNombre;
+        provManagers[prov.id] = prov;
       });
     }
-
     lpState.importacion = {
       modo: modo,
       proveedor: prov,
       archivo: file.name,
       rows: rows,
-      provManagers: provManagers
+      provManagers: provManagers,
+      sabanaSinColProv: sabanaSinColProv
     };
     lpProcesarMatching();
     lpMostrarVistaPrevia();
 
     var extra = '';
-    if(modo === 'sabana') extra = ' · ' + Object.keys(provManagers).length + ' proveedores';
+    if(modo === 'sabana'){
+      var nprov = Object.keys(lpState.importacion.provManagers).length;
+      extra = ' · ' + nprov + ' proveedor' + (nprov === 1 ? '' : 'es');
+      if(sabanaSinColProv) extra += ' (detectados de tus productos)';
+    }
     if(colDescuento >= 0) extra += ' · con descuentos del Excel';
     toast(rows.length + ' ítems leídos' + extra, 'success');
   }catch(err){
@@ -17244,6 +17240,18 @@ function lpProcesarMatching(){
       descripcionActual: matched.descripcion || matched.nombre || ''
     } : null;
 
+    // Resolver proveedor de la fila (solo en sábana; en simple ya viene asignado).
+    if(imp.modo === 'sabana'){
+      var nombreProv = row._provNombreRaw;          // 1) columna del Excel, si vino
+      if(!nombreProv && matched && matched.proveedor) nombreProv = String(matched.proveedor).trim(); // 2) del producto cargado
+      if(!nombreProv) nombreProv = 'Sin proveedor';  // 3) fallback
+      var mgr = lpResolverProvManager(nombreProv);
+      row._provId = mgr.id;
+      row._prov = mgr;
+      row._provNombre = mgr.proveedorNombre;
+      row._provInferido = (!row._provNombreRaw && matched && matched.proveedor) ? true : false;
+    }
+
     // Descuento por producto:
     //  1) el del Excel (si vino),
     //  2) sino el guardado en el producto (de una importación previa),
@@ -17256,6 +17264,20 @@ function lpProcesarMatching(){
     if(row.editado == null) row.editado = false;
     lpRecalcularFila(row);
   });
+}
+
+// Devuelve (y cachea en imp.provManagers) el manager de un proveedor por nombre:
+// usa la config existente si la hay, sino crea una por defecto.
+function lpResolverProvManager(nombre){
+  var imp = lpState.importacion;
+  var key = lpSanitizarId(nombre);
+  if(!imp.provManagers[key]){
+    var existente = lpState.proveedores.find(function(p){
+      return p._configurado && (p.id === key || lpSanitizarId(p.proveedorNombre) === key);
+    });
+    imp.provManagers[key] = existente ? existente : lpProvDefault(nombre);
+  }
+  return imp.provManagers[key];
 }
 
 // Recalcula precio + clasificación de una sola fila (usado al editar descuento)
