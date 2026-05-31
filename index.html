@@ -5632,12 +5632,12 @@
               </button>
               <button class="es-metodo" onclick="esElegirMetodo('foto')">
                 <span class="es-metodo-icon">&#128247;</span>
-                <span class="es-metodo-tit">Foto de la boleta (OCR)</span>
-                <span class="es-metodo-desc">Sacá una foto y leemos los códigos. Siempre revisás antes de aplicar.</span>
+                <span class="es-metodo-tit">Foto o PDF (OCR)</span>
+                <span class="es-metodo-desc">Subí una foto o PDF de la boleta y leemos los códigos. Siempre revisás antes de aplicar.</span>
               </button>
             </div>
             <input type="file" id="esExcelInput" accept=".xlsx,.xls" style="display:none">
-            <input type="file" id="esFotoInput" accept="image/*" capture="environment" style="display:none">
+            <input type="file" id="esFotoInput" accept="image/*,application/pdf" style="display:none">
           </div>
 
           <!-- Vista de carga (lista editable) -->
@@ -7269,6 +7269,8 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script>
@@ -8361,9 +8363,10 @@ async function esProcesarExcel(file){
   }
 }
 
-// ─── Foto con OCR ───
+// ─── Foto / PDF con OCR ───
 async function esProcesarFoto(file){
-  esIrAPaso2('Foto de boleta · leyendo con OCR...');
+  var esPdf = (file.type === 'application/pdf') || /\.pdf$/i.test(file.name);
+  esIrAPaso2(esPdf ? 'PDF de boleta · leyendo con OCR...' : 'Foto de boleta · leyendo con OCR...');
   esState.filas = [];
   if(typeof Tesseract === 'undefined'){
     toast('La librería de OCR aún se está cargando. Probá de nuevo en unos segundos.', 'error');
@@ -8377,35 +8380,111 @@ async function esProcesarFoto(file){
   txt.textContent = 'Preparando lector...';
 
   try{
-    var url = URL.createObjectURL(file);
-    var result = await Tesseract.recognize(url, 'spa+eng', {
-      logger: function(m){
-        if(m.status === 'recognizing text'){
-          fill.style.width = Math.round(m.progress * 100) + '%';
-          txt.textContent = 'Leyendo texto... ' + Math.round(m.progress * 100) + '%';
-        } else {
-          txt.textContent = m.status;
-        }
+    // Obtener una o más imágenes a leer
+    var imagenes = [];
+    if(esPdf){
+      if(typeof pdfjsLib === 'undefined'){ throw new Error('No se pudo cargar el lector de PDF. Reintentá en unos segundos.'); }
+      // 1) Intentar extraer texto NATIVO del PDF (PDFs digitales, no escaneados):
+      //    es mucho más preciso que el OCR y casi instantáneo.
+      txt.textContent = 'Analizando PDF...';
+      var textoNativo = await esPdfTextoNativo(file);
+      var detNativo = esParsearTextoOCR(textoNativo);
+      if(detNativo.length >= 2){
+        prog.style.display = 'none';
+        detNativo.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad); });
+        document.getElementById('esSubtitulo').textContent = 'PDF (texto) · ' + detNativo.length + ' líneas detectadas — REVISÁ antes de aplicar';
+        toast('Leí ' + detNativo.length + ' líneas del PDF. Revisá antes de aplicar.', 'info');
+        return;
       }
-    });
-    URL.revokeObjectURL(url);
+      // 2) Si no había texto (PDF escaneado), convertir a imágenes y usar OCR
+      txt.textContent = 'PDF escaneado, convirtiendo...';
+      imagenes = await esPdfAImagenes(file, function(p){ txt.textContent = 'Convirtiendo PDF... ' + p; });
+    } else {
+      imagenes = [URL.createObjectURL(file)];
+    }
+
+    var todasLasLineas = [];
+    for(var i = 0; i < imagenes.length; i++){
+      txt.textContent = imagenes.length > 1 ? ('Leyendo página ' + (i+1) + ' de ' + imagenes.length + '...') : 'Leyendo texto...';
+      var result = await Tesseract.recognize(imagenes[i], 'spa+eng', {
+        logger: function(m){
+          if(m.status === 'recognizing text'){
+            fill.style.width = Math.round(m.progress * 100) + '%';
+          }
+        }
+      });
+      var texto = (result && result.data && result.data.text) || '';
+      var det = esParsearTextoOCR(texto);
+      todasLasLineas = todasLasLineas.concat(det);
+      try{ if(imagenes[i].indexOf('blob:') === 0) URL.revokeObjectURL(imagenes[i]); }catch(e){}
+    }
     prog.style.display = 'none';
 
-    var texto = (result && result.data && result.data.text) || '';
-    var detectadas = esParsearTextoOCR(texto);
-    if(detectadas.length === 0){
-      toast('No pude detectar códigos claros. Revisá la foto o cargá manual.', 'error');
+    if(todasLasLineas.length === 0){
+      toast('No pude detectar códigos claros. Revisá la calidad o cargá manual.', 'error');
       document.getElementById('esSubtitulo').textContent = 'OCR sin resultados claros — agregá manualmente';
       return;
     }
-    detectadas.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad); });
-    document.getElementById('esSubtitulo').textContent = 'OCR: ' + detectadas.length + ' líneas detectadas — REVISÁ antes de aplicar';
-    toast('Leí ' + detectadas.length + ' líneas. Revisá bien antes de aplicar.', 'info');
+    todasLasLineas.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad); });
+    document.getElementById('esSubtitulo').textContent = (esPdf ? 'PDF' : 'Foto') + ' · ' + todasLasLineas.length + ' líneas detectadas — REVISÁ antes de aplicar';
+    toast('Leí ' + todasLasLineas.length + ' líneas. Revisá bien antes de aplicar.', 'info');
   }catch(err){
     console.error(err);
     prog.style.display = 'none';
     toast('Error en OCR: ' + (err.message || 'no se pudo leer'), 'error');
+    document.getElementById('esSubtitulo').textContent = 'Error al leer — probá con foto o cargá manual';
   }
+}
+
+// Extrae el texto nativo de un PDF (si es digital, no escaneado). Devuelve '' si no hay.
+async function esPdfTextoNativo(file){
+  try{
+    var buf = await file.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    var maxPaginas = Math.min(pdf.numPages, 15);
+    var lineas = [];
+    for(var n = 1; n <= maxPaginas; n++){
+      var page = await pdf.getPage(n);
+      var content = await page.getTextContent();
+      // Agrupar items por su posición vertical (Y) para reconstruir líneas
+      var filasPorY = {};
+      content.items.forEach(function(it){
+        if(!it.str || !it.str.trim()) return;
+        var y = Math.round(it.transform[5]); // coordenada Y
+        if(!filasPorY[y]) filasPorY[y] = [];
+        filasPorY[y].push({ x: it.transform[4], s: it.str });
+      });
+      Object.keys(filasPorY).sort(function(a, b){ return b - a; }).forEach(function(y){
+        var fila = filasPorY[y].sort(function(a, b){ return a.x - b.x; }).map(function(o){ return o.s; }).join(' ');
+        lineas.push(fila);
+      });
+    }
+    return lineas.join('\n');
+  }catch(err){
+    console.warn('No se pudo extraer texto nativo del PDF:', err);
+    return '';
+  }
+}
+
+// Convierte cada página de un PDF en una imagen (dataURL) usando pdf.js
+async function esPdfAImagenes(file, onProgress){
+  var buf = await file.arrayBuffer();
+  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var maxPaginas = Math.min(pdf.numPages, 10); // límite de seguridad
+  var imagenes = [];
+  for(var n = 1; n <= maxPaginas; n++){
+    if(onProgress) onProgress(n + '/' + maxPaginas);
+    var page = await pdf.getPage(n);
+    // Escala alta para que el OCR lea mejor (texto a ~200dpi aprox)
+    var viewport = page.getViewport({ scale: 2.2 });
+    var canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    var ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    imagenes.push(canvas.toDataURL('image/png'));
+  }
+  return imagenes;
 }
 
 // Heurística simple: por cada línea, busca un código (alfanumérico) y una cantidad (número chico al final)
