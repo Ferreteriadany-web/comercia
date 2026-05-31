@@ -7448,6 +7448,8 @@ async function register(){
         ownerName: name,
         phone: phone,
         estado: 'prueba',
+        plan: 'basico',
+        maxUsuarios: 3,
         pruebaHasta: trialEnd.toISOString(),
         creadoEn: new Date().toISOString()
       });
@@ -7822,17 +7824,45 @@ function empRender(){
 
   html += '</div></div>';
 
-  // Contador / límite (placeholder para futuro plan de pagos)
+  // Contador con límite del plan
   var totalUsuarios = empState.empleados.length + empState.invitaciones.length;
-  html = '<p style="color:var(--text-mute);font-size:13px;margin:0 0 12px">' + totalUsuarios + ' usuario(s) en tu cuenta</p>' + html;
+  var maxU = empMaxUsuarios();
+  var lleno = totalUsuarios >= maxU;
+  var color = lleno ? 'var(--danger)' : 'var(--text-mute)';
+  var aviso = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;flex-wrap:wrap">' +
+    '<p style="color:' + color + ';font-size:13px;margin:0;font-weight:' + (lleno ? '600' : '400') + '">' +
+    totalUsuarios + ' de ' + maxU + ' usuarios usados' + (lleno ? ' · llegaste al límite' : '') + '</p>';
+  if(lleno){
+    aviso += '<button class="btn btn-xs btn-primary" onclick="empMostrarSumarUsuario()">&#10133; Sumar un usuario</button>';
+  }
+  aviso += '</div>';
+  html = aviso + html;
 
   cont.innerHTML = html;
+}
+
+// Máximo de usuarios de la empresa (default 3: admin + 2 empleados)
+function empMaxUsuarios(){
+  var m = currentEmpresa && currentEmpresa.maxUsuarios;
+  return (typeof m === 'number' && m > 0) ? m : 3;
+}
+
+// Mensaje para sumar usuarios extra (preparado para el cobro futuro)
+function empMostrarSumarUsuario(){
+  toast('Para sumar un usuario más, escribime y lo habilitamos', 'info');
 }
 
 // ─── Modal invitar / editar ───
 var empEditandoUid = null;
 
 function empAbrirInvitar(){
+  // Verificar límite del plan
+  var totalUsuarios = empState.empleados.length + empState.invitaciones.length;
+  var maxU = empMaxUsuarios();
+  if(totalUsuarios >= maxU){
+    toast('Llegaste al límite de ' + maxU + ' usuarios. Para sumar uno más, escribime y lo habilitamos.', 'error');
+    return;
+  }
   empEditandoUid = null;
   document.getElementById('empModalTitulo').textContent = 'Invitar empleado';
   document.getElementById('empModalInvitarBox').style.display = '';
@@ -7947,6 +7977,12 @@ async function empGuardar(){
   }
 
   // NUEVA invitación
+  // Defensa: re-verificar el límite (por si se llegó al tope en otra pestaña)
+  var totalUsuarios = empState.empleados.length + empState.invitaciones.length;
+  if(totalUsuarios >= empMaxUsuarios()){
+    toast('Llegaste al límite de usuarios de tu plan.', 'error');
+    return;
+  }
   var nombre = document.getElementById('empNombre').value.trim();
   var email = document.getElementById('empEmail').value.trim().toLowerCase();
   if(!nombre){ toast('Falta el nombre', 'error'); return; }
