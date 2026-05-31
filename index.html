@@ -8490,45 +8490,92 @@ async function esPdfAImagenes(file, onProgress){
 // Parsea el texto de una factura/boleta buscando: CÓDIGO ... CANTIDAD IMP.LISTA %BONIF TOTAL
 // Pensado para facturas argentinas (números tipo 1.000,00). Devuelve {codigo, cantidad}.
 function esParsearTextoOCR(texto){
+  // Intentar primero como factura de compra estructurada (más preciso)
+  var fac = esParsearFacturaCompra(texto);
+  if(fac.length >= 2) return fac;
+  // Fallback genérico
+  return esParsearGenerico(texto);
+}
+
+// Convierte "1.000,00" → 1000 ; "8,00" → 8 (formato argentino)
+function esNumAr(s){
+  if(!s) return NaN;
+  return Number(String(s).trim().replace(/\./g, '').replace(',', '.'));
+}
+
+// Parser de factura de compra: CODIGO DESCRIPCION CANTIDAD PRECIO %BONIF TOTAL
+// Valida con cantidad×precio≈total para no confundir la cantidad con medidas
+// de la descripción (ej "5/16x 4", "8x32").
+function esParsearFacturaCompra(texto){
   var lineas = texto.split('\n');
   var out = [];
-  var ignorar = /^(importe|iva|total|cae|despachado|otros|numero|a\s*r\s*t|subtotal|neto|granel|cuit|factura|c[oó]digo nro|operador|vendedor|cuenta|vdor|\d+\s*[íi]tems)/i;
+  var saltar = /^(COD|A\s*r\s*t|ART[IÍ]CULO|Importe|I\.?V\.?A|Total|CAE|Otros|Numero|Despachado|Cuenta|Vdor|Operador|Despacho|ESTA LISTA|PAG|COLORES|MARCA|C[oó]digo|GRANEL|BATERIA|ACCESORIOS|\d+W\b|PRESENTACION|PRECIO|CANTIDAD|Factura|CUIT|Ingresos|Inicio|Fecha|ORIGINAL|Mayorista|ventas@|www\.|subtotal|neto|\d+\s*[íi]tems)/i;
 
-  function esNum(t){ return /^\d{1,3}(\.\d{3})*(,\d+)?$/.test(t) || /^\d+,\d+$/.test(t) || /^\d+$/.test(t); }
-  function aNum(t){ return parseFloat(String(t).replace(/\./g, '').replace(',', '.')); }
   function codigoValido(c){
-    if(!/^[0-9][0-9A-Za-z.]*$/.test(c)) return false; // empieza con dígito
+    if(!/^[0-9A-Za-z][0-9A-Za-z\.\/\-]*$/.test(c)) return false;
+    if(!/\d/.test(c)) return false;            // tiene al menos un dígito
     if(c.length < 2) return false;
-    if(/^\d+[a-zA-Z]$/.test(c) && /[wvWV]$/.test(c)) return false; // 280W, 18V (potencias/voltajes)
-    if(/^\d+(mm|cm|kg|w|v)$/i.test(c)) return false;
+    if(/^\d+(mm|cm|kg|w|v|lt|lts)$/i.test(c)) return false; // medidas
     return true;
   }
 
-  for(var k = 0; k < lineas.length; k++){
-    var l = lineas[k].trim();
-    if(l.length < 5 || ignorar.test(l)) continue;
+  for(var i = 0; i < lineas.length; i++){
+    var l = lineas[i].trim();
+    if(!l || l.length < 4 || saltar.test(l)) continue;
     var tokens = l.split(/\s+/);
+    if(tokens.length < 4) continue;
     var codigo = tokens[0];
     if(!codigoValido(codigo)) continue;
 
+    // Números con decimales (formato argentino)
     var nums = [];
-    for(var i = 1; i < tokens.length; i++){ if(esNum(tokens[i])) nums.push(tokens[i]); }
-
-    var cantidad = null;
-    if(nums.length >= 4){
-      // estructura completa: ... cantidad imp.lista %bonif total → cantidad = 4º desde el final
-      cantidad = aNum(nums[nums.length - 4]);
-    } else if(nums.length >= 1){
-      // fila partida en varias líneas: la cantidad suele venir en la línea siguiente
-      for(var j = k + 1; j < Math.min(k + 3, lineas.length); j++){
-        var sig = lineas[j].trim().split(/\s+/);
-        if(esNum(sig[0])){ cantidad = aNum(sig[0]); break; }
+    for(var t = 1; t < tokens.length; t++){
+      if(/^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(tokens[t]) || /^\d+,\d{1,2}$/.test(tokens[t])){
+        nums.push(esNumAr(tokens[t]));
       }
     }
-    if(cantidad && cantidad > 0 && cantidad < 1000000){
-      out.push({ codigo: codigo, cantidad: Math.round(cantidad) });
+    if(nums.length < 3) continue;
+
+    var total = nums[nums.length - 1];
+    var cantidad = null;
+    if(total > 0){
+      for(var c = 0; c < nums.length - 1 && cantidad === null; c++){
+        for(var p = c + 1; p < nums.length; p++){
+          var prod = nums[c] * nums[p];
+          if(Math.abs(prod - total) / total < 0.02 || Math.abs(prod * 0.75 - total) / total < 0.02){
+            cantidad = nums[c]; break;
+          }
+        }
+      }
     }
+    if(cantidad === null) cantidad = nums[0]; // fallback
+    if(isNaN(cantidad) || cantidad <= 0 || cantidad >= 1000000) continue;
+    out.push({ codigo: codigo, cantidad: Math.round(cantidad) });
   }
+  return out;
+}
+
+// Fallback genérico: una línea = código + un número de cantidad
+function esParsearGenerico(texto){
+  var lineas = texto.split('\n');
+  var out = [];
+  lineas.forEach(function(linea){
+    var l = linea.trim();
+    if(l.length < 3) return;
+    var tokens = l.split(/\s+/);
+    if(tokens.length < 2) return;
+    var codigo = null;
+    for(var i = 0; i < tokens.length; i++){
+      if(/^[A-Za-z0-9][A-Za-z0-9\/\-\.]{1,}$/.test(tokens[i]) && /\d/.test(tokens[i])){ codigo = tokens[i]; break; }
+    }
+    if(!codigo) return;
+    var cantidad = 1;
+    for(var j = tokens.length - 1; j >= 0; j--){
+      var n = tokens[j].replace(/[^0-9]/g, '');
+      if(n && /^\d{1,4}$/.test(n) && tokens[j] !== codigo){ cantidad = Number(n); break; }
+    }
+    out.push({ codigo: codigo, cantidad: cantidad });
+  });
   return out;
 }
 
