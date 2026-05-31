@@ -5873,6 +5873,19 @@
                 </div>
               </div>
 
+              <!-- Cotización del dólar (aparece si hay ítems en US$) -->
+              <div class="lp-cotiz-box" id="lpPvCotizBox" style="display:none">
+                <div class="lp-cotiz-row">
+                  <div class="lp-cotiz-field">
+                    <label>&#128178; Cotización US$ → $ (pesos por dólar)</label>
+                    <input type="number" id="lpPvCotizInput" class="lp-cotiz-input" step="0.01" min="0" placeholder="0.00" oninput="lpState.cotizacionUsd = Number(this.value)||0; lpSyncCotizInputs(); lpRefrescarCalculo()">
+                  </div>
+                  <button type="button" class="btn btn-sm btn-light" onclick="lpTraerCotizaciones()">&#128178; Traer dólar de hoy</button>
+                </div>
+                <div class="lp-cotiz-chips" id="lpPvCotizChips"></div>
+                <div class="lp-cotiz-note" id="lpPvCotizNote">Hay ítems en dólares. Cargá la cotización para convertir los precios a pesos.</div>
+              </div>
+
               <!-- Stats -->
               <div class="lp-stats">
                 <div class="lp-stat">
@@ -17443,8 +17456,6 @@ async function lpTraerCotizaciones(){
 }
 
 function lpRenderCotizaciones(){
-  var cont = document.getElementById('lpCotizChips');
-  if(!cont) return;
   var html = '';
   lpState.cotizaciones.forEach(function(c){
     var venta = Number(c.venta) || 0;
@@ -17452,18 +17463,28 @@ function lpRenderCotizaciones(){
     html += '<button type="button" class="lp-cotiz-chip' + activo + '" onclick="lpElegirCotizacion(' + venta + ', this)">' +
       '<b>$' + lpFmt(venta) + '</b><small>' + eH(c.nombre || c.casa) + '</small></button>';
   });
-  cont.innerHTML = html;
+  // Pintar en ambos paneles (paso 1 y vista previa)
+  ['lpCotizChips', 'lpPvCotizChips'].forEach(function(id){
+    var cont = document.getElementById(id);
+    if(cont){ cont.innerHTML = html; cont.style.display = 'flex'; }
+  });
 }
 
 function lpElegirCotizacion(valor, btn){
   lpState.cotizacionUsd = Number(valor) || 0;
-  var input = document.getElementById('lpCotizInput');
-  if(input) input.value = valor;
-  // marcar chip activo
-  var chips = document.querySelectorAll('#lpCotizChips .lp-cotiz-chip');
-  chips.forEach(function(c){ c.classList.remove('active'); });
-  if(btn) btn.classList.add('active');
+  lpSyncCotizInputs();
+  // marcar chip activo en ambos paneles (re-render mantiene el active por valor)
+  lpRenderCotizaciones();
   lpRefrescarCalculo();
+}
+
+// Mantiene los dos inputs de cotización (paso 1 y vista previa) con el mismo valor
+function lpSyncCotizInputs(){
+  var v = lpState.cotizacionUsd || '';
+  var a = document.getElementById('lpCotizInput');
+  var b = document.getElementById('lpPvCotizInput');
+  if(a && document.activeElement !== a) a.value = v;
+  if(b && document.activeElement !== b) b.value = v;
 }
 
 // Recalcula todas las filas (al cambiar cotización) y refresca la vista previa si está abierta
@@ -17906,6 +17927,18 @@ function lpMostrarVistaPrevia(){
   document.getElementById('lpPreviewSubtitle').textContent = subt;
   var tabla = document.getElementById('lpPreviewTable');
   if(tabla) tabla.classList.toggle('lp-show-prov', imp.modo === 'sabana');
+
+  // Panel de cotización: visible si hay ítems en dólares
+  var hayUsd = imp.rows.some(function(r){ return r._moneda === 'USD'; });
+  var pvBox = document.getElementById('lpPvCotizBox');
+  if(pvBox){
+    pvBox.style.display = hayUsd ? 'block' : 'none';
+    if(hayUsd){
+      var inp = document.getElementById('lpPvCotizInput');
+      if(inp && (Number(lpState.cotizacionUsd) || 0) > 0) inp.value = lpState.cotizacionUsd;
+      if(lpState.cotizaciones && lpState.cotizaciones.length) lpRenderCotizaciones();
+    }
+  }
   lpState.importPage = 0;
   lpState.importFiltro = 'todos';
   lpState.importBusqueda = '';
