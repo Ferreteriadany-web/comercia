@@ -4471,6 +4471,37 @@
   .lp-cotiz-note{ font-size:11px; color:var(--text-mute); margin-top:8px; }
   .lp-cost-usd{ display:block; font-size:10px; color:var(--text-mute); font-family:var(--mono); }
 
+  /* Sincronizar catálogo: resumen */
+  .lp-cat-stats{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .lp-cat-stat{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:var(--bg-card);
+    padding:10px 14px;
+    font-size:13px;
+    color:var(--text-mute);
+  }
+  .lp-cat-stat strong{ font-size:15px; color:var(--text); font-family:var(--mono); }
+  .lp-cat-stat strong.lp-cat-ok{ color:var(--success); }
+  .lp-cat-stat strong.lp-cat-warn{ color:var(--warning, #c77700); }
+  .lp-cat-note{
+    margin-top:14px;
+    font-size:12px;
+    color:var(--text-mute);
+    background:var(--bg-soft);
+    border-radius:8px;
+    padding:10px 12px;
+  }
+
 </style>
 </head>
 <body>
@@ -5751,7 +5782,10 @@
                 <p class="lp-pane-title">Proveedores configurados</p>
                 <p class="lp-pane-sub" id="lpProvCount">Cargando...</p>
               </div>
-              <button class="btn btn-sm btn-primary" id="lpBtnConfigTodos" style="display:none" onclick="lpConfigurarTodosAuto()">&#9881; Configurar todos automáticamente</button>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-sm btn-light" onclick="lpAbrirSincroCatalogo()">&#128229; Sincronizar catálogo</button>
+                <button class="btn btn-sm btn-primary" id="lpBtnConfigTodos" style="display:none" onclick="lpConfigurarTodosAuto()">&#9881; Configurar todos automáticamente</button>
+              </div>
             </div>
             <div id="lpProveedoresList">
               <div class="lp-empty">Cargando proveedores...</div>
@@ -5931,6 +5965,7 @@
             <div class="lp-form-row">
               <label>Nombre del proveedor *</label>
               <input type="text" class="search-input" id="lpModalNombre" placeholder="Ej: Bremen">
+              <p class="lp-form-help">Si cambiás el nombre, todos los productos de este proveedor se reasignan automáticamente al nombre nuevo.</p>
             </div>
             <div class="lp-form-grid-3">
               <div class="lp-form-row">
@@ -5983,6 +6018,39 @@
             <button class="btn btn-sm btn-light" onclick="lpCerrarModal()">Cancelar</button>
             <button class="btn btn-sm btn-danger" id="lpBtnEliminarProv" onclick="lpEliminarProveedor()" style="display:none;margin-right:auto">Eliminar</button>
             <button class="btn btn-sm btn-primary" onclick="lpGuardarProveedor()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MODAL: SINCRONIZAR CATÁLOGO ═══ -->
+      <div class="modal-overlay" id="lpModalCatalogo">
+        <div class="modal" style="max-width:640px">
+          <div class="modal-header">
+            <h3 class="modal-title">Sincronizar catálogo</h3>
+            <button class="modal-close" onclick="lpCerrarModalCatalogo()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="lp-help-box" style="margin-top:0">
+              Subí tu catálogo completo (el export de tu sistema, con columnas <strong>Código</strong>, <strong>Proveedor</strong> y <strong>Moneda</strong>). Vamos a:
+              <ul>
+                <li>Asignar el <strong>proveedor</strong> y la <strong>moneda</strong> a cada producto (match por código)</li>
+                <li>Crear automáticamente los proveedores que falten, ya configurados</li>
+              </ul>
+              <strong>No se tocan los precios de venta.</strong> El recálculo de precios lo hacés después, cuando ajustes los márgenes de cada proveedor.
+            </div>
+
+            <div class="lp-dropzone" id="lpCatDropzone" style="margin-top:4px">
+              <input type="file" id="lpCatFileInput" accept=".xlsx,.xls" style="display:none">
+              <div class="lp-dropzone-icon">&#128228;</div>
+              <p class="lp-dropzone-title">Arrastrá el catálogo aquí o hacé click</p>
+              <p class="lp-dropzone-sub">.xlsx, .xls &middot; puede tardar en archivos grandes</p>
+            </div>
+
+            <div id="lpCatResumen" style="display:none;margin-top:16px"></div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-light" onclick="lpCerrarModalCatalogo()">Cancelar</button>
+            <button class="btn btn-sm btn-primary" id="lpCatBtnAplicar" onclick="lpAplicarCatalogo()" style="display:none">Aplicar sincronización</button>
           </div>
         </div>
       </div>
@@ -16924,8 +16992,8 @@ function lpAbrirEditarProveedor(provId){
   }
   document.getElementById('lpModalTitulo').textContent = 'Editar ' + prov.proveedorNombre;
   document.getElementById('lpModalNombre').value = prov.proveedorNombre || '';
-  // Si tiene productos asociados, el nombre se bloquea para no romper el match
-  document.getElementById('lpModalNombre').disabled = prov._productosCount > 0;
+  // El nombre se puede editar: si se cambia, se reasignan los productos al nuevo nombre
+  document.getElementById('lpModalNombre').disabled = false;
   document.getElementById('lpModalDescuento').value = prov.descuentoProveedor || 0;
   document.getElementById('lpModalIva').value = String(prov.ivaDefault || 21);
   document.getElementById('lpModalBase').value = prov.baseGanancia || 'conDescuento';
@@ -16938,6 +17006,233 @@ function lpAbrirEditarProveedor(provId){
 
 function lpCerrarModal(){
   document.getElementById('lpModalProveedor').classList.remove('show');
+}
+
+// ═══════════════════════════════════════════════════════════
+// SINCRONIZAR CATÁLOGO (proveedor + moneda, sin tocar precios)
+// ═══════════════════════════════════════════════════════════
+
+var lpCatData = null; // { matches:[{docId,prov,moneda}], provsNuevos:{}, stats:{} }
+
+function lpAbrirSincroCatalogo(){
+  lpCatData = null;
+  document.getElementById('lpCatResumen').style.display = 'none';
+  document.getElementById('lpCatResumen').innerHTML = '';
+  document.getElementById('lpCatBtnAplicar').style.display = 'none';
+  document.getElementById('lpCatFileInput').value = '';
+  document.getElementById('lpModalCatalogo').classList.add('show');
+  // enganchar dropzone (una sola vez)
+  var dz = document.getElementById('lpCatDropzone');
+  var inp = document.getElementById('lpCatFileInput');
+  if(dz && !dz._wired){
+    dz._wired = true;
+    dz.addEventListener('click', function(){ inp.click(); });
+    dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', function(){ dz.classList.remove('dragover'); });
+    dz.addEventListener('drop', function(e){
+      e.preventDefault(); dz.classList.remove('dragover');
+      if(e.dataTransfer.files[0]) lpProcesarCatalogo(e.dataTransfer.files[0]);
+    });
+    inp.addEventListener('change', function(){ if(inp.files[0]) lpProcesarCatalogo(inp.files[0]); });
+  }
+  var modal = document.getElementById('lpModalCatalogo');
+  if(modal && !modal._wired){
+    modal._wired = true;
+    modal.addEventListener('click', function(e){ if(e.target === modal) lpCerrarModalCatalogo(); });
+  }
+}
+
+function lpCerrarModalCatalogo(){
+  document.getElementById('lpModalCatalogo').classList.remove('show');
+}
+
+async function lpProcesarCatalogo(file){
+  var resumen = document.getElementById('lpCatResumen');
+  resumen.style.display = 'block';
+  resumen.innerHTML = '<div class="lp-empty">Leyendo catálogo... (puede tardar en archivos grandes)</div>';
+  document.getElementById('lpCatBtnAplicar').style.display = 'none';
+
+  try{
+    var data = await lpLeerArchivo(file);
+    var wb = XLSX.read(data, {type: 'array'});
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    var rowsRaw = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+
+    // Detectar fila de headers
+    var headerRowIdx = -1;
+    for(var i = 0; i < Math.min(40, rowsRaw.length); i++){
+      var row = rowsRaw[i];
+      if(!row) continue;
+      var rowStr = row.join('|').toLowerCase();
+      if(/\bcod|\barti|\breferenc|\bsku/i.test(rowStr) &&
+         (/\bproduct|\bdescripc|\bdetal|\bnombre/i.test(rowStr) || /\bprecio|\bcost|\bvalor|\bimport/i.test(rowStr))){ headerRowIdx = i; break; }
+    }
+    if(headerRowIdx < 0) headerRowIdx = 0;
+    var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
+
+    var colProveedor = lpDetectarCol(headers, ['proveedor', 'prov', 'fabricante']);
+    var colMoneda = lpDetectarCol(headers, ['moneda', 'divisa', 'currency']);
+    var excl = [];
+    if(colProveedor >= 0) excl.push(colProveedor);
+    if(colMoneda >= 0) excl.push(colMoneda);
+    var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'referencia', 'ref'], excl);
+
+    if(colCodigo < 0 || colProveedor < 0){
+      resumen.innerHTML = '<div class="lp-help-box" style="border-color:var(--danger)">No pude detectar las columnas de <strong>Código</strong> y <strong>Proveedor</strong> en el archivo. Verificá que el catálogo las tenga.</div>';
+      return;
+    }
+
+    // Index de productos por código
+    var index = {};
+    for(var p = 0; p < productos.length; p++){
+      var prod = productos[p];
+      if(prod.codigo){ index[String(prod.codigo).trim().toLowerCase()] = prod; }
+    }
+
+    var matches = [];          // productos a actualizar (solo los que cambian)
+    var provNombres = {};      // nombre -> id (para crear proveedores)
+    var stats = { totalFilas: 0, matcheados: 0, sinMatch: 0, sinCambio: 0, usd: 0, ars: 0 };
+
+    for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
+      var r = rowsRaw[j];
+      if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
+      var codigo = String(r[colCodigo] || '').trim();
+      if(!codigo) continue;
+      var provNombre = String(r[colProveedor] || '').trim();
+      if(!provNombre) continue;
+      stats.totalFilas++;
+
+      // Moneda
+      var moneda = 'ARS';
+      if(colMoneda >= 0){
+        var mv = String(r[colMoneda] || '').trim().toLowerCase();
+        if(/u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv)) moneda = 'USD';
+      }
+      if(moneda === 'USD') stats.usd++; else stats.ars++;
+
+      // Registrar proveedor
+      if(!provNombres[provNombre]) provNombres[provNombre] = lpSanitizarId(provNombre);
+
+      // Match
+      var prod2 = index[codigo.toLowerCase()];
+      if(!prod2){ stats.sinMatch++; continue; }
+      stats.matcheados++;
+
+      // Solo actualizar si cambia algo
+      var cambiaProv = String(prod2.proveedor || '').trim() !== provNombre;
+      var cambiaMoneda = (prod2.moneda || 'ARS') !== moneda;
+      if(!cambiaProv && !cambiaMoneda){ stats.sinCambio++; continue; }
+
+      matches.push({ docId: prod2._id, proveedor: provNombre, moneda: moneda });
+    }
+
+    // Proveedores que faltan crear (no configurados aún)
+    var existentesIds = {};
+    lpState.proveedores.forEach(function(pp){ if(pp._configurado) existentesIds[pp.id] = true; });
+    var provsNuevos = {};
+    Object.keys(provNombres).forEach(function(nombre){
+      var id = provNombres[nombre];
+      if(!existentesIds[id]) provsNuevos[id] = nombre;
+    });
+
+    lpCatData = { matches: matches, provsNuevos: provsNuevos, stats: stats };
+
+    // Render resumen
+    var nProvNuevos = Object.keys(provsNuevos).length;
+    var html = '<div class="lp-cat-stats">';
+    html += lpCatStat('Productos en el archivo', stats.totalFilas);
+    html += lpCatStat('Coinciden con tu base', stats.matcheados, 'ok');
+    html += lpCatStat('A actualizar (cambian)', matches.length, matches.length ? 'ok' : '');
+    html += lpCatStat('Ya estaban bien', stats.sinCambio);
+    html += lpCatStat('No están en tu base', stats.sinMatch, stats.sinMatch ? 'warn' : '');
+    html += lpCatStat('Proveedores a crear', nProvNuevos, nProvNuevos ? 'ok' : '');
+    html += lpCatStat('Marcados en dólares', stats.usd);
+    html += '</div>';
+    if(matches.length === 0 && nProvNuevos === 0){
+      html += '<div class="lp-help-box" style="margin-top:14px">Todo está sincronizado, no hay cambios para aplicar.</div>';
+    } else {
+      html += '<div class="lp-cat-note">Se van a actualizar <strong>' + matches.length + '</strong> producto(s) (solo proveedor y moneda) y crear <strong>' + nProvNuevos + '</strong> proveedor(es). Los precios de venta no se tocan.</div>';
+      document.getElementById('lpCatBtnAplicar').style.display = 'inline-block';
+      document.getElementById('lpCatBtnAplicar').textContent = 'Aplicar sincronización (' + matches.length + ')';
+    }
+    resumen.innerHTML = html;
+  }catch(err){
+    console.error(err);
+    resumen.innerHTML = '<div class="lp-help-box" style="border-color:var(--danger)">Error al leer el archivo: ' + eH(err.message) + '</div>';
+  }
+}
+
+function lpCatStat(label, valor, tipo){
+  var cls = tipo === 'ok' ? 'lp-cat-ok' : (tipo === 'warn' ? 'lp-cat-warn' : '');
+  return '<div class="lp-cat-stat"><span>' + label + '</span><strong class="' + cls + '">' + lpFmt(valor) + '</strong></div>';
+}
+
+async function lpAplicarCatalogo(){
+  if(!lpCatData) return;
+  var matches = lpCatData.matches;
+  var provsNuevos = lpCatData.provsNuevos;
+  var totalPasos = matches.length;
+  var btn = document.getElementById('lpCatBtnAplicar');
+  btn.disabled = true;
+
+  try{
+    // 1) Crear proveedores nuevos
+    var provIds = Object.keys(provsNuevos);
+    if(provIds.length > 0){
+      btn.textContent = 'Creando proveedores...';
+      var BP = 400;
+      for(var s = 0; s < provIds.length; s += BP){
+        var sliceP = provIds.slice(s, s + BP);
+        var batchP = db.batch();
+        sliceP.forEach(function(id){
+          var nombre = provsNuevos[id];
+          var def = lpProvDefault(nombre);
+          var ref = db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(id);
+          batchP.set(ref, {
+            proveedorNombre: nombre,
+            descuentoProveedor: 0,
+            ivaDefault: 21,
+            baseGanancia: 'conDescuento',
+            moneda: 'ARS',
+            tramos: def.tramos,
+            actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        });
+        await batchP.commit();
+      }
+    }
+
+    // 2) Actualizar productos (proveedor + moneda) en batches
+    var B = 400;
+    var localUpdates = [];
+    for(var i = 0; i < matches.length; i += B){
+      var slice = matches.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(m){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(m.docId);
+        batch.update(ref, { proveedor: m.proveedor, moneda: m.moneda });
+        var prodLocal = productos.find(function(p){ return p._id === m.docId; });
+        if(prodLocal) localUpdates.push(Object.assign({}, prodLocal, { proveedor: m.proveedor, moneda: m.moneda }));
+      });
+      await batch.commit();
+      btn.textContent = 'Aplicando ' + Math.min(i + B, matches.length) + ' / ' + matches.length + '...';
+    }
+
+    // 3) Actualizar cache local
+    if(localUpdates.length){
+      try{ await idbGuardarBatch(currentEmpresaId, localUpdates); }catch(e){ console.warn('IDB skip', e); }
+      try{ productos = await idbGetTodos(currentEmpresaId); }catch(e){}
+    }
+
+    toast('✅ Catálogo sincronizado: ' + matches.length + ' productos, ' + provIds.length + ' proveedores creados', 'success');
+    lpCerrarModalCatalogo();
+    lpCargarProveedores();
+  }catch(err){
+    console.error(err);
+    toast('Error al sincronizar: ' + err.message, 'error');
+  }finally{
+    btn.disabled = false;
+  }
 }
 
 function lpRenderTramos(){
@@ -17030,12 +17325,50 @@ async function lpGuardarProveedor(){
     actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
   };
 
-  var docId = lpState.proveedorEditando || lpSanitizarId(nombre);
+  // ¿Cambió el nombre de un proveedor existente? → reasignar sus productos
+  var provViejo = lpState.proveedorEditando ?
+    lpState.proveedores.find(function(p){ return p.id === lpState.proveedorEditando; }) : null;
+  var nombreViejo = provViejo ? provViejo.proveedorNombre : null;
+  var cambioNombre = !!(nombreViejo && nombreViejo !== nombre);
+
+  var docIdViejo = lpState.proveedorEditando;
+  var docIdNuevo = cambioNombre ? lpSanitizarId(nombre) : (lpState.proveedorEditando || lpSanitizarId(nombre));
 
   try{
+    if(cambioNombre){
+      var afectados = productos.filter(function(p){ return String(p.proveedor || '').trim() === nombreViejo; });
+      if(afectados.length > 0){
+        if(!confirm('Vas a renombrar "' + nombreViejo + '" → "' + nombre + '" y reasignar ' + afectados.length + ' producto(s). ¿Continuar?')){ return; }
+        var bsize = 400, actualizadosLocal = [], nowIso = new Date().toISOString();
+        for(var s = 0; s < afectados.length; s += bsize){
+          var slice = afectados.slice(s, s + bsize);
+          var batch = db.batch();
+          slice.forEach(function(p){
+            var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id);
+            batch.update(ref, { proveedor: nombre });
+            actualizadosLocal.push(Object.assign({}, p, { proveedor: nombre }));
+          });
+          await batch.commit();
+        }
+        // Actualizar cache local
+        try{ await idbGuardarBatch(currentEmpresaId, actualizadosLocal); }catch(e){ console.warn('IDB skip', e); }
+        try{ productos = await idbGetTodos(currentEmpresaId); }catch(e){}
+      }
+    }
+
+    // Guardar config con el (posiblemente nuevo) id
     await db.collection('empresas').doc(currentEmpresaId)
-      .collection('listas_proveedores').doc(docId).set(data, {merge: true});
-    toast('Proveedor guardado', 'success');
+      .collection('listas_proveedores').doc(docIdNuevo).set(data, {merge: true});
+
+    // Si el id cambió, borrar la config vieja
+    if(cambioNombre && docIdViejo && docIdViejo !== docIdNuevo){
+      try{
+        await db.collection('empresas').doc(currentEmpresaId)
+          .collection('listas_proveedores').doc(docIdViejo).delete();
+      }catch(e){ console.warn('No se pudo borrar config vieja', e); }
+    }
+
+    toast(cambioNombre ? 'Proveedor renombrado y productos reasignados' : 'Proveedor guardado', 'success');
     lpCerrarModal();
     lpCargarProveedores();
   }catch(err){
@@ -17464,7 +17797,8 @@ function lpProcesarMatching(){
     row.productoActual = matched ? {
       docId: matched._id,
       precioVenta: matched.precioVenta || 0,
-      descripcionActual: matched.descripcion || matched.nombre || ''
+      descripcionActual: matched.descripcion || matched.nombre || '',
+      moneda: matched.moneda || null
     } : null;
 
     // Resolver proveedor de la fila (solo en sábana; en simple ya viene asignado).
@@ -17513,8 +17847,12 @@ function lpRecalcularFila(row){
   var prov = row._prov || (imp && imp.proveedor) || {};
   var ivaUsar = (row.ivaCustom != null) ? row.ivaCustom : (prov.ivaDefault != null ? prov.ivaDefault : 21);
   var descProd = Number(row.descProducto) || 0;
-  // Moneda de la fila: columna del Excel > moneda del proveedor > moneda elegida (simple) > ARS
+  // Moneda de la fila, por prioridad:
+  //  1) columna del Excel  2) la guardada en el producto (proveedores mixtos)
+  //  3) la del proveedor    4) la elegida al importar (simple)  5) ARS
+  var monedaProd = (row.productoActual && row.productoActual.moneda) ? row.productoActual.moneda : null;
   var moneda = row._monedaRaw
+            || monedaProd
             || prov.moneda
             || (imp && imp.modo === 'simple' ? lpState.monedaImport : null)
             || 'ARS';
