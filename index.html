@@ -4517,6 +4517,75 @@
     padding:10px 12px;
   }
 
+  /* Empleados */
+  .emp-permisos-list{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .emp-perm-item{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:11px 14px;
+    background:var(--paper);
+    cursor:pointer;
+    transition:background .12s;
+  }
+  .emp-perm-item:hover{ background:var(--bg-2); }
+  .emp-perm-item input{ margin-top:2px; width:16px; height:16px; cursor:pointer; flex-shrink:0; }
+  .emp-perm-texts{ display:flex; flex-direction:column; gap:1px; }
+  .emp-perm-label{ font-size:13px; font-weight:600; color:var(--text); }
+  .emp-perm-desc{ font-size:11px; color:var(--text-mute); }
+  .emp-codigo-box{
+    background:var(--bg-2);
+    border:2px dashed var(--accent);
+    border-radius:12px;
+    padding:18px;
+    text-align:center;
+    margin-top:4px;
+  }
+  .emp-codigo-label{ font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-mute); margin-bottom:6px; }
+  .emp-codigo-valor{
+    font-family:var(--mono);
+    font-size:26px;
+    font-weight:700;
+    color:var(--accent);
+    letter-spacing:.08em;
+    margin-bottom:12px;
+    user-select:all;
+  }
+  .emp-card{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  .emp-card:last-child{ border-bottom:none; }
+  .emp-avatar{
+    width:42px;height:42px;border-radius:50%;
+    background:var(--accent-soft);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:16px;flex-shrink:0;
+  }
+  .emp-info{ flex:1; min-width:0; }
+  .emp-nombre{ font-weight:600; font-size:14px; color:var(--text); }
+  .emp-email{ font-size:12px; color:var(--text-mute); }
+  .emp-rol-badge{
+    font-size:11px; padding:2px 10px; border-radius:10px;
+    background:var(--bg-2); color:var(--text-mute); font-weight:600;
+  }
+  .emp-rol-badge.admin{ background:var(--accent-soft); color:var(--accent); }
+  .emp-rol-badge.pendiente{ background:var(--warning-soft, #fff3e0); color:var(--warning, #c77700); }
+  .emp-acciones{ display:flex; gap:6px; }
+
+  /* Ocultar botones de edición de productos para roles sin permiso */
+  body.no-editar-productos .requiere-editar-productos{ display:none !important; }
+
 </style>
 </head>
 <body>
@@ -4685,6 +4754,36 @@
     </div>
     <button class="btn-form" id="btnLogin" onclick="login()">Entrar</button>
     <div class="modal-foot">¿Sos nuevo? <a onclick="switchToRegister()">Creá tu cuenta gratis</a></div>
+    <div class="modal-foot" style="margin-top:6px">¿Te invitaron a una cuenta? <a onclick="abrirRegistroInvitacion()">Tengo un código de invitación</a></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalInvitacion">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">Unite a una cuenta existente</div>
+    <h2 class="modal-title">Registro por invitación</h2>
+    <p class="modal-subtitle">Te invitaron a Comercia. Ingresá el código que te pasaron y creá tu acceso.</p>
+    <div class="alert error" id="invAlert"></div>
+    <div class="form-group">
+      <label class="form-label">Código de invitación</label>
+      <input class="form-input" type="text" id="invCodigo" placeholder="Ej: A4B9K2" style="text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono)" maxlength="6">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tu nombre</label>
+      <input class="form-input" type="text" id="invName" placeholder="Juan Pérez" autocomplete="name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="invEmail" placeholder="vos@ejemplo.com" autocomplete="email">
+      <p style="font-size:12px;color:var(--text-mute);margin:6px 0 0">Tiene que ser el mismo email al que te invitaron.</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input class="form-input" type="password" id="invPassword" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+    </div>
+    <button class="btn-form" id="btnInvitacion" onclick="registrarConInvitacion()">Crear mi acceso</button>
+    <div class="modal-foot">¿Ya tenés cuenta? <a onclick="switchToLogin()">Iniciá sesión</a></div>
   </div>
 </div>
 
@@ -5476,14 +5575,13 @@
       <div class="module" id="moduleEmpleados">
         <header class="main-header">
           <h1 class="main-title">Empleados</h1>
+          <div class="main-actions">
+            <button class="btn btn-primary btn-sm" id="empBtnInvitar" onclick="empAbrirInvitar()">&#10133; Invitar empleado</button>
+          </div>
         </header>
         <div class="main-body">
-          <div class="table-card">
-            <div class="empty-table">
-              <div class="empty-table-icon">&#128101;</div>
-              <div class="empty-table-title">Módulo en construcción</div>
-              <div class="empty-table-desc">Próximamente podrás invitar empleados a tu cuenta.</div>
-            </div>
+          <div id="empContenido">
+            <div class="table-card"><div class="empty-table"><div class="empty-table-icon">&#128101;</div><div class="empty-table-title">Cargando...</div></div></div>
           </div>
         </div>
       </div>
@@ -6046,6 +6144,75 @@
             <button class="btn btn-sm btn-light" onclick="lpCerrarModal()">Cancelar</button>
             <button class="btn btn-sm btn-danger" id="lpBtnEliminarProv" onclick="lpEliminarProveedor()" style="display:none;margin-right:auto">Eliminar</button>
             <button class="btn btn-sm btn-primary" onclick="lpGuardarProveedor()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MODAL: INVITAR / EDITAR EMPLEADO ═══ -->
+      <div class="modal-overlay" id="empModal">
+        <div class="modal" style="max-width:560px">
+          <div class="modal-header">
+            <h3 class="modal-title" id="empModalTitulo">Invitar empleado</h3>
+            <button class="modal-close" onclick="empCerrarModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div id="empModalInvitarBox">
+              <div class="lp-form-row">
+                <label>Nombre del empleado</label>
+                <input type="text" class="search-input" id="empNombre" placeholder="Ej: Juan Pérez">
+              </div>
+              <div class="lp-form-row">
+                <label>Email del empleado</label>
+                <input type="email" class="search-input" id="empEmail" placeholder="juan@email.com">
+                <p class="lp-form-help">Con este email el empleado va a crear su cuenta usando el código de invitación.</p>
+              </div>
+            </div>
+
+            <div class="lp-form-row">
+              <label>Rol</label>
+              <select class="search-input" id="empRol" onchange="empAplicarPreset(this.value)">
+                <option value="vendedor">Vendedor</option>
+                <option value="deposito">Depósito</option>
+                <option value="admin">Administrador</option>
+                <option value="custom">Personalizado</option>
+              </select>
+              <p class="lp-form-help" id="empRolDesc"></p>
+            </div>
+
+            <div class="lp-form-row">
+              <label>Permisos</label>
+              <div id="empPermisosList" class="emp-permisos-list"></div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-light" onclick="empCerrarModal()">Cancelar</button>
+            <button class="btn btn-sm btn-primary" id="empBtnGuardar" onclick="empGuardar()">Generar invitación</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MODAL: CÓDIGO DE INVITACIÓN GENERADO ═══ -->
+      <div class="modal-overlay" id="empModalCodigo">
+        <div class="modal" style="max-width:480px">
+          <div class="modal-header">
+            <h3 class="modal-title">Invitación lista</h3>
+            <button class="modal-close" onclick="empCerrarModalCodigo()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p style="color:var(--text-mute);font-size:14px;margin-top:0">Pasale estos datos al empleado. Con el <strong>código</strong> va a poder crear su cuenta desde la pantalla de inicio, tocando "Tengo un código de invitación".</p>
+            <div class="emp-codigo-box">
+              <div class="emp-codigo-label">Código de invitación</div>
+              <div class="emp-codigo-valor" id="empCodigoValor">—</div>
+              <button class="btn btn-sm btn-light" onclick="empCopiarCodigo()">&#128203; Copiar código</button>
+            </div>
+            <div class="lp-help-box" style="margin-top:14px">
+              <strong>Email:</strong> <span id="empCodigoEmail">—</span><br>
+              <strong>Rol:</strong> <span id="empCodigoRol">—</span><br>
+              El código vence en 7 días o cuando el empleado lo use.
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-primary" onclick="empCerrarModalCodigo()">Listo</button>
           </div>
         </div>
       </div>
@@ -7129,6 +7296,77 @@ function openLogin(){ closeModals(); document.getElementById('modalLogin').class
 function closeModals(){ document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('show')); hideAlerts(); restoreAutoSidebar(); }
 function switchToLogin(){ closeModals(); openLogin(); }
 function switchToRegister(){ closeModals(); openRegister(); }
+function abrirRegistroInvitacion(){ closeModals(); document.getElementById('modalInvitacion').classList.add('show'); }
+
+async function registrarConInvitacion(){
+  var codigo = document.getElementById('invCodigo').value.trim().toUpperCase();
+  var nombre = document.getElementById('invName').value.trim();
+  var email = document.getElementById('invEmail').value.trim().toLowerCase();
+  var password = document.getElementById('invPassword').value;
+  hideAlerts();
+
+  if(!codigo || !nombre || !email || !password){ return showAlert('invAlert','Completá todos los campos.'); }
+  if(password.length < 8){ return showAlert('invAlert','La contraseña debe tener al menos 8 caracteres.'); }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ return showAlert('invAlert','El email no es válido.'); }
+
+  var btn = document.getElementById('btnInvitacion');
+  btn.disabled = true; btn.textContent = 'Verificando código...';
+  window._registrationInProgress = true;
+
+  var createdUid = null;
+  try{
+    // 1) Buscar la invitación por código
+    var codDoc = await db.collection('invitaciones_codigos').doc(codigo).get();
+    if(!codDoc.exists){ throw new Error('El código no existe o ya fue usado.'); }
+    var codData = codDoc.data();
+    if(codData.estado !== 'pendiente'){ throw new Error('Esta invitación ya fue usada.'); }
+    if(codData.venceEn && new Date(codData.venceEn) < new Date()){ throw new Error('La invitación venció. Pedile al admin que genere una nueva.'); }
+    if(codData.email && codData.email.toLowerCase() !== email){ throw new Error('El email no coincide con el de la invitación.'); }
+
+    var empresaId = codData.empresaId;
+
+    // 2) Leer la invitación completa (para el rol y permisos)
+    var invSnap = await db.collection('empresas').doc(empresaId).collection('invitaciones').where('codigo','==',codigo).limit(1).get();
+    if(invSnap.empty){ throw new Error('No se encontró la invitación.'); }
+    var invDoc = invSnap.docs[0];
+    var inv = invDoc.data();
+
+    // 3) Crear el usuario en Auth
+    var cred = await auth.createUserWithEmailAndPassword(email, password);
+    createdUid = cred.user.uid;
+
+    // 4) Crear su registro en usuarios_global vinculado a la empresa
+    await db.collection('usuarios_global').doc(createdUid).set({
+      email: email,
+      nombre: nombre,
+      empresaId: empresaId,
+      rol: inv.rol || 'empleado',
+      permisos: inv.permisos || [],
+      creadoEn: new Date().toISOString(),
+      invitadoPor: inv.empresaNombre || ''
+    });
+
+    // 5) Marcar la invitación como usada
+    try{
+      await db.collection('empresas').doc(empresaId).collection('invitaciones').doc(invDoc.id).update({ estado: 'usada', usadaEn: new Date().toISOString(), usadaPorUid: createdUid });
+      await db.collection('invitaciones_codigos').doc(codigo).update({ estado: 'usada' });
+    }catch(e){ console.warn('No se pudo marcar invitación usada', e); }
+
+    try{ await cred.user.sendEmailVerification(); }catch(e){}
+
+    closeModals();
+    window._registrationInProgress = false;
+    if(auth.currentUser){ cargarEmpresaUsuario(auth.currentUser); }
+  }catch(err){
+    console.error('Error registro invitación:', err);
+    // Si creamos el Auth pero falló después, limpiar
+    if(createdUid && auth.currentUser){ try{ await auth.currentUser.delete(); }catch(e){} }
+    var msg = traducirError(err.code) || err.message || 'No se pudo completar el registro.';
+    showAlert('invAlert', msg);
+    btn.disabled = false; btn.textContent = 'Crear mi acceso';
+    window._registrationInProgress = false;
+  }
+}
 function hideAlerts(){ document.querySelectorAll('.alert').forEach(a=>a.classList.remove('show','error','success')); }
 function showAlert(id, msg, type){ var a=document.getElementById(id); a.textContent=msg; a.classList.add('show', type||'error'); }
 
@@ -7326,12 +7564,15 @@ async function cargarEmpresaUsuario(user){
     currentUser = user;
     currentEmpresa = empData;
     currentEmpresaId = u.empresaId;
+    currentUserData = u;
 
     landing.style.display='none';
     app.classList.add('show');
     document.getElementById('appUserName').textContent = u.nombre || user.email;
     document.getElementById('appUserBusiness').textContent = empData ? empData.nombre : '';
     document.getElementById('appUserAvatar').textContent = (u.nombre||user.email).charAt(0).toUpperCase();
+
+    aplicarPermisosUI();
 
     cargarProductos();
 
@@ -7364,6 +7605,7 @@ auth.onAuthStateChanged(async function(user){
     app.classList.remove('show');
     if(banner) banner.style.display='none';
     currentUser = null;
+    currentUserData = null;
     currentEmpresa = null;
     currentEmpresaId = null;
     productos = [];
@@ -7382,6 +7624,7 @@ async function logout(){
 // ESTADO GLOBAL
 // ═══════════════════════════════════════════════════════
 var currentUser = null;
+var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
 var productos = [];
@@ -7394,6 +7637,11 @@ var prodSearchTimer = null;
 // NAVEGACIÓN ENTRE MÓDULOS
 // ═══════════════════════════════════════════════════════
 function navTo(modulo){
+  // Control de acceso: si el usuario no tiene permiso para este módulo, bloquear
+  if(!puedeAcceder(modulo)){
+    toast('No tenés permiso para acceder a esta sección', 'error');
+    return;
+  }
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('[data-module="'+modulo+'"]').forEach(function(n){ n.classList.add('active'); });
   document.querySelectorAll('.module').forEach(function(m){ m.classList.remove('active'); });
@@ -7407,6 +7655,7 @@ function navTo(modulo){
   if(modulo==='configuracion') initConfiguracion();
   if(modulo && modulo.indexOf('int') === 0) initIntegracion(modulo);
   if(modulo==='afip') initAfip();
+  if(modulo==='empleados') initEmpleados();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -7414,14 +7663,350 @@ function navTo(modulo){
 }
 
 // ═══════════════════════════════════════════════════════
-// TOAST
+// PERMISOS Y ROLES
 // ═══════════════════════════════════════════════════════
-function toast(msg, tipo){
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + (tipo || '');
-  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+// Catálogo de permisos disponibles (cada uno corresponde a uno o varios módulos)
+var PERMISOS_DISPONIBLES = [
+  { id: 'pos',                modulo: 'ventas',            label: 'POS / Ventas',            desc: 'Registrar ventas y cobrar' },
+  { id: 'ver_productos',      modulo: 'productos',         label: 'Ver productos',           desc: 'Consultar el catálogo y precios' },
+  { id: 'editar_productos',   modulo: null,                label: 'Editar productos/precios', desc: 'Crear, editar y borrar productos y precios' },
+  { id: 'clientes',           modulo: 'clientes',          label: 'Clientes',                desc: 'Ver y administrar clientes' },
+  { id: 'pedidos',            modulo: 'pedidos',           label: 'Pedidos',                 desc: 'Armar y gestionar pedidos' },
+  { id: 'listas_proveedores', modulo: 'listasProveedores', label: 'Listas de proveedores',   desc: 'Importar listas y actualizar precios' },
+  { id: 'ctacte',             modulo: 'ctacte',            label: 'Cuentas corrientes',      desc: 'Ver y mover cuentas corrientes' },
+  { id: 'integraciones',      modulo: 'integraciones',     label: 'Integraciones',           desc: 'Mercado Libre, Tienda Nube, etc.' },
+  { id: 'afip',               modulo: 'afip',              label: 'Facturación AFIP',        desc: 'Configurar y emitir comprobantes' },
+  { id: 'empleados',          modulo: 'empleados',         label: 'Gestionar empleados',     desc: 'Invitar y administrar usuarios' },
+  { id: 'configuracion',      modulo: 'configuracion',     label: 'Configuración',           desc: 'Ajustes de la empresa' }
+];
+
+// Roles predefinidos (el admin puede partir de uno y personalizar)
+var ROLES_PRESET = {
+  admin: {
+    label: 'Administrador',
+    desc: 'Acceso total',
+    permisos: '*' // todos
+  },
+  vendedor: {
+    label: 'Vendedor',
+    desc: 'POS y consulta de productos (sin editar precios)',
+    permisos: ['pos', 'ver_productos', 'clientes']
+  },
+  deposito: {
+    label: 'Depósito',
+    desc: 'Productos y pedidos',
+    permisos: ['ver_productos', 'pedidos']
+  }
+};
+
+// Devuelve el set de permisos del usuario actual (admin = todos)
+function permisosActuales(){
+  if(!currentUserData) return [];
+  if(currentUserData.rol === 'admin') return PERMISOS_DISPONIBLES.map(function(p){ return p.id; });
+  return Array.isArray(currentUserData.permisos) ? currentUserData.permisos : [];
 }
+
+// ¿El usuario actual tiene un permiso puntual?
+function tienePermiso(permId){
+  if(currentUserData && currentUserData.rol === 'admin') return true;
+  return permisosActuales().indexOf(permId) >= 0;
+}
+
+// ¿Puede acceder a un módulo? (mapea módulo → permiso)
+function puedeAcceder(modulo){
+  if(!currentUserData) return true; // durante carga inicial, no bloquear
+  if(currentUserData.rol === 'admin') return true;
+  if(!modulo) return true;
+  // Integraciones (cualquier intXxx)
+  if(modulo.indexOf('int') === 0) return tienePermiso('integraciones');
+  // Buscar el permiso cuyo módulo coincide
+  var match = PERMISOS_DISPONIBLES.find(function(p){ return p.modulo === modulo; });
+  if(!match) return true; // módulo sin permiso asociado → libre
+  return tienePermiso(match.id);
+}
+
+// Aplica los permisos a la interfaz: oculta los items del menú no permitidos
+function aplicarPermisosUI(){
+  if(!currentUserData) return;
+  var esAdmin = (currentUserData.rol === 'admin');
+  document.querySelectorAll('.nav-item[data-module]').forEach(function(item){
+    var mod = item.getAttribute('data-module');
+    item.style.display = (esAdmin || puedeAcceder(mod)) ? '' : 'none';
+  });
+  // Marcar el body con el rol (para CSS que oculte botones de edición, etc.)
+  document.body.setAttribute('data-rol', currentUserData.rol || 'admin');
+  document.body.classList.toggle('no-editar-productos', !tienePermiso('editar_productos'));
+}
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO: EMPLEADOS (invitaciones + permisos)
+// ═══════════════════════════════════════════════════════
+var empState = { empleados: [], invitaciones: [], permisosSeleccionados: [] };
+
+async function initEmpleados(){
+  if(!currentEmpresaId) return;
+  // Solo el admin (o quien tenga permiso 'empleados') puede entrar
+  if(currentUserData && currentUserData.rol !== 'admin' && !tienePermiso('empleados')){
+    document.getElementById('empContenido').innerHTML =
+      '<div class="table-card"><div class="empty-table"><div class="empty-table-icon">&#128274;</div><div class="empty-table-title">Sin acceso</div><div class="empty-table-desc">Solo el administrador puede gestionar empleados.</div></div></div>';
+    var bi = document.getElementById('empBtnInvitar'); if(bi) bi.style.display = 'none';
+    return;
+  }
+  await empCargar();
+}
+
+async function empCargar(){
+  var cont = document.getElementById('empContenido');
+  try{
+    var usuariosSnap = await db.collection('usuarios_global').where('empresaId', '==', currentEmpresaId).get();
+    empState.empleados = usuariosSnap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); });
+
+    var invSnap = await db.collection('empresas').doc(currentEmpresaId).collection('invitaciones').where('estado', '==', 'pendiente').get();
+    empState.invitaciones = invSnap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); });
+
+    empRender();
+  }catch(err){
+    console.error(err);
+    cont.innerHTML = '<div class="table-card"><div class="empty-table"><div class="empty-table-title">Error al cargar empleados</div><div class="empty-table-desc">' + eH(err.message) + '</div></div></div>';
+  }
+}
+
+function empRender(){
+  var cont = document.getElementById('empContenido');
+  var html = '<div class="table-card"><div style="padding:4px 0">';
+
+  // Usuarios activos
+  empState.empleados.forEach(function(u){
+    var inicial = (u.nombre || u.email || '?').charAt(0).toUpperCase();
+    var rolLabel = (ROLES_PRESET[u.rol] && ROLES_PRESET[u.rol].label) || (u.rol === 'admin' ? 'Administrador' : 'Empleado');
+    var esYo = (currentUser && u._id === currentUser.uid);
+    var badgeCls = u.rol === 'admin' ? 'admin' : '';
+    html += '<div class="emp-card">' +
+      '<div class="emp-avatar">' + inicial + '</div>' +
+      '<div class="emp-info"><div class="emp-nombre">' + eH(u.nombre || '(sin nombre)') + (esYo ? ' <span style="color:var(--text-mute);font-weight:400">(vos)</span>' : '') + '</div>' +
+      '<div class="emp-email">' + eH(u.email || '') + '</div></div>' +
+      '<span class="emp-rol-badge ' + badgeCls + '">' + eH(rolLabel) + '</span>' +
+      '<div class="emp-acciones">';
+    if(!esYo && u.rol !== 'admin'){
+      html += '<button class="btn btn-xs btn-light" onclick="empEditar(\'' + u._id + '\')">Permisos</button>' +
+              '<button class="btn btn-xs btn-danger" onclick="empEliminar(\'' + u._id + '\')">Quitar</button>';
+    }
+    html += '</div></div>';
+  });
+
+  // Invitaciones pendientes
+  empState.invitaciones.forEach(function(inv){
+    html += '<div class="emp-card">' +
+      '<div class="emp-avatar" style="background:var(--bg-2);color:var(--text-mute)">&#9993;</div>' +
+      '<div class="emp-info"><div class="emp-nombre">' + eH(inv.nombre || inv.email) + '</div>' +
+      '<div class="emp-email">' + eH(inv.email) + ' · código ' + eH(inv.codigo) + '</div></div>' +
+      '<span class="emp-rol-badge pendiente">Pendiente</span>' +
+      '<div class="emp-acciones">' +
+      '<button class="btn btn-xs btn-danger" onclick="empCancelarInvitacion(\'' + inv._id + '\')">Cancelar</button>' +
+      '</div></div>';
+  });
+
+  html += '</div></div>';
+
+  // Contador / límite (placeholder para futuro plan de pagos)
+  var totalUsuarios = empState.empleados.length + empState.invitaciones.length;
+  html = '<p style="color:var(--text-mute);font-size:13px;margin:0 0 12px">' + totalUsuarios + ' usuario(s) en tu cuenta</p>' + html;
+
+  cont.innerHTML = html;
+}
+
+// ─── Modal invitar / editar ───
+var empEditandoUid = null;
+
+function empAbrirInvitar(){
+  empEditandoUid = null;
+  document.getElementById('empModalTitulo').textContent = 'Invitar empleado';
+  document.getElementById('empModalInvitarBox').style.display = '';
+  document.getElementById('empNombre').value = '';
+  document.getElementById('empEmail').value = '';
+  document.getElementById('empRol').value = 'vendedor';
+  document.getElementById('empBtnGuardar').textContent = 'Generar invitación';
+  empAplicarPreset('vendedor');
+  empRenderPermisos();
+  document.getElementById('empModal').classList.add('show');
+}
+
+function empEditar(uid){
+  var u = empState.empleados.find(function(e){ return e._id === uid; });
+  if(!u) return;
+  empEditandoUid = uid;
+  document.getElementById('empModalTitulo').textContent = 'Permisos de ' + (u.nombre || u.email);
+  document.getElementById('empModalInvitarBox').style.display = 'none';
+  document.getElementById('empRol').value = u.rol === 'admin' ? 'admin' : (empDetectarPreset(u.permisos) || 'custom');
+  empState.permisosSeleccionados = (u.rol === 'admin') ? PERMISOS_DISPONIBLES.map(function(p){ return p.id; }) : (u.permisos || []).slice();
+  document.getElementById('empBtnGuardar').textContent = 'Guardar permisos';
+  document.getElementById('empRolDesc').textContent = '';
+  empRenderPermisos();
+  document.getElementById('empModal').classList.add('show');
+}
+
+function empDetectarPreset(permisos){
+  if(!permisos) return null;
+  var keys = Object.keys(ROLES_PRESET);
+  for(var i=0;i<keys.length;i++){
+    var r = ROLES_PRESET[keys[i]];
+    if(r.permisos === '*') continue;
+    if(r.permisos.length === permisos.length && r.permisos.every(function(p){ return permisos.indexOf(p) >= 0; })){
+      return keys[i];
+    }
+  }
+  return null;
+}
+
+function empAplicarPreset(rol){
+  var preset = ROLES_PRESET[rol];
+  document.getElementById('empRolDesc').textContent = preset ? preset.desc : 'Elegí permisos uno por uno';
+  if(rol === 'custom') return; // no toca la selección actual
+  if(preset){
+    empState.permisosSeleccionados = (preset.permisos === '*')
+      ? PERMISOS_DISPONIBLES.map(function(p){ return p.id; })
+      : preset.permisos.slice();
+  }
+  empRenderPermisos();
+}
+
+function empRenderPermisos(){
+  var cont = document.getElementById('empPermisosList');
+  var html = '';
+  PERMISOS_DISPONIBLES.forEach(function(p){
+    var checked = empState.permisosSeleccionados.indexOf(p.id) >= 0 ? 'checked' : '';
+    html += '<label class="emp-perm-item">' +
+      '<input type="checkbox" value="' + p.id + '" ' + checked + ' onchange="empTogglePermiso(\'' + p.id + '\', this.checked)">' +
+      '<span class="emp-perm-texts"><span class="emp-perm-label">' + eH(p.label) + '</span>' +
+      '<span class="emp-perm-desc">' + eH(p.desc) + '</span></span></label>';
+  });
+  cont.innerHTML = html;
+}
+
+function empTogglePermiso(id, on){
+  var i = empState.permisosSeleccionados.indexOf(id);
+  if(on && i < 0) empState.permisosSeleccionados.push(id);
+  if(!on && i >= 0) empState.permisosSeleccionados.splice(i, 1);
+  // Si cambió respecto al preset, marcar como personalizado
+  var rolSel = document.getElementById('empRol');
+  var detectado = empDetectarPreset(empState.permisosSeleccionados);
+  if(rolSel.value === 'admin' || !detectado){
+    // mantener admin solo si están todos
+    var todos = PERMISOS_DISPONIBLES.length === empState.permisosSeleccionados.length;
+    rolSel.value = todos ? 'admin' : 'custom';
+  } else {
+    rolSel.value = detectado;
+  }
+  document.getElementById('empRolDesc').textContent = '';
+}
+
+function empCerrarModal(){ document.getElementById('empModal').classList.remove('show'); }
+function empCerrarModalCodigo(){ document.getElementById('empModalCodigo').classList.remove('show'); }
+
+function empGenerarCodigo(){
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var s = '';
+  for(var i=0;i<6;i++) s += chars.charAt(Math.floor(Math.random()*chars.length));
+  return s;
+}
+
+async function empGuardar(){
+  var rolSel = document.getElementById('empRol').value;
+  var esAdmin = (rolSel === 'admin');
+  var permisos = esAdmin ? '*' : empState.permisosSeleccionados.slice();
+
+  // EDITAR permisos de un usuario existente
+  if(empEditandoUid){
+    try{
+      await db.collection('usuarios_global').doc(empEditandoUid).update({
+        rol: esAdmin ? 'admin' : 'empleado',
+        permisos: esAdmin ? [] : permisos
+      });
+      toast('Permisos actualizados', 'success');
+      empCerrarModal();
+      empCargar();
+    }catch(err){
+      console.error(err);
+      toast('Error al guardar: ' + err.message, 'error');
+    }
+    return;
+  }
+
+  // NUEVA invitación
+  var nombre = document.getElementById('empNombre').value.trim();
+  var email = document.getElementById('empEmail').value.trim().toLowerCase();
+  if(!nombre){ toast('Falta el nombre', 'error'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Email no válido', 'error'); return; }
+
+  var btn = document.getElementById('empBtnGuardar');
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try{
+    var codigo = empGenerarCodigo();
+    var vence = new Date(); vence.setDate(vence.getDate() + 7);
+    await db.collection('empresas').doc(currentEmpresaId).collection('invitaciones').add({
+      nombre: nombre,
+      email: email,
+      rol: esAdmin ? 'admin' : 'empleado',
+      permisos: esAdmin ? [] : permisos,
+      codigo: codigo,
+      estado: 'pendiente',
+      empresaId: currentEmpresaId,
+      empresaNombre: (currentEmpresa && currentEmpresa.nombre) || '',
+      creadoEn: new Date().toISOString(),
+      venceEn: vence.toISOString()
+    });
+    // También dejamos un índice global del código para que el empleado pueda buscarlo al registrarse
+    await db.collection('invitaciones_codigos').doc(codigo).set({
+      empresaId: currentEmpresaId,
+      email: email,
+      estado: 'pendiente',
+      venceEn: vence.toISOString()
+    });
+
+    document.getElementById('empCodigoValor').textContent = codigo;
+    document.getElementById('empCodigoEmail').textContent = email;
+    document.getElementById('empCodigoRol').textContent = esAdmin ? 'Administrador' : (empDetectarPreset(permisos) ? ROLES_PRESET[empDetectarPreset(permisos)].label : 'Personalizado');
+    empCerrarModal();
+    document.getElementById('empModalCodigo').classList.add('show');
+    empCargar();
+  }catch(err){
+    console.error(err);
+    toast('Error al generar invitación: ' + err.message, 'error');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Generar invitación';
+  }
+}
+
+function empCopiarCodigo(){
+  var cod = document.getElementById('empCodigoValor').textContent;
+  if(navigator.clipboard){ navigator.clipboard.writeText(cod); toast('Código copiado', 'success'); }
+}
+
+async function empCancelarInvitacion(invId){
+  var inv = empState.invitaciones.find(function(i){ return i._id === invId; });
+  if(!inv) return;
+  if(!confirm('¿Cancelar la invitación de ' + (inv.nombre || inv.email) + '?')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).collection('invitaciones').doc(invId).update({ estado: 'cancelada' });
+    if(inv.codigo){ try{ await db.collection('invitaciones_codigos').doc(inv.codigo).delete(); }catch(e){} }
+    toast('Invitación cancelada', 'success');
+    empCargar();
+  }catch(err){ console.error(err); toast('Error: ' + err.message, 'error'); }
+}
+
+async function empEliminar(uid){
+  var u = empState.empleados.find(function(e){ return e._id === uid; });
+  if(!u) return;
+  if(!confirm('¿Quitar a ' + (u.nombre || u.email) + ' de tu empresa?\n\nNo va a poder seguir accediendo. Su cuenta de login no se borra, pero queda sin empresa asociada.')) return;
+  try{
+    // Lo desvinculamos de la empresa (no borramos su Auth, eso requiere backend)
+    await db.collection('usuarios_global').doc(uid).update({ empresaId: null, rol: 'sin_empresa', desvinculadoEn: new Date().toISOString() });
+    toast('Empleado quitado', 'success');
+    empCargar();
+  }catch(err){ console.error(err); toast('Error: ' + err.message, 'error'); }
+}
+
+
 
 
 // ═══════════════════════════════════════════════════════
