@@ -4619,6 +4619,20 @@
   .es-badge.nuevo{ background:var(--warning-soft,#fff3e0); color:var(--warning,#c77700); }
   .es-badge.error{ background:#fde8e8; color:#c0392b; }
 
+  /* Analizador de márgenes */
+  .lp-anal-box{
+    margin-top:14px; padding:14px; border:1px solid var(--border);
+    border-radius:10px; background:var(--bg-soft);
+  }
+  .lp-anal-titulo{ font-size:13px; font-weight:700; color:var(--text); margin:0 0 4px; }
+  .lp-anal-sub{ font-size:12px; color:var(--text-mute); margin:0 0 12px; }
+  .lp-anal-tabla{ width:100%; border-collapse:collapse; font-size:13px; }
+  .lp-anal-tabla th{ text-align:left; padding:6px 8px; color:var(--text-mute); font-size:11px; text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .lp-anal-tabla td{ padding:7px 8px; border-bottom:1px solid var(--border); }
+  .lp-anal-tabla td.num{ text-align:right; font-family:var(--mono); }
+  .lp-anal-margen{ font-weight:700; color:var(--accent); }
+  .lp-anal-acciones{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+
 </style>
 </head>
 <body>
@@ -6245,7 +6259,11 @@
               <label>Tramos de ganancia por monto</label>
               <p class="lp-form-help">A productos más baratos podés sacarles más ganancia. A más caros, menos. Los tramos se aplican según el costo del producto.</p>
               <div id="lpModalTramos"></div>
-              <button class="btn btn-sm btn-light" onclick="lpAgregarTramo()" style="margin-top:8px">&#43; Agregar tramo</button>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+                <button class="btn btn-sm btn-light" onclick="lpAgregarTramo()">&#43; Agregar tramo</button>
+                <button class="btn btn-sm btn-light" onclick="lpAnalizarMargenes()">&#128202; Analizar mis márgenes actuales</button>
+              </div>
+              <div id="lpAnalisisMargenes" style="display:none"></div>
             </div>
 
             <!-- Calculadora preview -->
@@ -18546,6 +18564,99 @@ function lpActualizarTramo(idx, campo, val){
     lpState.tramosEditando[idx][campo] = Number(val) || 0;
   }
   lpRecalcularPreview();
+}
+
+// Analiza los márgenes reales del proveedor que se está editando,
+// usando los productos ya cargados (precioVenta vs precioCosto, ambos con IVA).
+var lpAnalisisActual = null;
+function lpAnalizarMargenes(){
+  var cont = document.getElementById('lpAnalisisMargenes');
+  // Nombre del proveedor del modal
+  var nombreProv = (document.getElementById('lpModalNombre').value || '').trim();
+  if(!nombreProv){ toast('Primero poné el nombre del proveedor', 'error'); return; }
+
+  // Filtrar productos de este proveedor con costo y precio válidos
+  var nprov = nombreProv.toLowerCase();
+  var items = productos.filter(function(p){
+    var pp = String(p.proveedor || '').trim().toLowerCase();
+    if(pp !== nprov) return false;
+    var costo = Number(p.precioCosto) || 0;
+    var venta = Number(p.precioVenta) || 0;
+    return costo > 0 && venta > 0 && venta >= costo;
+  });
+
+  if(items.length === 0){
+    cont.style.display = 'block';
+    cont.innerHTML = '<div class="lp-anal-box"><p class="lp-anal-sub">No encontré productos de "' + eH(nombreProv) + '" con costo y precio de venta cargados. El análisis necesita ambos datos.</p></div>';
+    return;
+  }
+
+  // Tramos de análisis (mismos cortes que los tramos default)
+  var cortes = [
+    { desde: 0, hasta: 500 },
+    { desde: 500, hasta: 5000 },
+    { desde: 5000, hasta: 50000 },
+    { desde: 50000, hasta: null }
+  ];
+  cortes.forEach(function(c){ c.margenes = []; });
+
+  items.forEach(function(p){
+    var costo = Number(p.precioCosto) || 0;
+    var venta = Number(p.precioVenta) || 0;
+    var margen = (venta / costo - 1) * 100;   // ambos con IVA → IVA se cancela
+    if(margen < 0 || margen > 1000) return;    // descartar datos raros
+    // clasificar por costo
+    for(var i = 0; i < cortes.length; i++){
+      var c = cortes[i];
+      if(costo >= c.desde && (c.hasta === null || costo < c.hasta)){ c.margenes.push(margen); break; }
+    }
+  });
+
+  // Calcular mediana por tramo (la mediana es más robusta que el promedio ante outliers)
+  function mediana(arr){
+    if(arr.length === 0) return null;
+    var s = arr.slice().sort(function(a, b){ return a - b; });
+    var m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2;
+  }
+  lpAnalisisActual = cortes.map(function(c){
+    return { desde: c.desde, hasta: c.hasta, n: c.margenes.length, margen: mediana(c.margenes) };
+  });
+
+  // Render
+  var html = '<div class="lp-anal-box">';
+  html += '<p class="lp-anal-titulo">Tus márgenes actuales en ' + eH(nombreProv) + '</p>';
+  html += '<p class="lp-anal-sub">Calculado sobre ' + items.length + ' productos con precio cargado. Es la ganancia que estás aplicando hoy (mediana por rango).</p>';
+  html += '<table class="lp-anal-tabla"><thead><tr><th>Rango de costo</th><th style="text-align:right">Productos</th><th style="text-align:right">Tu margen</th></tr></thead><tbody>';
+  lpAnalisisActual.forEach(function(t){
+    var rango = '$' + lpFmt(t.desde) + (t.hasta === null ? ' o más' : ' a $' + lpFmt(t.hasta));
+    var margenTxt = (t.margen === null) ? '<span style="color:var(--text-mute)">sin datos</span>' : '<span class="lp-anal-margen">' + Math.round(t.margen) + '%</span>';
+    html += '<tr><td>' + rango + '</td><td class="num">' + t.n + '</td><td class="num">' + margenTxt + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div class="lp-anal-acciones"><button class="btn btn-sm btn-primary" onclick="lpUsarMargenesAnalizados()">Usar estos márgenes en los tramos</button>';
+  html += '<button class="btn btn-sm btn-light" onclick="document.getElementById(\'lpAnalisisMargenes\').style.display=\'none\'">Cerrar</button></div>';
+  html += '<p class="lp-anal-sub" style="margin-top:10px;margin-bottom:0">Tené en cuenta: estos márgenes ya reflejan el descuento que te hizo el proveedor (porque tu costo ya lo incluye). Para el recálculo con la lista nueva, cargá el descuento del proveedor arriba.</p>';
+  html += '</div>';
+  cont.style.display = 'block';
+  cont.innerHTML = html;
+}
+
+// Vuelca los márgenes analizados a los tramos editables
+function lpUsarMargenesAnalizados(){
+  if(!lpAnalisisActual){ return; }
+  var nuevos = [];
+  lpAnalisisActual.forEach(function(t){
+    if(t.margen === null) return; // saltar tramos sin datos
+    nuevos.push({ desde: t.desde, hasta: t.hasta, ganancia: Math.round(t.margen) });
+  });
+  if(nuevos.length === 0){ toast('No hay márgenes para volcar', 'error'); return; }
+  // Asegurar que el último sea infinito
+  nuevos[nuevos.length - 1].hasta = null;
+  lpState.tramosEditando = nuevos;
+  lpRenderTramos();
+  lpRecalcularPreview();
+  toast('Tramos actualizados con tus márgenes. Revisalos y ajustá lo que quieras.', 'success');
 }
 
 function lpAgregarTramo(){
