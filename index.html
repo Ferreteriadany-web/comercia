@@ -5063,6 +5063,7 @@
             <span class="sync-badge" id="cliSyncBadge" style="display:none"></span>
           </div>
           <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="cliAbrirImportar()">&#128228; Importar Excel</button>
             <button class="btn btn-primary btn-sm" onclick="openClienteModal()">&#43; Nuevo cliente</button>
           </div>
         </header>
@@ -6382,6 +6383,53 @@
           <div class="modal-actions">
             <button class="btn btn-sm btn-light" onclick="empCerrarModal()">Cancelar</button>
             <button class="btn btn-sm btn-primary" id="empBtnGuardar" onclick="empGuardar()">Generar invitación</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MODAL: IMPORTAR CLIENTES ═══ -->
+      <div class="modal-overlay" id="cliModalImportar">
+        <div class="modal" style="max-width:680px">
+          <div class="modal-header">
+            <h3 class="modal-title">Importar clientes desde Excel</h3>
+            <button class="modal-close" onclick="cliCerrarImportar()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div id="cliImpPaso1">
+              <div class="lp-help-box" style="margin-top:0">
+                Subí un Excel con tus clientes. Detectamos las columnas solas. Lo único obligatorio es la <strong>razón social / nombre</strong>.
+                <ul>
+                  <li>Razón social o nombre (obligatorio)</li>
+                  <li>Opcional: CUIT/DNI, teléfono, email, dirección, localidad, provincia, condición de IVA</li>
+                </ul>
+              </div>
+              <div class="lp-dropzone" id="cliImpDropzone" style="margin-top:4px">
+                <input type="file" id="cliImpFile" accept=".xlsx,.xls" style="display:none">
+                <div class="lp-dropzone-icon">&#128228;</div>
+                <p class="lp-dropzone-title">Arrastrá el Excel aquí o hacé click</p>
+                <p class="lp-dropzone-sub">.xlsx, .xls</p>
+              </div>
+            </div>
+
+            <div id="cliImpPaso2" style="display:none">
+              <p class="lp-pane-sub" id="cliImpResumen" style="margin-bottom:12px"></p>
+              <div class="lp-table-wrap" style="max-height:340px;overflow:auto">
+                <table class="lp-table" id="cliImpTabla">
+                  <thead><tr>
+                    <th>Razón social / Nombre</th>
+                    <th>CUIT/DNI</th>
+                    <th>Teléfono</th>
+                    <th>Email</th>
+                    <th>Estado</th>
+                  </tr></thead>
+                  <tbody id="cliImpTbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-light" onclick="cliCerrarImportar()">Cancelar</button>
+            <button class="btn btn-sm btn-primary" id="cliImpBtnAplicar" onclick="cliAplicarImportar()" style="display:none">Importar</button>
           </div>
         </div>
       </div>
@@ -11207,6 +11255,199 @@ async function saveCliente(){
     showAlert('cliAlert','Error al guardar: '+(err.message||''));
   }finally{
     btn.disabled = false; btn.textContent = 'Guardar cliente';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// IMPORTAR CLIENTES desde Excel
+// ═══════════════════════════════════════════════════════
+var cliImpData = null;
+
+function cliAbrirImportar(){
+  cliImpData = null;
+  document.getElementById('cliImpPaso1').style.display = 'block';
+  document.getElementById('cliImpPaso2').style.display = 'none';
+  document.getElementById('cliImpBtnAplicar').style.display = 'none';
+  document.getElementById('cliImpFile').value = '';
+  document.getElementById('cliModalImportar').classList.add('show');
+  var dz = document.getElementById('cliImpDropzone');
+  var inp = document.getElementById('cliImpFile');
+  if(dz && !dz._wired){
+    dz._wired = true;
+    dz.addEventListener('click', function(){ inp.click(); });
+    dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', function(){ dz.classList.remove('dragover'); });
+    dz.addEventListener('drop', function(e){ e.preventDefault(); dz.classList.remove('dragover'); if(e.dataTransfer.files[0]) cliProcesarExcel(e.dataTransfer.files[0]); });
+    inp.addEventListener('change', function(){ if(inp.files[0]) cliProcesarExcel(inp.files[0]); });
+  }
+  var modal = document.getElementById('cliModalImportar');
+  if(modal && !modal._wired){ modal._wired = true; modal.addEventListener('click', function(e){ if(e.target === modal) cliCerrarImportar(); }); }
+}
+
+function cliCerrarImportar(){ document.getElementById('cliModalImportar').classList.remove('show'); }
+
+async function cliProcesarExcel(file){
+  document.getElementById('cliImpPaso1').style.display = 'none';
+  document.getElementById('cliImpPaso2').style.display = 'block';
+  document.getElementById('cliImpResumen').textContent = 'Leyendo...';
+  try{
+    var data = await lpLeerArchivo(file);
+    var wb = XLSX.read(data, { type: 'array' });
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    var rowsRaw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+
+    var headerRowIdx = -1;
+    for(var i = 0; i < Math.min(20, rowsRaw.length); i++){
+      var row = rowsRaw[i];
+      if(!row) continue;
+      var s = row.join('|').toLowerCase();
+      if(/raz[oó]n|nombre|cliente|apellido|cuit|dni|documento/i.test(s)){ headerRowIdx = i; break; }
+    }
+    if(headerRowIdx < 0) headerRowIdx = 0;
+    var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
+
+    var col = {
+      razon:     lpDetectarCol(headers, ['razon social','razón social','razon','cliente','apellido y nombre','nombre y apellido','apellido','nombre completo']),
+      nombre:    lpDetectarCol(headers, ['nombre','contacto']),
+      doc:       lpDetectarCol(headers, ['cuit','dni','documento','cuil','num doc','nro doc','c.u.i.t']),
+      tel:       lpDetectarCol(headers, ['telefono','teléfono','tel','celular','cel','movil','móvil','whatsapp']),
+      email:     lpDetectarCol(headers, ['email','e-mail','correo','mail']),
+      direccion: lpDetectarCol(headers, ['direccion','dirección','domicilio','calle']),
+      localidad: lpDetectarCol(headers, ['localidad','ciudad','partido']),
+      provincia: lpDetectarCol(headers, ['provincia','estado']),
+      catFiscal: lpDetectarCol(headers, ['condicion','condición','iva','cat fiscal','categoria','categoría','condicion iva','situacion'])
+    };
+    if(col.razon < 0) col.razon = 0;
+
+    var rows = [];
+    for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
+      var r = rowsRaw[j];
+      if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
+      function val(idx){ return idx >= 0 && r[idx] != null ? String(r[idx]).trim() : ''; }
+      var razon = val(col.razon);
+      if(!razon) continue;
+      var docv = val(col.doc).replace(/[^0-9kK\-]/g, '');
+      rows.push({
+        razonSocial: razon,
+        nombre: val(col.nombre),
+        numDoc: docv,
+        telefono: val(col.tel),
+        email: val(col.email).toLowerCase(),
+        direccion: val(col.direccion),
+        localidad: val(col.localidad),
+        provincia: val(col.provincia),
+        catFiscalTxt: val(col.catFiscal)
+      });
+    }
+
+    if(rows.length === 0){
+      document.getElementById('cliImpResumen').textContent = 'No se encontraron clientes válidos en el Excel.';
+      return;
+    }
+
+    var existentesNombre = {}, existentesDoc = {};
+    clientes.forEach(function(c){
+      if(c.razonSocial) existentesNombre[c.razonSocial.trim().toLowerCase()] = true;
+      if(c.numDoc) existentesDoc[String(c.numDoc).replace(/[^0-9kK]/g,'')] = true;
+    });
+    var nuevos = 0, dupes = 0;
+    rows.forEach(function(row){
+      var dupNombre = existentesNombre[row.razonSocial.toLowerCase()];
+      var dupDoc = row.numDoc && existentesDoc[row.numDoc.replace(/[^0-9kK]/g,'')];
+      row._dup = !!(dupNombre || dupDoc);
+      if(row._dup) dupes++; else nuevos++;
+    });
+
+    cliImpData = { rows: rows, archivo: file.name };
+    document.getElementById('cliImpResumen').innerHTML =
+      '<strong>' + rows.length + '</strong> clientes leídos · <strong>' + nuevos + '</strong> nuevos' +
+      (dupes ? ' · <span style="color:var(--danger)">' + dupes + ' ya existen (se saltean)</span>' : '');
+
+    var tbody = document.getElementById('cliImpTbody');
+    var html = '';
+    rows.slice(0, 100).forEach(function(row){
+      html += '<tr style="' + (row._dup ? 'opacity:.45' : '') + '">' +
+        '<td>' + eH(row.razonSocial) + (row.nombre ? ' <span style="color:var(--text-mute)">· ' + eH(row.nombre) + '</span>' : '') + '</td>' +
+        '<td>' + eH(row.numDoc || '—') + '</td>' +
+        '<td>' + eH(row.telefono || '—') + '</td>' +
+        '<td>' + eH(row.email || '—') + '</td>' +
+        '<td>' + (row._dup ? '<span class="es-badge error">Ya existe</span>' : '<span class="es-badge ok">Nuevo</span>') + '</td>' +
+      '</tr>';
+    });
+    if(rows.length > 100) html += '<tr><td colspan="5" style="text-align:center;color:var(--text-mute);padding:10px">... y ' + (rows.length - 100) + ' más</td></tr>';
+    tbody.innerHTML = html;
+
+    document.getElementById('cliImpBtnAplicar').style.display = nuevos > 0 ? 'inline-block' : 'none';
+    document.getElementById('cliImpBtnAplicar').textContent = 'Importar ' + nuevos + ' clientes';
+  }catch(err){
+    console.error(err);
+    document.getElementById('cliImpResumen').textContent = 'Error al leer: ' + err.message;
+  }
+}
+
+function cliMapCatFiscal(txt){
+  if(!txt) return 'CF';
+  var t = txt.toLowerCase();
+  if(/responsable insc|resp insc|^ri$|inscripto/.test(t)) return 'RI';
+  if(/monotrib|^mt$/.test(t)) return 'MT';
+  if(/exento/.test(t)) return 'EX';
+  if(/consumidor|final|^cf$/.test(t)) return 'CF';
+  return 'CF';
+}
+
+async function cliAplicarImportar(){
+  if(!cliImpData) return;
+  var nuevos = cliImpData.rows.filter(function(r){ return !r._dup; });
+  if(nuevos.length === 0){ toast('No hay clientes nuevos para importar', 'error'); return; }
+
+  var btn = document.getElementById('cliImpBtnAplicar');
+  btn.disabled = true;
+  try{
+    var B = 400, localNuevos = [], nowIso = new Date().toISOString();
+    for(var i = 0; i < nuevos.length; i += B){
+      var slice = nuevos.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(row){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc();
+        var docn = (row.numDoc || '').replace(/[^0-9kK]/g, '');
+        var tipoDoc = (docn.length === 11) ? 'CUIT' : (docn.length ? 'DNI' : '');
+        var data = {
+          razonSocial: row.razonSocial,
+          nombre: row.nombre || '',
+          fantasia: '', codigo: '',
+          tipo: 'cliente', origen: 'importado',
+          telefono: row.telefono || '',
+          email: row.email || '',
+          direccion: row.direccion || '',
+          localidad: row.localidad || '',
+          provincia: row.provincia || '',
+          catFiscal: cliMapCatFiscal(row.catFiscalTxt),
+          tipoDoc: tipoDoc,
+          numDoc: docn,
+          tieneCC: false, limite: 0,
+          observaciones: '',
+          creadoEn: nowIso, updatedAt: nowIso
+        };
+        batch.set(ref, data);
+        localNuevos.push(Object.assign({ _id: ref.id }, data));
+      });
+      await batch.commit();
+      btn.textContent = 'Importando ' + Math.min(i + B, nuevos.length) + ' / ' + nuevos.length + '...';
+    }
+    try{ await idbGuardarClientes(currentEmpresaId, localNuevos); }catch(e){}
+    localNuevos.forEach(function(c){ clientes.push(c); });
+    clientes.sort(function(a,b){ return (a.razonSocial||'').localeCompare(b.razonSocial||''); });
+    clientesFiltered = clientes.slice();
+
+    toast('✅ ' + nuevos.length + ' clientes importados', 'success');
+    cliCerrarImportar();
+    renderClientes();
+    actualizarStatsClientes();
+  }catch(err){
+    console.error(err);
+    toast('Error al importar: ' + err.message, 'error');
+  }finally{
+    btn.disabled = false;
   }
 }
 
