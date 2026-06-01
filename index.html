@@ -4605,6 +4605,14 @@
     font-family:var(--mono); text-align:right;
   }
   .es-cant-input:focus{ outline:none; border-color:var(--accent); background:var(--bg-card); }
+  .es-edit-input{
+    width:100%; background:transparent; border:1px solid transparent;
+    border-radius:6px; padding:6px 8px; font-size:13px; color:var(--text);
+    font-family:inherit;
+  }
+  .es-edit-input:hover{ border-color:var(--border); background:var(--bg-soft); }
+  .es-edit-input:focus{ outline:none; border-color:var(--accent); background:var(--bg-card); }
+  .es-edit-cod{ font-family:var(--mono); font-size:12px; min-width:90px; }
   .es-resumen{
     margin-top:14px; padding:12px 16px; background:var(--bg-soft);
     border-radius:10px; font-size:13px; color:var(--text-mute);
@@ -5730,7 +5738,7 @@
                 <p class="lp-pane-sub" id="esSubtitulo">—</p>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-sm btn-light" id="esBtnAgregar" onclick="esAgregarManual()">&#43; Agregar producto</button>
+                <button class="btn btn-sm btn-light" id="esBtnAgregar" onclick="esAgregarFilaManual()">&#43; Agregar fila</button>
                 <button class="btn btn-sm btn-light" id="esBtnEscanear" onclick="esEscanear()">&#128247; Escanear</button>
               </div>
             </div>
@@ -5746,7 +5754,7 @@
                     <th>Producto</th>
                     <th class="lp-col-num">Stock actual</th>
                     <th class="es-col-cant">Cantidad +</th>
-                    <th class="lp-col-num">Stock final</th>
+                    <th class="es-col-cant">Costo unit.</th>
                     <th class="es-col-estado">Estado</th>
                     <th></th>
                   </tr>
@@ -8421,7 +8429,7 @@ function esAgregarFila(codigo, cantidad, descripcionOCR, precioUnit){
 function esRender(){
   var tbody = document.getElementById('esTbody');
   if(esState.filas.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:var(--text-mute)">Sin productos todavía. Agregá o escaneá.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:var(--text-mute)">Sin productos todavía. Agregá una fila o cargá una factura.</td></tr>';
   } else {
     var html = '';
     esState.filas.forEach(function(f, idx){
@@ -8433,11 +8441,11 @@ function esRender(){
             '<input type="checkbox" ' + (f.crear ? 'checked' : '') + ' onchange="esToggleCrear(' + idx + ', this.checked)"> Crear' +
           '</label>';
       html += '<tr class="' + (encontrado ? '' : 'es-row-nuevo') + '">' +
-        '<td class="lp-col-codigo">' + eH(f.codigo) + '</td>' +
-        '<td><div class="lp-row-desc" title="' + eH(f.descripcion) + '">' + eH(f.descripcion || '(producto nuevo)') + '</div></td>' +
+        '<td><input class="es-edit-input es-edit-cod" value="' + eH(f.codigo) + '" onchange="esEditarCampo(' + idx + ', \'codigo\', this.value)" placeholder="código"></td>' +
+        '<td><input class="es-edit-input" value="' + eH(f.descripcion) + '" onchange="esEditarCampo(' + idx + ', \'descripcion\', this.value)" placeholder="descripción"></td>' +
         '<td class="lp-col-num">' + (encontrado ? (Number(f.stockActual)||0) : '—') + '</td>' +
-        '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCant(' + idx + ', this.value)"></td>' +
-        '<td class="lp-col-num" style="font-weight:600">' + stockFinal + '</td>' +
+        '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCampo(' + idx + ', \'cantidad\', this.value)"></td>' +
+        '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="0.01" value="' + (Number(f.precioUnit)||0) + '" onchange="esEditarCampo(' + idx + ', \'precioUnit\', this.value)" title="costo unitario"></td>' +
         '<td class="es-col-estado">' + estado + '</td>' +
         '<td><button class="btn btn-xs btn-light" onclick="esQuitarFila(' + idx + ')">&times;</button></td>' +
       '</tr>';
@@ -8463,10 +8471,33 @@ function esToggleCrear(idx, on){
   esRender();
 }
 
-function esEditarCant(idx, val){
-  if(!esState.filas[idx]) return;
-  esState.filas[idx].cantidad = Math.max(0, Number(val) || 0);
+// Edición de cualquier campo de una fila
+function esEditarCampo(idx, campo, val){
+  var f = esState.filas[idx];
+  if(!f) return;
+  if(campo === 'cantidad'){ f.cantidad = Math.max(0, Number(val) || 0); }
+  else if(campo === 'precioUnit'){ f.precioUnit = Math.max(0, Number(val) || 0); }
+  else if(campo === 'descripcion'){ f.descripcion = val; f.descripcionFactura = val; }
+  else if(campo === 'codigo'){
+    f.codigo = String(val).trim();
+    // Re-buscar el producto con el nuevo código
+    var prod = esBuscarProducto(f.codigo);
+    f.prod = prod || null;
+    f.stockActual = prod ? (Number(prod.stock) || 0) : null;
+    if(prod){ f.descripcion = prod.descripcion || prod.nombre || f.descripcion; f.crear = false; }
+  }
   esRender();
+}
+
+// Agregar una fila vacía manual
+function esAgregarFilaManual(){
+  esState.filas.push({ codigo: '', cantidad: 1, prod: null, descripcion: '', descripcionFactura: '', precioUnit: 0, stockActual: null, crear: false });
+  esRender();
+  // foco en el código de la nueva fila
+  setTimeout(function(){
+    var inputs = document.querySelectorAll('#esTbody .es-edit-cod');
+    if(inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
 }
 
 function esQuitarFila(idx){ esState.filas.splice(idx, 1); esRender(); }
@@ -8683,56 +8714,59 @@ function esNumAr(s){
 function esParsearFacturaCompra(texto){
   var lineas = texto.split('\n');
   var out = [];
-  var saltar = /^(COD|A\s*r\s*t|ART[IÍ]CULO|Importe|I\.?V\.?A|Total|CAE|Otros|Numero|Despachado|Cuenta|Vdor|Operador|Despacho|ESTA LISTA|PAG|COLORES|MARCA|C[oó]digo|GRANEL|BATERIA|ACCESORIOS|\d+W\b|PRESENTACION|PRECIO|CANTIDAD|Factura|CUIT|Ingresos|Inicio|Fecha|ORIGINAL|Mayorista|ventas@|www\.|subtotal|neto|\d+\s*[íi]tems)/i;
+  var saltar = /^(COD\b|A\s*r\s*t|ART[IÍ]CULO|Importe|I\.?V\.?A|Total|CAE|C\.A\.E|Otros|Numero|Despachado|Cuenta|Vdor|Operador|Despacho|ESTA LISTA|PAG|COLORES|MARCA|C[oó]digo|GRANEL|BATERIA|ACCESORIOS|\d+W\b|PRESENTACION|PRECIO|CANTIDAD|Factura|CUIT|C\.U\.I\.T|Ingresos|Inicio|Fecha|ORIGINAL|DUPLICADO|TRIPLICADO|Mayorista|ventas@|www\.|subtotal|neto|descuento|iva tasa|iibb|son pesos|se[ñn]or|domicilio|provincia|localidad|condici[oó]n|saldo|comprobante|\d+\s*[íi]tems)/i;
 
+  // monto = número con coma decimal de 2 dígitos (precio o importe)
+  function esMonto(t){ return /^\d{1,3}(\.\d{3})*,\d{2}$/.test(t) || /^\d+,\d{2}$/.test(t); }
+  // cantidad = entero, o X.00, o X,00 (formatos varios)
+  function esCant(t){ return /^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(t) || /^\d+,\d{1,2}$/.test(t) || /^\d+\.\d{1,2}$/.test(t) || /^\d+$/.test(t); }
   function codigoValido(c){
+    if(esMonto(c)) return false;
     if(!/^[0-9A-Za-z][0-9A-Za-z\.\/\-]*$/.test(c)) return false;
-    if(!/\d/.test(c)) return false;            // tiene al menos un dígito
-    if(c.length < 2) return false;
-    if(/^\d+(mm|cm|kg|w|v|lt|lts)$/i.test(c)) return false; // medidas
+    if(!/\d/.test(c)) return false;             // tiene al menos un dígito
+    if(c.length < 3) return false;              // descartar "30","40"
+    if(/^\d+(mm|cm|kg|w|v|lt|lts)$/i.test(c)) return false;
     return true;
   }
 
   for(var i = 0; i < lineas.length; i++){
     var l = lineas[i].trim();
-    if(!l || l.length < 4 || saltar.test(l)) continue;
+    if(!l || l.length < 6 || saltar.test(l)) continue;
     var tokens = l.split(/\s+/);
     if(tokens.length < 4) continue;
-    var codigo = tokens[0];
-    if(!codigoValido(codigo)) continue;
 
-    // Números con decimales (formato argentino)
-    var nums = [];
-    for(var t = 1; t < tokens.length; t++){
-      if(/^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(tokens[t]) || /^\d+,\d{1,2}$/.test(tokens[t])){
-        nums.push(esNumAr(tokens[t]));
-      }
+    // Montos (coma + 2 decimales): los dos últimos = P.Unitario e Importe
+    var montos = [];
+    for(var t = 0; t < tokens.length; t++){ if(esMonto(tokens[t])) montos.push({ pos: t, val: esNumAr(tokens[t]) }); }
+    if(montos.length < 2) continue;
+    var total = montos[montos.length - 1].val;
+    var precio = montos[montos.length - 2].val;
+    if(!total || total <= 0 || !precio || precio <= 0) continue;
+
+    // Cantidad: total/precio (probando con y sin 25% bonif), debe dar entero razonable
+    var cantidad = null;
+    var c1 = Math.round(total / precio);
+    var c2 = Math.round(total / (precio * 0.75));
+    if(c1 > 0 && Math.abs(c1 * precio - total) / total < 0.03) cantidad = c1;
+    else if(c2 > 0 && Math.abs(c2 * precio * 0.75 - total) / total < 0.03) cantidad = c2;
+    if(!cantidad || cantidad <= 0 || cantidad >= 1000000) continue;
+
+    // Código: primer token (antes del primer monto) que sea código válido
+    var primerMonto = montos[0].pos;
+    var codigo = null, codPos = -1;
+    for(var k = 0; k < primerMonto; k++){
+      if(codigoValido(tokens[k])){ codigo = tokens[k]; codPos = k; break; }
     }
-    if(nums.length < 3) continue;
+    if(!codigo) continue;
 
-    var total = nums[nums.length - 1];
-    var cantidad = null, precioUnit = null;
-    if(total > 0){
-      for(var c = 0; c < nums.length - 1 && cantidad === null; c++){
-        for(var p = c + 1; p < nums.length; p++){
-          var prod = nums[c] * nums[p];
-          if(Math.abs(prod - total) / total < 0.02 || Math.abs(prod * 0.75 - total) / total < 0.02){
-            cantidad = nums[c]; precioUnit = nums[p]; break;
-          }
-        }
-      }
-    }
-    if(cantidad === null) cantidad = nums[0]; // fallback
-    if(isNaN(cantidad) || cantidad <= 0 || cantidad >= 1000000) continue;
-
-    // Descripción: tokens de texto entre el código y el primer número
+    // Descripción: tokens entre el código y el primer monto, salvo cantidades sueltas
     var desc = '';
-    for(var d = 1; d < tokens.length; d++){
-      if(/^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(tokens[d]) || /^\d+,\d{1,2}$/.test(tokens[d])) break;
+    for(var d = codPos + 1; d < primerMonto; d++){
+      if(esCant(tokens[d]) && !/[A-Za-z]/.test(tokens[d])) continue;
       desc += (desc ? ' ' : '') + tokens[d];
     }
 
-    out.push({ codigo: codigo, cantidad: Math.round(cantidad), precioUnit: precioUnit || 0, descripcion: desc });
+    out.push({ codigo: codigo, cantidad: cantidad, precioUnit: precio, descripcion: desc });
   }
   return out;
 }
