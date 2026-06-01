@@ -8323,6 +8323,10 @@ var esState = { filas: [], metodo: null };
 function initEntradaStock(){
   if(!currentEmpresaId) return;
   esVolverInicio();
+  // Cargar config de proveedores (para calcular precio de productos nuevos)
+  if(typeof lpCargarProveedores === 'function' && (typeof lpState === 'undefined' || !lpState.proveedores || !lpState.proveedores.length)){
+    try{ lpCargarProveedores(); }catch(e){}
+  }
   // enganchar inputs de archivo una vez
   var ex = document.getElementById('esExcelInput');
   if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', function(){ if(ex.files[0]) esProcesarExcel(ex.files[0]); }); }
@@ -8393,7 +8397,7 @@ function esBuscarProducto(codigo){
 function esEndsWith(s, suf){ return s.indexOf(suf, s.length - suf.length) !== -1; }
 
 // Agrega/actualiza una fila por código + cantidad
-function esAgregarFila(codigo, cantidad, descripcionOCR){
+function esAgregarFila(codigo, cantidad, descripcionOCR, precioUnit){
   codigo = String(codigo || '').trim();
   if(!codigo) return;
   cantidad = Number(cantidad) || 0;
@@ -8406,7 +8410,10 @@ function esAgregarFila(codigo, cantidad, descripcionOCR){
     cantidad: cantidad || 1,
     prod: prod || null,
     descripcion: prod ? (prod.descripcion || prod.nombre || '') : (descripcionOCR || ''),
-    stockActual: prod ? (Number(prod.stock) || 0) : null
+    descripcionFactura: descripcionOCR || '',
+    precioUnit: Number(precioUnit) || 0,
+    stockActual: prod ? (Number(prod.stock) || 0) : null,
+    crear: false   // marca del usuario para crear el producto nuevo
   });
   esRender();
 }
@@ -8422,10 +8429,12 @@ function esRender(){
       var stockFinal = encontrado ? ((Number(f.stockActual) || 0) + (Number(f.cantidad) || 0)) : '—';
       var estado = encontrado
         ? '<span class="es-badge ok">OK</span>'
-        : '<span class="es-badge error">No existe</span>';
+        : '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px">' +
+            '<input type="checkbox" ' + (f.crear ? 'checked' : '') + ' onchange="esToggleCrear(' + idx + ', this.checked)"> Crear' +
+          '</label>';
       html += '<tr class="' + (encontrado ? '' : 'es-row-nuevo') + '">' +
         '<td class="lp-col-codigo">' + eH(f.codigo) + '</td>' +
-        '<td><div class="lp-row-desc" title="' + eH(f.descripcion) + '">' + eH(f.descripcion || '(no encontrado en tu catálogo)') + '</div></td>' +
+        '<td><div class="lp-row-desc" title="' + eH(f.descripcion) + '">' + eH(f.descripcion || '(producto nuevo)') + '</div></td>' +
         '<td class="lp-col-num">' + (encontrado ? (Number(f.stockActual)||0) : '—') + '</td>' +
         '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCant(' + idx + ', this.value)"></td>' +
         '<td class="lp-col-num" style="font-weight:600">' + stockFinal + '</td>' +
@@ -8437,13 +8446,21 @@ function esRender(){
   }
   // Resumen
   var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
-  var noEncontrados = esState.filas.filter(function(f){ return !f.prod; }).length;
+  var aCrear = esState.filas.filter(function(f){ return !f.prod && f.crear; }).length;
+  var noEncontrados = esState.filas.filter(function(f){ return !f.prod && !f.crear; }).length;
   var totalUnidades = validas.reduce(function(a, f){ return a + (Number(f.cantidad)||0); }, 0);
   var res = '<strong>' + validas.length + '</strong> producto(s) · <strong>' + totalUnidades + '</strong> unidades a sumar';
-  if(noEncontrados > 0) res += ' · <span style="color:var(--danger)">' + noEncontrados + ' no encontrado(s) (se ignoran)</span>';
+  if(aCrear > 0) res += ' · <span style="color:var(--accent)">' + aCrear + ' nuevo(s) a crear</span>';
+  if(noEncontrados > 0) res += ' · <span style="color:var(--text-mute)">' + noEncontrados + ' sin crear (se ignoran)</span>';
   document.getElementById('esResumen').innerHTML = res;
   var btn = document.getElementById('esBtnAplicar');
-  btn.disabled = validas.length === 0;
+  btn.disabled = (validas.length === 0 && aCrear === 0);
+}
+
+function esToggleCrear(idx, on){
+  if(!esState.filas[idx]) return;
+  esState.filas[idx].crear = on;
+  esRender();
 }
 
 function esEditarCant(idx, val){
@@ -8548,7 +8565,7 @@ async function esProcesarFoto(file){
       var detNativo = esParsearTextoOCR(textoNativo);
       if(detNativo.length >= 2){
         prog.style.display = 'none';
-        detNativo.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad); });
+        detNativo.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad, d.descripcion, d.precioUnit); });
         document.getElementById('esSubtitulo').textContent = 'PDF (texto) · ' + detNativo.length + ' líneas detectadas — REVISÁ antes de aplicar';
         toast('Leí ' + detNativo.length + ' líneas del PDF. Revisá antes de aplicar.', 'info');
         return;
@@ -8582,7 +8599,7 @@ async function esProcesarFoto(file){
       document.getElementById('esSubtitulo').textContent = 'OCR sin resultados claros — agregá manualmente';
       return;
     }
-    todasLasLineas.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad); });
+    todasLasLineas.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad, d.descripcion, d.precioUnit); });
     document.getElementById('esSubtitulo').textContent = (esPdf ? 'PDF' : 'Foto') + ' · ' + todasLasLineas.length + ' líneas detectadas — REVISÁ antes de aplicar';
     toast('Leí ' + todasLasLineas.length + ' líneas. Revisá bien antes de aplicar.', 'info');
   }catch(err){
@@ -8694,20 +8711,28 @@ function esParsearFacturaCompra(texto){
     if(nums.length < 3) continue;
 
     var total = nums[nums.length - 1];
-    var cantidad = null;
+    var cantidad = null, precioUnit = null;
     if(total > 0){
       for(var c = 0; c < nums.length - 1 && cantidad === null; c++){
         for(var p = c + 1; p < nums.length; p++){
           var prod = nums[c] * nums[p];
           if(Math.abs(prod - total) / total < 0.02 || Math.abs(prod * 0.75 - total) / total < 0.02){
-            cantidad = nums[c]; break;
+            cantidad = nums[c]; precioUnit = nums[p]; break;
           }
         }
       }
     }
     if(cantidad === null) cantidad = nums[0]; // fallback
     if(isNaN(cantidad) || cantidad <= 0 || cantidad >= 1000000) continue;
-    out.push({ codigo: codigo, cantidad: Math.round(cantidad) });
+
+    // Descripción: tokens de texto entre el código y el primer número
+    var desc = '';
+    for(var d = 1; d < tokens.length; d++){
+      if(/^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(tokens[d]) || /^\d+,\d{1,2}$/.test(tokens[d])) break;
+      desc += (desc ? ' ' : '') + tokens[d];
+    }
+
+    out.push({ codigo: codigo, cantidad: Math.round(cantidad), precioUnit: precioUnit || 0, descripcion: desc });
   }
   return out;
 }
@@ -8739,13 +8764,39 @@ function esParsearGenerico(texto){
 // ─── Aplicar ───
 async function esAplicar(){
   var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
-  if(validas.length === 0){ toast('No hay productos válidos para aplicar', 'error'); return; }
-  if(!confirm('Vas a sumar stock a ' + validas.length + ' producto(s). ¿Confirmás?')) return;
+  var aCrear = esState.filas.filter(function(f){ return !f.prod && f.crear; });
+  if(validas.length === 0 && aCrear.length === 0){ toast('No hay nada para aplicar', 'error'); return; }
+
+  // Inferir el proveedor para los productos nuevos (del prefijo de los que matchearon)
+  var provNombre = '', provConfig = null;
+  if(aCrear.length > 0){
+    // 1) prefijo de letras de un producto que matcheó (ej "BULONFER")
+    for(var v = 0; v < validas.length; v++){
+      var pc = String(validas[v].prod.codigo || '');
+      var m = pc.match(/^([A-Za-z]+)/);
+      if(m){ provNombre = m[1]; break; }
+    }
+    // 2) buscar config de ese proveedor en listas (match por nombre, flexible)
+    if(typeof lpState !== 'undefined' && lpState.proveedores){
+      provConfig = lpState.proveedores.find(function(p){
+        return p.nombre && provNombre && p.nombre.toLowerCase().indexOf(provNombre.toLowerCase()) >= 0;
+      }) || null;
+    }
+    var msg = 'Vas a:\n• Sumar stock a ' + validas.length + ' producto(s)\n• Crear ' + aCrear.length + ' producto(s) nuevo(s)';
+    if(aCrear.length > 0){
+      msg += provConfig ? ('\n\nLos nuevos se asignan al proveedor "' + provConfig.nombre + '" y su precio se calcula con tus márgenes.')
+                        : ('\n\nNo encontré config de proveedor para calcular precio: los nuevos se crean SIN precio de venta (lo cargás después).');
+    }
+    if(!confirm(msg)) return;
+  } else {
+    if(!confirm('Vas a sumar stock a ' + validas.length + ' producto(s). ¿Confirmás?')) return;
+  }
 
   var btn = document.getElementById('esBtnAplicar');
   btn.disabled = true; btn.textContent = 'Aplicando...';
   try{
     var B = 400, localUpdates = [];
+    // 1) Sumar stock a existentes
     for(var i = 0; i < validas.length; i += B){
       var slice = validas.slice(i, i + B);
       var batch = db.batch();
@@ -8757,8 +8808,52 @@ async function esAplicar(){
         if(prodLocal){ prodLocal.stock = nuevoStock; localUpdates.push(prodLocal); }
       });
       await batch.commit();
-      btn.textContent = 'Aplicando ' + Math.min(i + B, validas.length) + ' / ' + validas.length + '...';
+      btn.textContent = 'Sumando stock ' + Math.min(i + B, validas.length) + ' / ' + validas.length + '...';
     }
+
+    // 2) Crear productos nuevos
+    var creados = 0;
+    for(var k = 0; k < aCrear.length; k += B){
+      var sliceN = aCrear.slice(k, k + B);
+      var batchN = db.batch();
+      sliceN.forEach(function(f){
+        // código interno = PREFIJO proveedor + código de factura
+        var codigoInterno = (provNombre || '') + f.codigo;
+        var docId = sanitizarId(codigoInterno);
+        // precio de venta: calcular con la config del proveedor si existe
+        var precioVenta = 0;
+        if(provConfig && f.precioUnit > 0){
+          try{ var calc = lpCalcularPrecio(f.precioUnit, provConfig); precioVenta = calc.final || 0; }catch(e){}
+        }
+        var data = {
+          codigo: codigoInterno,
+          codBarra: '', barcodeTipo: 'CODE128',
+          descripcion: f.descripcionFactura || f.descripcion || codigoInterno,
+          proveedor: provConfig ? provConfig.nombre : (provNombre || ''),
+          rubro: '',
+          precioCosto: Number(f.precioUnit) || 0,
+          precioVenta: precioVenta,
+          stock: Number(f.cantidad) || 0,
+          fotoUrl: '', fotoPath: '',
+          origen: 'entrada_stock',
+          creadoEn: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        var refN = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(docId);
+        batchN.set(refN, data, { merge: true });
+        var nuevoProd = Object.assign({ _id: docId }, data);
+        productos.push(nuevoProd);
+        localUpdates.push(nuevoProd);
+        creados++;
+      });
+      await batchN.commit();
+      btn.textContent = 'Creando productos ' + Math.min(k + B, aCrear.length) + ' / ' + aCrear.length + '...';
+    }
+    if(creados > 0){
+      productos.sort(function(a,b){ return (a.descripcion||'').localeCompare(b.descripcion||''); });
+      productosFiltered = productos.slice();
+    }
+
     if(localUpdates.length){ try{ await idbGuardarBatch(currentEmpresaId, localUpdates); }catch(e){} }
 
     // Historial
@@ -8767,6 +8862,7 @@ async function esAplicar(){
       await db.collection('empresas').doc(currentEmpresaId).collection('entradas_stock').add({
         metodo: esState.metodo || 'manual',
         cantidadProductos: validas.length,
+        productosCreados: creados,
         totalUnidades: totalUni,
         detalle: validas.map(function(f){ return { codigo: f.codigo, cantidad: f.cantidad }; }).slice(0, 500),
         usuario: (currentUserData && currentUserData.nombre) || '',
@@ -8774,7 +8870,10 @@ async function esAplicar(){
       });
     }catch(e){ console.warn('No se pudo guardar historial', e); }
 
-    toast('✅ Stock actualizado: ' + validas.length + ' productos', 'success');
+    var resumen = '✅ ';
+    if(validas.length) resumen += 'Stock sumado a ' + validas.length + ' producto(s)';
+    if(creados) resumen += (validas.length ? ' · ' : '') + creados + ' producto(s) creado(s)';
+    toast(resumen, 'success');
     esState = { filas: [], metodo: null };
     esVolverInicio();
     if(typeof renderProductos === 'function') renderProductos();
