@@ -6478,6 +6478,24 @@
       </div>
 
       <!-- ═══ MODAL: SINCRONIZAR CATÁLOGO ═══ -->
+      <!-- ═══ MODAL: MAPEO DE COLUMNAS (LISTAS) ═══ -->
+      <div class="modal-overlay" id="lpModalMapeo">
+        <div class="modal" style="max-width:560px">
+          <div class="modal-header">
+            <h3 class="modal-title">Indicá qué columna es cada cosa</h3>
+            <button class="modal-close" onclick="lpCerrarMapeo()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="lp-pane-sub" style="margin-top:0">No pude reconocer todas las columnas de este Excel. Decime cuál es cada una y lo proceso:</p>
+            <div id="lpMapeoCampos" class="cli-mapeo"></div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-light" onclick="lpCerrarMapeo()">Cancelar</button>
+            <button class="btn btn-sm btn-primary" onclick="lpAplicarMapeoManual()">Procesar lista</button>
+          </div>
+        </div>
+      </div>
+
       <div class="modal-overlay" id="lpModalCatalogo">
         <div class="modal" style="max-width:640px">
           <div class="modal-header">
@@ -19836,17 +19854,22 @@ async function lpProcesarArchivo(file){
     var sheet = wb.Sheets[wb.SheetNames[0]];
     var rowsRaw = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
 
-    // Detectar fila de headers (busca hasta 40 filas: las listas suelen
-    // traer bloques de horarios/condiciones antes de la tabla real)
-    var headerRowIdx = -1;
+    // Detectar fila de headers: la fila real tiene VARIAS columnas con nombres
+    // de campo. Puntúa cada fila por coincidencias y elige la mejor (las listas
+    // suelen traer títulos y bloques de condiciones antes de la tabla real).
+    var headerRowIdx = -1, mejorPunt = 0;
     for(var i = 0; i < Math.min(40, rowsRaw.length); i++){
       var row = rowsRaw[i];
       if(!row) continue;
-      var rowStr = row.join('|').toLowerCase();
-      var tieneCodigo = /\bcod|\barti|\breferenc|\bsku/i.test(rowStr);
-      var tieneDesc = /\bproduct|\bdescripc|\bdetal|\bnombre/i.test(rowStr);
-      var tienePrecio = /\bprecio|\bcost|\bvalor|\bimport/i.test(rowStr);
-      if(tieneCodigo && (tieneDesc || tienePrecio)){ headerRowIdx = i; break; }
+      var celdas = row.map(function(c){ return String(c == null ? '' : c).trim().toLowerCase(); });
+      var llenas = celdas.filter(function(c){ return c; }).length;
+      var punt = 0;
+      if(celdas.some(function(c){ return /\bcod|\barti|\breferenc|\bsku|item/.test(c); })) punt++;
+      if(celdas.some(function(c){ return /\bproduct|\bdescripc|\bdetal|\bnombre|aplicaci/.test(c); })) punt++;
+      if(celdas.some(function(c){ return /\bprecio|\bcost|\bvalor|\bimport|neto|lista/.test(c); })) punt++;
+      if(celdas.some(function(c){ return /\bmarca|barra|modul|unidad/.test(c); })) punt++;
+      // la fila de headers tiene varias columnas llenas y varias coincidencias
+      if(punt >= 2 && llenas >= 3 && punt > mejorPunt){ mejorPunt = punt; headerRowIdx = i; }
     }
     if(headerRowIdx < 0) headerRowIdx = 0;
     var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
@@ -19868,106 +19891,122 @@ async function lpProcesarArchivo(file){
     if(colDesc >= 0) excl.push(colDesc);
     var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
 
-    if(colCodigo < 0 || colPrecio < 0){
-      toast('No pude detectar las columnas de código y precio. Revisá el formato del Excel.', 'error');
-      return;
-    }
-    // En sábana, la columna proveedor es OPCIONAL: si no está, el proveedor de
-    // cada fila se infiere del producto que ya tenés cargado (match por código).
-    var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
-
-    // Mapear filas
-    var rows = [];
-    for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
-      var r = rowsRaw[j];
-      if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
-      var codigo = String(r[colCodigo] || '').trim();
-      var precio = Number(r[colPrecio]);
-      if(!codigo || isNaN(precio) || precio <= 0) continue;
-      var desc = colDesc >= 0 ? String(r[colDesc] || '').trim() : '';
-      var iva = colIva >= 0 ? Number(r[colIva]) : null;
-      // Descuento por producto (opcional)
-      var descProd = null;
-      if(colDescuento >= 0){
-        var dv = Number(r[colDescuento]);
-        if(!isNaN(dv)) descProd = Math.max(0, Math.min(100, dv));
-      }
-      var fila = {
-        codigoProv: codigo,
-        descripcion: desc,
-        precioNeto: precio,
-        ivaCustom: (isNaN(iva) || iva === null) ? null : iva,
-        descProducto: descProd  // null = no vino en el Excel
-      };
-      // Moneda por fila (opcional): normaliza textos tipo "u$s", "dolar", "usd" → USD
-      if(colMoneda >= 0){
-        var mv = String(r[colMoneda] || '').trim().toLowerCase();
-        if(mv){
-          fila._monedaRaw = /u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv) ? 'USD' : 'ARS';
-        }
-      }
-      if(modo === 'sabana'){
-        var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
-        // null = no vino columna (se infiere del producto en el matching)
-        fila._provNombreRaw = pnombre || null;
-      }
-      rows.push(fila);
-    }
-
-    if(rows.length === 0){
-      toast('No se encontraron filas válidas en el Excel', 'error');
-      return;
-    }
-
-    // Resolver proveedores.
-    //  - simple: todas las filas usan el proveedor elegido.
-    //  - sábana: se resuelve fila por fila en el matching (puede inferirse del
-    //    producto ya cargado cuando no hay columna proveedor en el Excel).
-    var provManagers = {};
-    if(modo === 'simple'){
-      rows.forEach(function(fila){
-        fila._provId = prov.id;
-        fila._prov = prov;
-        fila._provNombre = prov.proveedorNombre;
-        provManagers[prov.id] = prov;
-      });
-    }
-    lpState.importacion = {
-      modo: modo,
-      proveedor: prov,
-      archivo: file.name,
-      rows: rows,
-      provManagers: provManagers,
-      sabanaSinColProv: sabanaSinColProv
+    // Guardar contexto para el mapeo manual (por si hay que corregir columnas)
+    lpImpCtx = {
+      rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
+      modo: modo, prov: prov, archivo: file.name,
+      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda }
     };
-    lpProcesarMatching();
-    lpMostrarVistaPrevia();
 
-    var extra = '';
-    if(modo === 'sabana'){
-      var nprov = Object.keys(lpState.importacion.provManagers).length;
-      extra = ' · ' + nprov + ' proveedor' + (nprov === 1 ? '' : 'es');
-      if(sabanaSinColProv) extra += ' (detectados de tus productos)';
+    if(colCodigo < 0 || colPrecio < 0){
+      // No se detectaron columnas clave → pedir mapeo manual en vez de fallar
+      lpAbrirMapeoColumnas();
+      return;
     }
-    if(colDescuento >= 0) extra += ' · con descuentos del Excel';
-    toast(rows.length + ' ítems leídos' + extra, 'success');
 
-    // Aviso si hay ítems en dólares y todavía no se cargó cotización
-    var hayUsd = lpState.importacion.rows.some(function(r){ return r._moneda === 'USD'; });
-    if(hayUsd && (Number(lpState.cotizacionUsd) || 0) <= 0){
-      toast('Hay ítems en dólares: cargá la cotización para convertir a pesos', 'info');
-    }
-    if(hayUsd){
-      var cf = document.getElementById('lpCotizField');
-      var cb = document.getElementById('lpCotizBtn');
-      var cn = document.getElementById('lpCotizNote');
-      if(cf) cf.style.display = '';
-      if(cb) cb.style.display = '';
-      if(cn) cn.style.display = '';
-    }
+    // Detección OK → procesar con estas columnas
+    lpFinalizarImport(rowsRaw, headerRowIdx, lpImpCtx.map, modo, prov, file.name);
   }catch(err){
     console.error(err);
     toast('Error al leer Excel: ' + err.message, 'error');
+  }
+}
+
+// ─── Mapeo manual de columnas (cuando la detección automática no alcanza) ───
+var lpImpCtx = null;
+
+var LP_CAMPOS_MAP = [
+  { k: 'codigo',    label: 'Código del producto *' },
+  { k: 'precio',    label: 'Precio (neto / lista) *' },
+  { k: 'desc',      label: 'Descripción' },
+  { k: 'iva',       label: 'IVA (%)' },
+  { k: 'descuento', label: 'Descuento por producto (%)' },
+  { k: 'proveedor', label: 'Proveedor (solo lista sábana)' },
+  { k: 'moneda',    label: 'Moneda' }
+];
+
+function lpAbrirMapeoColumnas(){
+  if(!lpImpCtx){ return; }
+  var cont = document.getElementById('lpMapeoCampos');
+  var headers = lpImpCtx.headers;
+  var html = '<div style="grid-column:1/-1;font-size:12px;color:var(--text-mute)">Encabezados detectados en la fila ' + (lpImpCtx.headerRowIdx + 1) + '. Asigná cada campo:</div>';
+  LP_CAMPOS_MAP.forEach(function(campo){
+    // ocultar "proveedor" si no es sábana
+    if(campo.k === 'proveedor' && lpImpCtx.modo !== 'sabana') return;
+    var actual = (lpImpCtx.map && typeof lpImpCtx.map[campo.k] === 'number') ? lpImpCtx.map[campo.k] : -1;
+    var sel = '<select onchange="lpImpCtx.map[\'' + campo.k + '\']=Number(this.value)">';
+    sel += '<option value="-1">— ninguna —</option>';
+    headers.forEach(function(h, idx){
+      var selected = (actual === idx) ? ' selected' : '';
+      sel += '<option value="' + idx + '"' + selected + '>' + eH(h || ('Columna ' + (idx+1))) + '</option>';
+    });
+    sel += '</select>';
+    html += '<div class="cli-mapeo-item"><label>' + eH(campo.label) + '</label>' + sel + '</div>';
+  });
+  cont.innerHTML = html;
+  document.getElementById('lpModalMapeo').classList.add('show');
+}
+
+function lpCerrarMapeo(){ document.getElementById('lpModalMapeo').classList.remove('show'); }
+
+function lpAplicarMapeoManual(){
+  if(!lpImpCtx){ return; }
+  var m = lpImpCtx.map;
+  if(!(m.codigo >= 0) || !(m.precio >= 0)){
+    toast('Tenés que indicar al menos Código y Precio', 'error');
+    return;
+  }
+  lpCerrarMapeo();
+  lpFinalizarImport(lpImpCtx.rowsRaw, lpImpCtx.headerRowIdx, m, lpImpCtx.modo, lpImpCtx.prov, lpImpCtx.archivo);
+}
+
+// Mapea filas con las columnas dadas, arma matching y muestra vista previa.
+function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
+  var colCodigo = colMap.codigo, colPrecio = colMap.precio, colDesc = (colMap.desc>=0?colMap.desc:-1);
+  var colIva = (colMap.iva>=0?colMap.iva:-1), colDescuento = (colMap.descuento>=0?colMap.descuento:-1);
+  var colProveedor = (colMap.proveedor>=0?colMap.proveedor:-1), colMoneda = (colMap.moneda>=0?colMap.moneda:-1);
+  var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
+
+  var rows = [];
+  for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
+    var r = rowsRaw[j];
+    if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
+    var codigo = String(r[colCodigo] || '').trim();
+    var precio = Number(r[colPrecio]);
+    if(!codigo || isNaN(precio) || precio <= 0) continue;
+    var desc = colDesc >= 0 ? String(r[colDesc] || '').trim() : '';
+    var iva = colIva >= 0 ? Number(r[colIva]) : null;
+    var descProd = null;
+    if(colDescuento >= 0){ var dv = Number(r[colDescuento]); if(!isNaN(dv)) descProd = Math.max(0, Math.min(100, dv)); }
+    var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
+      ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
+    if(colMoneda >= 0){
+      var mv = String(r[colMoneda] || '').trim().toLowerCase();
+      if(mv){ fila._monedaRaw = /u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv) ? 'USD' : 'ARS'; }
+    }
+    if(modo === 'sabana'){
+      var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
+      fila._provNombreRaw = pnombre || null;
+    }
+    rows.push(fila);
+  }
+
+  if(rows.length === 0){ toast('No se encontraron filas válidas con ese mapeo', 'error'); return; }
+
+  var provManagers = {};
+  if(modo === 'simple' && prov){
+    rows.forEach(function(fila){ fila._provId = prov.id; fila._prov = prov; fila._provNombre = prov.proveedorNombre; provManagers[prov.id] = prov; });
+  }
+  lpState.importacion = { modo: modo, proveedor: prov, archivo: archivo, rows: rows, provManagers: provManagers, sabanaSinColProv: sabanaSinColProv };
+  lpProcesarMatching();
+  lpMostrarVistaPrevia();
+  toast(rows.length + ' ítems leídos', 'success');
+
+  var hayUsd = lpState.importacion.rows.some(function(r){ return r._moneda === 'USD'; });
+  if(hayUsd){
+    var cf = document.getElementById('lpCotizField'), cb = document.getElementById('lpCotizBtn'), cn = document.getElementById('lpCotizNote');
+    if(cf) cf.style.display = ''; if(cb) cb.style.display = ''; if(cn) cn.style.display = '';
+    if((Number(lpState.cotizacionUsd) || 0) <= 0) toast('Hay ítems en dólares: cargá la cotización', 'info');
   }
 }
 
