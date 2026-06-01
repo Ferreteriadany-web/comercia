@@ -4633,6 +4633,29 @@
   .lp-anal-margen{ font-weight:700; color:var(--accent); }
   .lp-anal-acciones{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
 
+  /* Reportes */
+  .rep-tabs{ display:flex; gap:4px; background:var(--bg-2); border-radius:10px; padding:4px; margin-bottom:20px; width:fit-content; }
+  .rep-tab{ background:transparent; border:none; padding:9px 18px; border-radius:7px; cursor:pointer; font-size:14px; font-weight:600; color:var(--text-mute); font-family:inherit; transition:all .15s; }
+  .rep-tab.active{ background:var(--paper); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.1); }
+  .rep-controls{ display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+  .rep-controls label{ font-size:13px; font-weight:600; color:var(--text-mute); }
+  .rep-empty{ padding:40px; text-align:center; color:var(--text-mute); background:var(--paper); border:1px solid var(--line); border-radius:12px; }
+  .rep-cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px; }
+  .rep-card{ background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .rep-card-label{ font-size:12px; color:var(--text-mute); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px; }
+  .rep-card-valor{ font-size:26px; font-weight:700; color:var(--text); font-family:var(--mono); }
+  .rep-card-sub{ font-size:12px; color:var(--text-mute); margin-top:4px; }
+  .rep-card.destacada{ border-color:var(--accent); background:var(--accent-soft); }
+  .rep-card.destacada .rep-card-valor{ color:var(--accent); }
+  .rep-seccion-tit{ font-size:14px; font-weight:700; color:var(--text); margin:0 0 12px; }
+  .rep-tabla{ width:100%; border-collapse:collapse; font-size:14px; background:var(--paper); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .rep-tabla th{ text-align:left; padding:11px 14px; background:var(--bg-2); color:var(--text-mute); font-size:12px; text-transform:uppercase; }
+  .rep-tabla td{ padding:11px 14px; border-top:1px solid var(--line); }
+  .rep-tabla td.num{ text-align:right; font-family:var(--mono); }
+  .rep-medio{ display:inline-flex; align-items:center; gap:7px; }
+  .rep-medio-dot{ width:9px; height:9px; border-radius:50%; }
+  .rep-acciones{ margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; }
+
 </style>
 </head>
 <body>
@@ -4878,6 +4901,9 @@
         </a>
         <a class="nav-item" data-module="ctacte" onclick="navTo('ctacte')">
           <span class="nav-item-icon">&#128179;</span><span>Cuentas Corrientes</span>
+        </a>
+        <a class="nav-item" data-module="reportes" onclick="navTo('reportes')">
+          <span class="nav-item-icon">&#128202;</span><span>Reportes</span>
         </a>
         <a class="nav-item" data-module="empleados" onclick="navTo('empleados')">
           <span class="nav-item-icon">&#128101;</span><span>Empleados</span>
@@ -5622,6 +5648,39 @@
 
 
       <!-- ═══ MÓDULO EMPLEADOS ═══ -->
+      <!-- ═══ MÓDULO: REPORTES ═══ -->
+      <div class="module" id="moduleReportes">
+        <header class="main-header">
+          <h1 class="main-title">Reportes</h1>
+        </header>
+        <div class="main-body">
+          <div class="rep-tabs">
+            <button class="rep-tab active" id="repTabCaja" onclick="repCambiarTab('caja')">Caja diaria</button>
+            <button class="rep-tab" id="repTabFact" onclick="repCambiarTab('facturacion')">Facturación mensual</button>
+          </div>
+
+          <!-- CAJA DIARIA -->
+          <div id="repPaneCaja" class="rep-pane">
+            <div class="rep-controls">
+              <label>Día</label>
+              <input type="date" id="repFechaCaja" class="search-input" style="max-width:200px" onchange="repCargarCaja()">
+              <button class="btn btn-sm btn-light" onclick="repCajaHoy()">Hoy</button>
+            </div>
+            <div id="repCajaContenido"><div class="rep-empty">Elegí un día.</div></div>
+          </div>
+
+          <!-- FACTURACIÓN MENSUAL -->
+          <div id="repPaneFact" class="rep-pane" style="display:none">
+            <div class="rep-controls">
+              <label>Mes</label>
+              <input type="month" id="repMesFact" class="search-input" style="max-width:200px" onchange="repCargarFacturacion()">
+              <button class="btn btn-sm btn-light" onclick="repFactMesActual()">Este mes</button>
+            </div>
+            <div id="repFactContenido"><div class="rep-empty">Elegí un mes.</div></div>
+          </div>
+        </div>
+      </div>
+
       <!-- ═══ MÓDULO: ENTRADA DE STOCK ═══ -->
       <div class="module" id="moduleEntradaStock">
         <header class="main-header">
@@ -7812,6 +7871,7 @@ function navTo(modulo){
   if(modulo==='afip') initAfip();
   if(modulo==='empleados') initEmpleados();
   if(modulo==='entradaStock') initEntradaStock();
+  if(modulo==='reportes') initReportes();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -7831,6 +7891,7 @@ var PERMISOS_DISPONIBLES = [
   { id: 'entrada_stock',      modulo: 'entradaStock',      label: 'Entrada de stock',        desc: 'Cargar mercadería recibida y sumar stock' },
   { id: 'listas_proveedores', modulo: 'listasProveedores', label: 'Listas de proveedores',   desc: 'Importar listas y actualizar precios' },
   { id: 'ctacte',             modulo: 'ctacte',            label: 'Cuentas corrientes',      desc: 'Ver y mover cuentas corrientes' },
+  { id: 'reportes',           modulo: 'reportes',          label: 'Reportes',                desc: 'Caja diaria y facturación mensual' },
   { id: 'integraciones',      modulo: 'integraciones',     label: 'Integraciones',           desc: 'Mercado Libre, Tienda Nube, etc.' },
   { id: 'afip',               modulo: 'afip',              label: 'Facturación AFIP',        desc: 'Configurar y emitir comprobantes' },
   { id: 'empleados',          modulo: 'empleados',         label: 'Gestionar empleados',     desc: 'Invitar y administrar usuarios' },
@@ -8696,6 +8757,240 @@ async function esVerHistorial(){
     console.error(err);
     cont.innerHTML = '<div class="lp-empty">Error al cargar historial</div>';
   }
+}
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO: REPORTES (caja diaria + facturación mensual)
+// ═══════════════════════════════════════════════════════
+var MEDIOS_PAGO = {
+  efectivo:      { label: 'Efectivo',        color: '#22c55e' },
+  transferencia: { label: 'Transferencia',   color: '#3b82f6' },
+  debito:        { label: 'Tarjeta débito',  color: '#a855f7' },
+  credito:       { label: 'Tarjeta crédito', color: '#f59e0b' },
+  mercadopago:   { label: 'MercadoPago',     color: '#06b6d4' }
+};
+
+function initReportes(){
+  if(!currentEmpresaId) return;
+  repCambiarTab('caja');
+  // default: hoy / mes actual si no hay nada elegido
+  var fc = document.getElementById('repFechaCaja');
+  if(fc && !fc.value){ fc.value = repFechaLocalISO(new Date()); }
+  var mf = document.getElementById('repMesFact');
+  if(mf && !mf.value){ var n = new Date(); mf.value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
+  repCargarCaja();
+}
+
+function repCambiarTab(tab){
+  document.getElementById('repTabCaja').classList.toggle('active', tab === 'caja');
+  document.getElementById('repTabFact').classList.toggle('active', tab === 'facturacion');
+  document.getElementById('repPaneCaja').style.display = (tab === 'caja') ? 'block' : 'none';
+  document.getElementById('repPaneFact').style.display = (tab === 'facturacion') ? 'block' : 'none';
+  if(tab === 'facturacion' && !document.getElementById('repFactContenido').dataset.cargado){
+    repCargarFacturacion();
+  }
+}
+
+// Fecha local en formato YYYY-MM-DD (sin desfase de zona horaria)
+function repFechaLocalISO(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function repCajaHoy(){
+  document.getElementById('repFechaCaja').value = repFechaLocalISO(new Date());
+  repCargarCaja();
+}
+function repFactMesActual(){
+  var n = new Date();
+  document.getElementById('repMesFact').value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0');
+  repCargarFacturacion();
+}
+
+// Trae las ventas de un rango de fechas (ISO strings)
+async function repTraerVentas(desdeISO, hastaISO){
+  var snap = await db.collection('empresas').doc(currentEmpresaId).collection('ventas')
+    .where('fecha', '>=', desdeISO)
+    .where('fecha', '<=', hastaISO)
+    .get();
+  return snap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); });
+}
+
+// ─── CAJA DIARIA ───
+async function repCargarCaja(){
+  var cont = document.getElementById('repCajaContenido');
+  var fecha = document.getElementById('repFechaCaja').value;
+  if(!fecha){ cont.innerHTML = '<div class="rep-empty">Elegí un día.</div>'; return; }
+  cont.innerHTML = '<div class="rep-empty">Cargando...</div>';
+  try{
+    var desde = fecha + 'T00:00:00.000';
+    var hasta = fecha + 'T23:59:59.999';
+    var ventas = await repTraerVentas(desde, hasta);
+
+    if(ventas.length === 0){
+      cont.innerHTML = '<div class="rep-empty">No hubo ventas ese día.</div>';
+      return;
+    }
+
+    var totalDia = 0, cantVentas = ventas.length, totalItems = 0;
+    var porMedio = {};
+    Object.keys(MEDIOS_PAGO).forEach(function(m){ porMedio[m] = 0; });
+
+    ventas.forEach(function(v){
+      totalDia += Number(v.total) || 0;
+      (v.items || []).forEach(function(it){ totalItems += Number(it.cantidad) || 0; });
+      (v.pagos || []).forEach(function(p){
+        var m = p.metodo || 'efectivo';
+        if(porMedio[m] === undefined) porMedio[m] = 0;
+        porMedio[m] += Number(p.monto) || 0;
+      });
+    });
+
+    var efectivo = porMedio['efectivo'] || 0;
+
+    var html = '<div class="rep-cards">';
+    html += repCard('Total del día', fmtPeso(totalDia), cantVentas + ' ventas', true);
+    html += repCard('En efectivo', fmtPeso(efectivo), 'lo que debería haber en caja');
+    html += repCard('Ventas', String(cantVentas), totalItems + ' items vendidos');
+    html += repCard('Ticket promedio', fmtPeso(cantVentas ? totalDia/cantVentas : 0), 'por venta');
+    html += '</div>';
+
+    // Desglose por medio de pago
+    html += '<p class="rep-seccion-tit">Cómo te pagaron</p>';
+    html += '<table class="rep-tabla"><thead><tr><th>Medio de pago</th><th style="text-align:right">Monto</th><th style="text-align:right">%</th></tr></thead><tbody>';
+    Object.keys(porMedio).forEach(function(m){
+      if(porMedio[m] <= 0) return;
+      var info = MEDIOS_PAGO[m] || { label: m, color: '#999' };
+      var pct = totalDia ? Math.round(porMedio[m]/totalDia*100) : 0;
+      html += '<tr><td><span class="rep-medio"><span class="rep-medio-dot" style="background:'+info.color+'"></span>'+eH(info.label)+'</span></td>' +
+        '<td class="num">'+fmtPeso(porMedio[m])+'</td><td class="num">'+pct+'%</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    // Detalle de ventas del día
+    html += '<p class="rep-seccion-tit" style="margin-top:22px">Ventas del día</p>';
+    html += '<table class="rep-tabla"><thead><tr><th>Hora</th><th>Ticket</th><th>Cliente</th><th style="text-align:right">Total</th></tr></thead><tbody>';
+    ventas.sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||''); });
+    ventas.forEach(function(v){
+      var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
+      var cli = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : 'Consumidor final';
+      html += '<tr><td>'+hora+'</td><td>'+eH(v.numero||'')+'</td><td>'+eH(cli)+'</td><td class="num">'+fmtPeso(v.total||0)+'</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    html += '<div class="rep-acciones"><button class="btn btn-sm btn-light" onclick="repExportarCaja()">&#128229; Exportar a Excel</button></div>';
+
+    cont.innerHTML = html;
+    window._repCajaData = { fecha: fecha, ventas: ventas, totalDia: totalDia, porMedio: porMedio };
+  }catch(err){
+    console.error(err);
+    cont.innerHTML = '<div class="rep-empty">Error al cargar: ' + eH(err.message) + '</div>';
+  }
+}
+
+function repCard(label, valor, sub, destacada){
+  return '<div class="rep-card' + (destacada ? ' destacada' : '') + '">' +
+    '<div class="rep-card-label">' + eH(label) + '</div>' +
+    '<div class="rep-card-valor">' + valor + '</div>' +
+    (sub ? '<div class="rep-card-sub">' + eH(sub) + '</div>' : '') + '</div>';
+}
+
+// ─── FACTURACIÓN MENSUAL ───
+async function repCargarFacturacion(){
+  var cont = document.getElementById('repFactContenido');
+  cont.dataset.cargado = '1';
+  var mes = document.getElementById('repMesFact').value; // YYYY-MM
+  if(!mes){ cont.innerHTML = '<div class="rep-empty">Elegí un mes.</div>'; return; }
+  cont.innerHTML = '<div class="rep-empty">Cargando...</div>';
+  try{
+    var partes = mes.split('-');
+    var anio = Number(partes[0]), m = Number(partes[1]);
+    var desde = mes + '-01T00:00:00.000';
+    var ultimoDia = new Date(anio, m, 0).getDate();
+    var hasta = mes + '-' + String(ultimoDia).padStart(2,'0') + 'T23:59:59.999';
+    var ventas = await repTraerVentas(desde, hasta);
+
+    if(ventas.length === 0){
+      cont.innerHTML = '<div class="rep-empty">No hubo ventas ese mes.</div>';
+      return;
+    }
+
+    var totalFact = 0, totalNeto = 0, totalIva = 0, cantVentas = ventas.length;
+    var porDia = {};
+    ventas.forEach(function(v){
+      totalFact += Number(v.total) || 0;
+      totalNeto += Number(v.neto) || 0;
+      totalIva += Number(v.ivaMonto) || 0;
+      var dia = (v.fecha || '').slice(0,10);
+      if(!porDia[dia]) porDia[dia] = { total: 0, n: 0 };
+      porDia[dia].total += Number(v.total) || 0;
+      porDia[dia].n++;
+    });
+
+    var nombreMes = new Date(anio, m-1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+
+    var html = '<div class="rep-cards">';
+    html += repCard('Facturación total', fmtPeso(totalFact), nombreMes, true);
+    html += repCard('Neto (sin IVA)', fmtPeso(totalNeto), '');
+    html += repCard('IVA', fmtPeso(totalIva), '');
+    html += repCard('Ventas', String(cantVentas), 'ticket prom. ' + fmtPeso(cantVentas ? totalFact/cantVentas : 0));
+    html += '</div>';
+
+    // Detalle por día
+    html += '<p class="rep-seccion-tit">Facturación por día</p>';
+    html += '<table class="rep-tabla"><thead><tr><th>Día</th><th style="text-align:right">Ventas</th><th style="text-align:right">Total</th></tr></thead><tbody>';
+    Object.keys(porDia).sort().forEach(function(dia){
+      var d = porDia[dia];
+      var diaTxt = new Date(dia + 'T12:00:00').toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit' });
+      html += '<tr><td>'+diaTxt+'</td><td class="num">'+d.n+'</td><td class="num">'+fmtPeso(d.total)+'</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    html += '<div class="rep-acciones"><button class="btn btn-sm btn-light" onclick="repExportarFacturacion()">&#128229; Exportar a Excel</button></div>';
+    html += '<p class="rep-card-sub" style="margin-top:14px">Nota: esto es la facturación registrada en las ventas de Comercia. No reemplaza tus comprobantes oficiales de ARCA/AFIP.</p>';
+
+    cont.innerHTML = html;
+    window._repFactData = { mes: mes, ventas: ventas, porDia: porDia, totalFact: totalFact, totalNeto: totalNeto, totalIva: totalIva };
+  }catch(err){
+    console.error(err);
+    cont.innerHTML = '<div class="rep-empty">Error al cargar: ' + eH(err.message) + '</div>';
+  }
+}
+
+// ─── Exportar a Excel ───
+function repExportarCaja(){
+  var d = window._repCajaData;
+  if(!d){ return; }
+  var rows = [['Hora','Ticket','Cliente','Total','Medios de pago']];
+  d.ventas.forEach(function(v){
+    var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-AR') : '';
+    var cli = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : 'Consumidor final';
+    var medios = (v.pagos||[]).map(function(p){ return (MEDIOS_PAGO[p.metodo]?MEDIOS_PAGO[p.metodo].label:p.metodo)+': '+p.monto; }).join(' | ');
+    rows.push([hora, v.numero||'', cli, Number(v.total)||0, medios]);
+  });
+  rows.push([]);
+  rows.push(['TOTAL DÍA','','', d.totalDia, '']);
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Caja');
+  XLSX.writeFile(wb, 'caja_' + d.fecha + '.xlsx');
+}
+
+function repExportarFacturacion(){
+  var d = window._repFactData;
+  if(!d){ return; }
+  var rows = [['Fecha','Ticket','Cliente','Neto','IVA','Total']];
+  d.ventas.sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||''); });
+  d.ventas.forEach(function(v){
+    var fec = v.fecha ? new Date(v.fecha).toLocaleDateString('es-AR') : '';
+    var cli = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : 'Consumidor final';
+    rows.push([fec, v.numero||'', cli, Number(v.neto)||0, Number(v.ivaMonto)||0, Number(v.total)||0]);
+  });
+  rows.push([]);
+  rows.push(['TOTALES','','', d.totalNeto, d.totalIva, d.totalFact]);
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Facturacion');
+  XLSX.writeFile(wb, 'facturacion_' + d.mes + '.xlsx');
 }
 
 
