@@ -5071,6 +5071,7 @@
           </div>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="cliAbrirImportar()">&#128228; Importar Excel</button>
+            <button class="btn btn-line btn-sm" onclick="cliBorrarTodos()" style="color:var(--danger);border-color:var(--danger)">&#128465; Borrar todos</button>
             <button class="btn btn-primary btn-sm" onclick="openClienteModal()">&#43; Nuevo cliente</button>
           </div>
         </header>
@@ -11266,6 +11267,38 @@ async function saveCliente(){
   }
 }
 
+// Borra TODOS los clientes de la empresa (destructivo, doble confirmación)
+async function cliBorrarTodos(){
+  if(clientes.length === 0){ toast('No hay clientes para borrar', 'info'); return; }
+  if(!confirm('⚠️ Vas a BORRAR los ' + clientes.length + ' clientes de tu empresa.\n\nEsto NO se puede deshacer. ¿Seguro?')) return;
+  var conf = prompt('Para confirmar, escribí la palabra BORRAR (en mayúsculas):');
+  if(conf !== 'BORRAR'){ toast('Cancelado (no se borró nada)', 'info'); return; }
+
+  toast('Borrando clientes...', 'info');
+  try{
+    var ids = clientes.map(function(c){ return c._id; }).filter(Boolean);
+    var B = 400;
+    for(var i = 0; i < ids.length; i += B){
+      var slice = ids.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(id){
+        batch.delete(db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(id));
+      });
+      await batch.commit();
+    }
+    // Limpiar local
+    try{ await idbBorrarClientes(currentEmpresaId, ids); }catch(e){ console.warn('idb', e); }
+    clientes = [];
+    clientesFiltered = [];
+    toast('✅ Todos los clientes fueron borrados', 'success');
+    renderClientes();
+    actualizarStatsClientes();
+  }catch(err){
+    console.error(err);
+    toast('Error al borrar: ' + err.message, 'error');
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 // IMPORTAR CLIENTES desde Excel
 // ═══════════════════════════════════════════════════════
@@ -11335,6 +11368,7 @@ async function cliProcesarExcel(file){
       doc:       lpDetectarCol(headersLow, ['cuit/cuil','cuit','cuil','dni','documento','num doc','nro doc']),
       tipoDoc:   lpDetectarCol(headersLow, ['tipo documento','tipo doc']),
       tel:       lpDetectarCol(headersLow, ['celular','telefono','teléfono','tel','movil','whatsapp']),
+      tel2:      lpDetectarCol(headersLow, ['telefono','teléfono','tel']),
       email:     lpDetectarCol(headersLow, ['correo electronico','correo electrónico','correo','email','e-mail','mail']),
       direccion: lpDetectarCol(headersLow, ['domicilio','direccion','dirección','calle']),
       localidad: lpDetectarCol(headersLow, ['localidad','ciudad','partido']),
@@ -11394,12 +11428,28 @@ function cliCambiarMapeo(campo, valor){
   cliRecalcularPreview();
 }
 
+// Limpia caracteres mal codificados comunes (Ñ, acentos rotos en exports)
+function cliLimpiarTexto(s){
+  if(!s) return '';
+  s = String(s);
+  // Entidades HTML numéricas (&#209; = Ñ, etc.)
+  s = s.replace(/&#(\d+);/g, function(m, num){ try{ return String.fromCharCode(Number(num)); }catch(e){ return m; } });
+  s = s.replace(/&#x([0-9a-f]+);/gi, function(m, hex){ try{ return String.fromCharCode(parseInt(hex,16)); }catch(e){ return m; } });
+  // Entidades nombradas frecuentes
+  var ents = { '&ntilde;':'ñ','&Ntilde;':'Ñ','&aacute;':'á','&eacute;':'é','&iacute;':'í','&oacute;':'ó','&uacute;':'ú','&Aacute;':'Á','&Eacute;':'É','&Iacute;':'Í','&Oacute;':'Ó','&Uacute;':'Ú','&amp;':'&','&uuml;':'ü' };
+  Object.keys(ents).forEach(function(k){ s = s.split(k).join(ents[k]); });
+  // Secuencias mojibake típicas de UTF-8 mal leído
+  var moji = { 'Ã±':'ñ','Ã‘':'Ñ','Ã¡':'á','Ã©':'é','Ã­':'í','Ã³':'ó','Ãº':'ú','Ã�':'Í','Ã ':'à','Ã¼':'ü','Â°':'°','Âº':'º','Âª':'ª' };
+  Object.keys(moji).forEach(function(k){ s = s.split(k).join(moji[k]); });
+  return s.trim();
+}
+
 // Construye las filas de cliente según el mapeo actual y refresca la preview
 function cliRecalcularPreview(){
   var m = cliImpData.map;
   var rowsRaw = cliImpData.rowsRaw;
   var start = cliImpData.headerRowIdx + 1;
-  function val(r, idx){ return (idx >= 0 && r[idx] != null) ? String(r[idx]).trim() : ''; }
+  function val(r, idx){ return (idx >= 0 && r[idx] != null) ? cliLimpiarTexto(String(r[idx])) : ''; }
 
   var rows = [];
   for(var j = start; j < rowsRaw.length; j++){
@@ -11407,13 +11457,16 @@ function cliRecalcularPreview(){
     if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
     var razon = val(r, m.razon);
     if(!razon) continue;
+    // Teléfono: celular primero; si no hay, teléfono fijo
+    var tel = val(r, m.tel);
+    if(!tel && m.tel2 >= 0) tel = val(r, m.tel2);
     rows.push({
       razonSocial: razon,
       nombre: val(r, m.nombre),
       fantasia: val(r, m.fantasia),
       numDoc: val(r, m.doc).replace(/[^0-9kK\-]/g, ''),
       tipoDocTxt: val(r, m.tipoDoc),
-      telefono: val(r, m.tel),
+      telefono: tel,
       email: val(r, m.email).toLowerCase(),
       direccion: val(r, m.direccion),
       localidad: val(r, m.localidad),
