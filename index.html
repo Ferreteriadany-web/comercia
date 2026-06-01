@@ -4656,6 +4656,13 @@
   .rep-medio-dot{ width:9px; height:9px; border-radius:50%; }
   .rep-acciones{ margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; }
 
+  /* Mapeo de columnas al importar clientes */
+  .cli-mapeo{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-bottom:16px; padding:14px; background:var(--bg-soft); border:1px solid var(--border); border-radius:10px; }
+  .cli-mapeo-item{ display:flex; flex-direction:column; gap:3px; }
+  .cli-mapeo-item label{ font-size:11px; font-weight:700; color:var(--text-mute); text-transform:uppercase; }
+  .cli-mapeo-item select{ background:var(--bg-card); border:1px solid var(--border); border-radius:7px; padding:7px 9px; font-size:13px; color:var(--text); font-family:inherit; }
+  .cli-mapeo-item select:focus{ outline:none; border-color:var(--accent); }
+
 </style>
 </head>
 <body>
@@ -6413,6 +6420,7 @@
 
             <div id="cliImpPaso2" style="display:none">
               <p class="lp-pane-sub" id="cliImpResumen" style="margin-bottom:12px"></p>
+              <div id="cliImpMapeo" class="cli-mapeo"></div>
               <div class="lp-table-wrap" style="max-height:340px;overflow:auto">
                 <table class="lp-table" id="cliImpTabla">
                   <thead><tr>
@@ -11290,113 +11298,177 @@ async function cliProcesarExcel(file){
   document.getElementById('cliImpPaso1').style.display = 'none';
   document.getElementById('cliImpPaso2').style.display = 'block';
   document.getElementById('cliImpResumen').textContent = 'Leyendo...';
+  document.getElementById('cliImpMapeo').innerHTML = '';
   try{
     var data = await lpLeerArchivo(file);
     var wb = XLSX.read(data, { type: 'array' });
     var sheet = wb.Sheets[wb.SheetNames[0]];
     var rowsRaw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
 
-    var headerRowIdx = -1;
+    // Detectar fila de headers: la fila real tiene VARIAS columnas con nombres
+    // de campo (no una sola celda de título como "Listado de Clientes").
+    var headerRowIdx = -1, mejorPuntaje = 0;
+    var claves = ['razon','razón','nombre','cliente','apellido','cuit','dni','documento','categoria','categoría','domicilio','direccion','dirección','localidad','provincia','telefono','teléfono','celular','email','correo','fantasia','fantasía','contacto','vendedor','zona'];
     for(var i = 0; i < Math.min(20, rowsRaw.length); i++){
       var row = rowsRaw[i];
       if(!row) continue;
-      var s = row.join('|').toLowerCase();
-      if(/raz[oó]n|nombre|cliente|apellido|cuit|dni|documento/i.test(s)){ headerRowIdx = i; break; }
+      var celdas = row.map(function(c){ return String(c == null ? '' : c).trim().toLowerCase(); }).filter(function(c){ return c; });
+      // contar cuántas celdas coinciden con alguna palabra clave
+      var puntaje = 0;
+      celdas.forEach(function(cel){
+        for(var k = 0; k < claves.length; k++){ if(cel === claves[k] || cel.indexOf(claves[k]) >= 0){ puntaje++; break; } }
+      });
+      // la fila de headers tiene varias coincidencias Y varias columnas
+      if(puntaje >= 3 && celdas.length >= 3 && puntaje > mejorPuntaje){
+        mejorPuntaje = puntaje; headerRowIdx = i;
+      }
     }
     if(headerRowIdx < 0) headerRowIdx = 0;
-    var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
+    var headers = (rowsRaw[headerRowIdx] || []).map(function(h){ return String(h || '').trim(); });
+    var headersLow = headers.map(function(h){ return h.toLowerCase(); });
 
-    var col = {
-      razon:     lpDetectarCol(headers, ['razon social','razón social','razon','cliente','apellido y nombre','nombre y apellido','apellido','nombre completo']),
-      nombre:    lpDetectarCol(headers, ['persona contacto','contacto','nombre']),
-      fantasia:  lpDetectarCol(headers, ['nombre de fantasia','nombre de fantasía','fantasia','fantasía','nombre fantasia']),
-      doc:       lpDetectarCol(headers, ['cuit/cuil','cuit','cuil','dni','documento','num doc','nro doc','c.u.i.t']),
-      tipoDoc:   lpDetectarCol(headers, ['tipo documento','tipo doc','tipo de documento']),
-      tel:       lpDetectarCol(headers, ['celular','telefono','teléfono','tel','movil','móvil','whatsapp']),
-      email:     lpDetectarCol(headers, ['correo electronico','correo electrónico','correo','email','e-mail','mail']),
-      direccion: lpDetectarCol(headers, ['domicilio','direccion','dirección','calle']),
-      localidad: lpDetectarCol(headers, ['localidad','ciudad','partido']),
-      provincia: lpDetectarCol(headers, ['provincia','estado']),
-      catFiscal: lpDetectarCol(headers, ['categoria fiscal','categoría fiscal','condicion','condición','cat fiscal','condicion iva','situacion']),
-      tipoCliente: lpDetectarCol(headers, ['tipo cliente','tipo de cliente']),
-      vendedor:  lpDetectarCol(headers, ['vendedor']),
-      zona:      lpDetectarCol(headers, ['zona']),
-      listaPrecio: lpDetectarCol(headers, ['lista precio por defecto','lista precio','lista de precio']),
-      tipoComp:  lpDetectarCol(headers, ['tipo comprobante por defecto','tipo comprobante','comprobante por defecto'])
+    // Sugerencia automática de columnas
+    var sug = {
+      razon:     lpDetectarCol(headersLow, ['razon social','razón social','razon','cliente','apellido y nombre','nombre y apellido','apellido','nombre completo','nombre']),
+      nombre:    lpDetectarCol(headersLow, ['persona contacto','contacto']),
+      fantasia:  lpDetectarCol(headersLow, ['nombre de fantasia','nombre de fantasía','fantasia','fantasía']),
+      doc:       lpDetectarCol(headersLow, ['cuit/cuil','cuit','cuil','dni','documento','num doc','nro doc']),
+      tipoDoc:   lpDetectarCol(headersLow, ['tipo documento','tipo doc']),
+      tel:       lpDetectarCol(headersLow, ['celular','telefono','teléfono','tel','movil','whatsapp']),
+      email:     lpDetectarCol(headersLow, ['correo electronico','correo electrónico','correo','email','e-mail','mail']),
+      direccion: lpDetectarCol(headersLow, ['domicilio','direccion','dirección','calle']),
+      localidad: lpDetectarCol(headersLow, ['localidad','ciudad','partido']),
+      provincia: lpDetectarCol(headersLow, ['provincia']),
+      catFiscal: lpDetectarCol(headersLow, ['categoria fiscal','categoría fiscal','condicion','condición','cat fiscal','condicion iva']),
+      vendedor:  lpDetectarCol(headersLow, ['vendedor']),
+      zona:      lpDetectarCol(headersLow, ['zona']),
+      listaPrecio: lpDetectarCol(headersLow, ['lista precio por defecto','lista precio']),
+      tipoComp:  lpDetectarCol(headersLow, ['tipo comprobante por defecto','tipo comprobante'])
     };
-    if(col.razon < 0) col.razon = 0;
 
-    var rows = [];
-    for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
-      var r = rowsRaw[j];
-      if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
-      function val(idx){ return idx >= 0 && r[idx] != null ? String(r[idx]).trim() : ''; }
-      var razon = val(col.razon);
-      if(!razon) continue;
-      var docv = val(col.doc).replace(/[^0-9kK\-]/g, '');
-      rows.push({
-        razonSocial: razon,
-        nombre: val(col.nombre),
-        fantasia: val(col.fantasia),
-        numDoc: docv,
-        tipoDocTxt: val(col.tipoDoc),
-        telefono: val(col.tel),
-        email: val(col.email).toLowerCase(),
-        direccion: val(col.direccion),
-        localidad: val(col.localidad),
-        provincia: val(col.provincia),
-        catFiscalTxt: val(col.catFiscal),
-        tipoClienteTxt: val(col.tipoCliente),
-        vendedor: val(col.vendedor),
-        zona: val(col.zona),
-        listaPrecio: val(col.listaPrecio),
-        tipoComprobante: val(col.tipoComp)
-      });
-    }
+    cliImpData = { headers: headers, rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, map: sug, archivo: file.name };
 
-    if(rows.length === 0){
-      document.getElementById('cliImpResumen').textContent = 'No se encontraron clientes válidos en el Excel.';
-      return;
-    }
-
-    var existentesNombre = {}, existentesDoc = {};
-    clientes.forEach(function(c){
-      if(c.razonSocial) existentesNombre[c.razonSocial.trim().toLowerCase()] = true;
-      if(c.numDoc) existentesDoc[String(c.numDoc).replace(/[^0-9kK]/g,'')] = true;
-    });
-    var nuevos = 0, dupes = 0;
-    rows.forEach(function(row){
-      var dupNombre = existentesNombre[row.razonSocial.toLowerCase()];
-      var dupDoc = row.numDoc && existentesDoc[row.numDoc.replace(/[^0-9kK]/g,'')];
-      row._dup = !!(dupNombre || dupDoc);
-      if(row._dup) dupes++; else nuevos++;
-    });
-
-    cliImpData = { rows: rows, archivo: file.name };
-    document.getElementById('cliImpResumen').innerHTML =
-      '<strong>' + rows.length + '</strong> clientes leídos · <strong>' + nuevos + '</strong> nuevos' +
-      (dupes ? ' · <span style="color:var(--danger)">' + dupes + ' ya existen (se saltean)</span>' : '');
-
-    var tbody = document.getElementById('cliImpTbody');
-    var html = '';
-    rows.slice(0, 100).forEach(function(row){
-      html += '<tr style="' + (row._dup ? 'opacity:.45' : '') + '">' +
-        '<td>' + eH(row.razonSocial) + (row.nombre ? ' <span style="color:var(--text-mute)">· ' + eH(row.nombre) + '</span>' : '') + '</td>' +
-        '<td>' + eH(row.numDoc || '—') + '</td>' +
-        '<td>' + eH(row.telefono || '—') + '</td>' +
-        '<td>' + eH(row.email || '—') + '</td>' +
-        '<td>' + (row._dup ? '<span class="es-badge error">Ya existe</span>' : '<span class="es-badge ok">Nuevo</span>') + '</td>' +
-      '</tr>';
-    });
-    if(rows.length > 100) html += '<tr><td colspan="5" style="text-align:center;color:var(--text-mute);padding:10px">... y ' + (rows.length - 100) + ' más</td></tr>';
-    tbody.innerHTML = html;
-
-    document.getElementById('cliImpBtnAplicar').style.display = nuevos > 0 ? 'inline-block' : 'none';
-    document.getElementById('cliImpBtnAplicar').textContent = 'Importar ' + nuevos + ' clientes';
+    // Render del mapeo editable
+    cliRenderMapeo();
+    cliRecalcularPreview();
   }catch(err){
     console.error(err);
     document.getElementById('cliImpResumen').textContent = 'Error al leer: ' + err.message;
   }
+}
+
+// Campos que el usuario puede mapear (label visible + clave interna)
+var CLI_CAMPOS_MAP = [
+  { k: 'razon',     label: 'Nombre / Razón social *' },
+  { k: 'nombre',    label: 'Contacto' },
+  { k: 'fantasia',  label: 'Nombre fantasía' },
+  { k: 'doc',       label: 'CUIT / DNI' },
+  { k: 'tel',       label: 'Teléfono' },
+  { k: 'email',     label: 'Email' },
+  { k: 'direccion', label: 'Domicilio' },
+  { k: 'localidad', label: 'Localidad' },
+  { k: 'provincia', label: 'Provincia' },
+  { k: 'catFiscal', label: 'Categoría fiscal' }
+];
+
+function cliRenderMapeo(){
+  var cont = document.getElementById('cliImpMapeo');
+  var headers = cliImpData.headers;
+  var html = '<div style="grid-column:1/-1;font-size:12px;color:var(--text-mute);margin-bottom:2px">Revisá que cada dato apunte a la columna correcta. Si algo está mal, cambialo acá:</div>';
+  CLI_CAMPOS_MAP.forEach(function(campo){
+    var sel = '<select onchange="cliCambiarMapeo(\'' + campo.k + '\', this.value)">';
+    sel += '<option value="-1">— ninguna —</option>';
+    headers.forEach(function(h, idx){
+      var selected = (cliImpData.map[campo.k] === idx) ? ' selected' : '';
+      var nombreCol = h || ('Columna ' + (idx+1));
+      sel += '<option value="' + idx + '"' + selected + '>' + eH(nombreCol) + '</option>';
+    });
+    sel += '</select>';
+    html += '<div class="cli-mapeo-item"><label>' + eH(campo.label) + '</label>' + sel + '</div>';
+  });
+  cont.innerHTML = html;
+}
+
+function cliCambiarMapeo(campo, valor){
+  cliImpData.map[campo] = Number(valor);
+  cliRecalcularPreview();
+}
+
+// Construye las filas de cliente según el mapeo actual y refresca la preview
+function cliRecalcularPreview(){
+  var m = cliImpData.map;
+  var rowsRaw = cliImpData.rowsRaw;
+  var start = cliImpData.headerRowIdx + 1;
+  function val(r, idx){ return (idx >= 0 && r[idx] != null) ? String(r[idx]).trim() : ''; }
+
+  var rows = [];
+  for(var j = start; j < rowsRaw.length; j++){
+    var r = rowsRaw[j];
+    if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
+    var razon = val(r, m.razon);
+    if(!razon) continue;
+    rows.push({
+      razonSocial: razon,
+      nombre: val(r, m.nombre),
+      fantasia: val(r, m.fantasia),
+      numDoc: val(r, m.doc).replace(/[^0-9kK\-]/g, ''),
+      tipoDocTxt: val(r, m.tipoDoc),
+      telefono: val(r, m.tel),
+      email: val(r, m.email).toLowerCase(),
+      direccion: val(r, m.direccion),
+      localidad: val(r, m.localidad),
+      provincia: val(r, m.provincia),
+      catFiscalTxt: val(r, m.catFiscal),
+      vendedor: val(r, m.vendedor),
+      zona: val(r, m.zona),
+      listaPrecio: val(r, m.listaPrecio),
+      tipoComprobante: val(r, m.tipoComp)
+    });
+  }
+
+  // Detectar duplicados
+  var existentesNombre = {}, existentesDoc = {};
+  clientes.forEach(function(c){
+    if(c.razonSocial) existentesNombre[c.razonSocial.trim().toLowerCase()] = true;
+    if(c.numDoc) existentesDoc[String(c.numDoc).replace(/[^0-9kK]/g,'')] = true;
+  });
+  var nuevos = 0, dupes = 0;
+  rows.forEach(function(row){
+    var dupNombre = existentesNombre[row.razonSocial.toLowerCase()];
+    var dupDoc = row.numDoc && existentesDoc[row.numDoc.replace(/[^0-9kK]/g,'')];
+    row._dup = !!(dupNombre || dupDoc);
+    if(row._dup) dupes++; else nuevos++;
+  });
+
+  cliImpData.rows = rows;
+
+  if(rows.length === 0){
+    document.getElementById('cliImpResumen').innerHTML = '<span style="color:var(--danger)">No se leyeron clientes. Revisá que "Nombre / Razón social" apunte a la columna correcta.</span>';
+    document.getElementById('cliImpTbody').innerHTML = '';
+    document.getElementById('cliImpBtnAplicar').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('cliImpResumen').innerHTML =
+    '<strong>' + rows.length + '</strong> leídos · <strong>' + nuevos + '</strong> nuevos' +
+    (dupes ? ' · <span style="color:var(--danger)">' + dupes + ' ya existen (se saltean)</span>' : '');
+
+  var tbody = document.getElementById('cliImpTbody');
+  var html = '';
+  rows.slice(0, 100).forEach(function(row){
+    html += '<tr style="' + (row._dup ? 'opacity:.45' : '') + '">' +
+      '<td>' + eH(row.razonSocial) + (row.nombre ? ' <span style="color:var(--text-mute)">· ' + eH(row.nombre) + '</span>' : '') + '</td>' +
+      '<td>' + eH(row.numDoc || '—') + '</td>' +
+      '<td>' + eH(row.telefono || '—') + '</td>' +
+      '<td>' + eH(row.email || '—') + '</td>' +
+      '<td>' + (row._dup ? '<span class="es-badge error">Ya existe</span>' : '<span class="es-badge ok">Nuevo</span>') + '</td>' +
+    '</tr>';
+  });
+  if(rows.length > 100) html += '<tr><td colspan="5" style="text-align:center;color:var(--text-mute);padding:10px">... y ' + (rows.length - 100) + ' más</td></tr>';
+  tbody.innerHTML = html;
+
+  document.getElementById('cliImpBtnAplicar').style.display = nuevos > 0 ? 'inline-block' : 'none';
+  document.getElementById('cliImpBtnAplicar').textContent = 'Importar ' + nuevos + ' clientes';
 }
 
 function cliMapCatFiscal(txt){
