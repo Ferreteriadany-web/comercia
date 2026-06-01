@@ -11308,14 +11308,21 @@ async function cliProcesarExcel(file){
 
     var col = {
       razon:     lpDetectarCol(headers, ['razon social','razón social','razon','cliente','apellido y nombre','nombre y apellido','apellido','nombre completo']),
-      nombre:    lpDetectarCol(headers, ['nombre','contacto']),
-      doc:       lpDetectarCol(headers, ['cuit','dni','documento','cuil','num doc','nro doc','c.u.i.t']),
-      tel:       lpDetectarCol(headers, ['telefono','teléfono','tel','celular','cel','movil','móvil','whatsapp']),
-      email:     lpDetectarCol(headers, ['email','e-mail','correo','mail']),
-      direccion: lpDetectarCol(headers, ['direccion','dirección','domicilio','calle']),
+      nombre:    lpDetectarCol(headers, ['persona contacto','contacto','nombre']),
+      fantasia:  lpDetectarCol(headers, ['nombre de fantasia','nombre de fantasía','fantasia','fantasía','nombre fantasia']),
+      doc:       lpDetectarCol(headers, ['cuit/cuil','cuit','cuil','dni','documento','num doc','nro doc','c.u.i.t']),
+      tipoDoc:   lpDetectarCol(headers, ['tipo documento','tipo doc','tipo de documento']),
+      tel:       lpDetectarCol(headers, ['celular','telefono','teléfono','tel','movil','móvil','whatsapp']),
+      email:     lpDetectarCol(headers, ['correo electronico','correo electrónico','correo','email','e-mail','mail']),
+      direccion: lpDetectarCol(headers, ['domicilio','direccion','dirección','calle']),
       localidad: lpDetectarCol(headers, ['localidad','ciudad','partido']),
       provincia: lpDetectarCol(headers, ['provincia','estado']),
-      catFiscal: lpDetectarCol(headers, ['condicion','condición','iva','cat fiscal','categoria','categoría','condicion iva','situacion'])
+      catFiscal: lpDetectarCol(headers, ['categoria fiscal','categoría fiscal','condicion','condición','cat fiscal','condicion iva','situacion']),
+      tipoCliente: lpDetectarCol(headers, ['tipo cliente','tipo de cliente']),
+      vendedor:  lpDetectarCol(headers, ['vendedor']),
+      zona:      lpDetectarCol(headers, ['zona']),
+      listaPrecio: lpDetectarCol(headers, ['lista precio por defecto','lista precio','lista de precio']),
+      tipoComp:  lpDetectarCol(headers, ['tipo comprobante por defecto','tipo comprobante','comprobante por defecto'])
     };
     if(col.razon < 0) col.razon = 0;
 
@@ -11330,13 +11337,20 @@ async function cliProcesarExcel(file){
       rows.push({
         razonSocial: razon,
         nombre: val(col.nombre),
+        fantasia: val(col.fantasia),
         numDoc: docv,
+        tipoDocTxt: val(col.tipoDoc),
         telefono: val(col.tel),
         email: val(col.email).toLowerCase(),
         direccion: val(col.direccion),
         localidad: val(col.localidad),
         provincia: val(col.provincia),
-        catFiscalTxt: val(col.catFiscal)
+        catFiscalTxt: val(col.catFiscal),
+        tipoClienteTxt: val(col.tipoCliente),
+        vendedor: val(col.vendedor),
+        zona: val(col.zona),
+        listaPrecio: val(col.listaPrecio),
+        tipoComprobante: val(col.tipoComp)
       });
     }
 
@@ -11410,11 +11424,20 @@ async function cliAplicarImportar(){
       slice.forEach(function(row){
         var ref = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc();
         var docn = (row.numDoc || '').replace(/[^0-9kK]/g, '');
-        var tipoDoc = (docn.length === 11) ? 'CUIT' : (docn.length ? 'DNI' : '');
+        // Tipo de doc: usar el del Excel si vino, sino inferir por longitud
+        var tipoDoc = '';
+        if(row.tipoDocTxt){
+          var td = row.tipoDocTxt.toUpperCase();
+          if(td.indexOf('CUIT') >= 0) tipoDoc = 'CUIT';
+          else if(td.indexOf('CUIL') >= 0) tipoDoc = 'CUIT';
+          else if(td.indexOf('DNI') >= 0) tipoDoc = 'DNI';
+        }
+        if(!tipoDoc) tipoDoc = (docn.length === 11) ? 'CUIT' : (docn.length ? 'DNI' : '');
         var data = {
           razonSocial: row.razonSocial,
           nombre: row.nombre || '',
-          fantasia: '', codigo: '',
+          fantasia: row.fantasia || '',
+          codigo: '',
           tipo: 'cliente', origen: 'importado',
           telefono: row.telefono || '',
           email: row.email || '',
@@ -11426,6 +11449,10 @@ async function cliAplicarImportar(){
           numDoc: docn,
           tieneCC: false, limite: 0,
           observaciones: '',
+          vendedor: row.vendedor || '',
+          zona: row.zona || '',
+          listaPrecio: row.listaPrecio || '',
+          tipoComprobante: row.tipoComprobante || '',
           creadoEn: nowIso, updatedAt: nowIso
         };
         batch.set(ref, data);
