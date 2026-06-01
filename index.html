@@ -25,23 +25,23 @@
 <style>
   :root, [data-theme="light"]{
     /* SUPERFICIES — claro */
-    --bg:#fafafa;
-    --bg-2:#f4f4f5;
+    --bg:#fbfbfa;
+    --bg-2:#f6f5f3;
     --paper:#ffffff;
-    --paper-2:#fafafa;
-    --line:#e4e4e7;
-    --line-2:#d4d4d8;
+    --paper-2:#fbfbfa;
+    --line:#eeede9;
+    --line-2:#e2e1db;
 
     /* TEXTO — claro */
-    --text:#09090b;
-    --text-soft:#52525b;
-    --text-mute:#a1a1aa;
+    --text:#1c1c1a;
+    --text-soft:#575650;
+    --text-mute:#a3a299;
 
-    /* ACENTO ÁMBAR */
-    --accent:#f59e0b;
-    --accent-hover:#d97706;
-    --accent-soft:#fef3c7;
-    --accent-text:#78350f;
+    /* ACENTO ÁMBAR — suave y sobrio */
+    --accent:#e08e3c;
+    --accent-hover:#c2761f;
+    --accent-soft:#fdf3e7;
+    --accent-text:#8a5418;
 
     /* TINTA / NEGRO */
     --ink:#09090b;
@@ -68,18 +68,18 @@
     --sans:'Geist',system-ui,sans-serif;
     --mono:'Geist Mono',ui-monospace,monospace;
 
-    /* RADIOS — FILOSOS */
-    --r-sm:3px;
-    --r-md:4px;
-    --r-lg:6px;
-    --r-xl:8px;
+    /* RADIOS — SUAVES */
+    --r-sm:7px;
+    --r-md:10px;
+    --r-lg:14px;
+    --r-xl:18px;
 
-    /* SOMBRAS */
-    --shadow-sm:0 1px 2px 0 rgba(0,0,0,.04);
-    --shadow:0 1px 3px 0 rgba(0,0,0,.06),0 1px 2px -1px rgba(0,0,0,.04);
-    --shadow-md:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -2px rgba(0,0,0,.05);
-    --shadow-lg:0 10px 15px -3px rgba(0,0,0,.08),0 4px 6px -4px rgba(0,0,0,.05);
-    --shadow-xl:0 20px 25px -5px rgba(0,0,0,.10),0 8px 10px -6px rgba(0,0,0,.05);
+    /* SOMBRAS — sutiles */
+    --shadow-sm:0 1px 2px 0 rgba(0,0,0,.03);
+    --shadow:0 1px 3px 0 rgba(0,0,0,.04),0 1px 2px -1px rgba(0,0,0,.03);
+    --shadow-md:0 4px 12px -2px rgba(0,0,0,.05),0 2px 6px -2px rgba(0,0,0,.04);
+    --shadow-lg:0 12px 24px -6px rgba(0,0,0,.07),0 4px 8px -4px rgba(0,0,0,.04);
+    --shadow-xl:0 24px 40px -8px rgba(0,0,0,.09),0 8px 14px -6px rgba(0,0,0,.05);
   }
 
   [data-theme="dark"]{
@@ -96,11 +96,11 @@
     --text-soft:#a1a1aa;
     --text-mute:#71717a;
 
-    /* ACENTO ÁMBAR (más vibrante en oscuro) */
-    --accent:#fbbf24;
-    --accent-hover:#f59e0b;
-    --accent-soft:rgba(251,191,36,.12);
-    --accent-text:#fcd34d;
+    /* ACENTO ÁMBAR (suave en oscuro) */
+    --accent:#e8a653;
+    --accent-hover:#e08e3c;
+    --accent-soft:rgba(232,166,83,.13);
+    --accent-text:#f0c084;
 
     /* TINTA / INVERTIDA */
     --ink:#fafafa;
@@ -1033,7 +1033,7 @@
     background:var(--accent);
     color:#1a1408;
     padding:0 2px;
-    border-radius:2px;
+    border-radius:9px;
     font-weight:600;
   }
   [data-theme="dark"] mark.hl{background:var(--accent);color:#000}
@@ -2348,7 +2348,7 @@
     color:var(--text-soft);
     background:transparent;
     border:none;
-    border-radius:2px;
+    border-radius:9px;
     cursor:pointer;
     transition:all .12s;
     text-transform:uppercase;
@@ -2983,7 +2983,7 @@
     background:var(--bg-2);
     color:var(--accent-text);
     padding:1px 6px;
-    border-radius:3px;
+    border-radius:7px;
     font-family:var(--mono);
     font-size:11.5px;
     border:1px solid var(--line);
@@ -4091,7 +4091,7 @@
   .lp-tramo-row input{
     background:var(--bg-soft);
     border:1px solid var(--border);
-    border-radius:6px;
+    border-radius:9px;
     padding:7px 10px;
     font-size:13px;
     color:var(--text);
@@ -4113,7 +4113,7 @@
   .lp-tramo-del{
     background:transparent;
     border:1px solid var(--border);
-    border-radius:6px;
+    border-radius:9px;
     color:#dc2626;
     cursor:pointer;
     font-size:16px;
@@ -4307,7 +4307,7 @@
   .lp-preview-pager button{
     background:transparent;
     border:1px solid var(--border);
-    border-radius:6px;
+    border-radius:9px;
     padding:5px 10px;
     cursor:pointer;
     color:var(--text);
@@ -4373,7 +4373,7 @@
     border:none;
     padding:8px 16px;
     font-size:13px;
-    border-radius:6px;
+    border-radius:9px;
     cursor:pointer;
     color:var(--text-mute);
     font-family:inherit;
@@ -4393,7 +4393,7 @@
     width:62px;
     background:var(--bg-soft);
     border:1px solid var(--border);
-    border-radius:6px;
+    border-radius:9px;
     padding:4px 6px;
     font-size:12px;
     color:var(--text);
@@ -4601,13 +4601,13 @@
   .es-col-estado{ width:90px; }
   .es-cant-input{
     width:84px; background:var(--bg-soft); border:1px solid var(--border);
-    border-radius:6px; padding:6px 8px; font-size:14px; color:var(--text);
+    border-radius:9px; padding:6px 8px; font-size:14px; color:var(--text);
     font-family:var(--mono); text-align:right;
   }
   .es-cant-input:focus{ outline:none; border-color:var(--accent); background:var(--bg-card); }
   .es-edit-input{
     width:100%; background:transparent; border:1px solid transparent;
-    border-radius:6px; padding:6px 8px; font-size:13px; color:var(--text);
+    border-radius:9px; padding:6px 8px; font-size:13px; color:var(--text);
     font-family:inherit;
   }
   .es-edit-input:hover{ border-color:var(--border); background:var(--bg-soft); }
@@ -4619,7 +4619,7 @@
   }
   .es-resumen strong{ color:var(--text); }
   .es-ocr-prog{ display:flex; align-items:center; gap:12px; margin-bottom:14px; font-size:13px; color:var(--text-mute); }
-  .es-ocr-bar{ flex:1; height:8px; background:var(--bg-2); border-radius:5px; overflow:hidden; max-width:300px; }
+  .es-ocr-bar{ flex:1; height:8px; background:var(--bg-2); border-radius:9px; overflow:hidden; max-width:300px; }
   .es-ocr-fill{ height:100%; width:0%; background:var(--accent); transition:width .3s; }
   .es-row-nuevo td{ background:rgba(245,158,11,.06); }
   .es-badge{ font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
@@ -6588,9 +6588,9 @@
               <label class="form-label" style="margin-bottom:8px">Vista previa</label>
               <div id="configPreview" style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
                 <div id="configPreviewHeader" style="background:#1a1a2e;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:14px">
-                  <div id="configPreviewLogo" style="width:48px;height:48px;background:rgba(255,255,255,.1);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                  <div id="configPreviewLogo" style="width:48px;height:48px;background:rgba(255,255,255,.1);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
                     <span style="font-size:22px;opacity:.7" id="configPreviewLogoIcon">&#127970;</span>
-                    <img id="configPreviewLogoImg" src="" style="display:none;width:100%;height:100%;object-fit:contain;background:#fff;padding:4px;border-radius:6px">
+                    <img id="configPreviewLogoImg" src="" style="display:none;width:100%;height:100%;object-fit:contain;background:#fff;padding:4px;border-radius:9px">
                   </div>
                   <div style="flex:1;min-width:0">
                     <div style="font-size:18px;font-weight:800;letter-spacing:-0.02em" id="configPreviewName">Ferretería Dany</div>
@@ -9737,7 +9737,7 @@ function renderProductos(){
     var p = productosFiltered[i];
     var thumb = '';
     if(p.fotoUrl){
-      thumb = '<img src="'+eH(p.fotoUrl)+'" loading="lazy" style="width:24px;height:24px;object-fit:cover;border-radius:3px;vertical-align:middle;margin-right:6px;border:1px solid var(--line)" onerror="this.style.display=\'none\'">';
+      thumb = '<img src="'+eH(p.fotoUrl)+'" loading="lazy" style="width:24px;height:24px;object-fit:cover;border-radius:7px;vertical-align:middle;margin-right:6px;border:1px solid var(--line)" onerror="this.style.display=\'none\'">';
     }
     var isSelected = prodSelectedIds.has(p._id);
     rows += '<tr>'+
@@ -12164,7 +12164,7 @@ function showPedDropdown(query){
       '<div class="dd-item-row1">'+
         '<span class="dd-item-code">'+hl(p.codigo,query)+'</span>'+
         '<span class="dd-item-prov">'+(p.proveedor?eH(p.proveedor.substring(0,35)):'')+'</span>'+
-        (yaEsta?'<span style="font-size:10px;background:var(--success-soft);color:var(--success);padding:1px 7px;border-radius:4px;font-weight:600">En pedido</span>':'')+'</div>'+
+        (yaEsta?'<span style="font-size:10px;background:var(--success-soft);color:var(--success);padding:1px 7px;border-radius:8px;font-weight:600">En pedido</span>':'')+'</div>'+
       '<div class="dd-item-desc">'+hl((p.descripcion||'').substring(0,90),query)+'</div>'+
       '<div class="dd-item-meta">'+
         (p.precioCosto?'<span class="dd-meta-costo">Costo: '+fmtPeso(p.precioCosto)+'</span>':'')+
@@ -14988,7 +14988,7 @@ function construirHtmlVentaA4(v){
 '.td-num{font-weight:600;color:#888;font-size:9px;width:26px;text-align:center;font-family:"SF Mono",monospace}'+
 '.td-code{font-family:"SF Mono",monospace;font-size:9.5px;color:#000;width:90px;font-weight:600}'+
 '.td-desc{font-weight:500;color:#000}'+
-'.td-obra{font-size:8.5px;color:#444;margin-top:2px;font-weight:600;display:inline-block;border:1px solid #999;padding:0 5px;border-radius:2px;background:#f5f5f5}'+
+'.td-obra{font-size:8.5px;color:#444;margin-top:2px;font-weight:600;display:inline-block;border:1px solid #999;padding:0 5px;border-radius:9px;background:#f5f5f5}'+
 '.td-center{text-align:center;font-family:"SF Mono",monospace;font-weight:600;width:42px}'+
 '.td-right{text-align:right;font-family:"SF Mono",monospace}'+
 '.td-subt{font-weight:700;color:#000}'+
@@ -15039,7 +15039,7 @@ function construirHtmlVentaA4(v){
 '.doc-type-badge{border:1px solid #000;padding:2px 8px;font-size:8.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#000;background:#fff}'+
 
 /* BOTÓN FLOTANTE DE IMPRIMIR (solo visible al abrir el link) */
-'.print-fab{position:fixed;top:16px;right:16px;background:#000;color:#fff;border:none;padding:10px 16px;border-radius:4px;font-weight:600;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);font-family:inherit;display:flex;align-items:center;gap:6px;z-index:100;transition:all .15s}'+
+'.print-fab{position:fixed;top:16px;right:16px;background:#000;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);font-family:inherit;display:flex;align-items:center;gap:6px;z-index:100;transition:all .15s}'+
 '.print-fab:hover{background:#333}'+
 
 /* Responsive para mobile cuando el cliente abre el link */
