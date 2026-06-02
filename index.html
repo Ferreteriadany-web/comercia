@@ -6378,6 +6378,7 @@
               <div id="lpModalTramos"></div>
               <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                 <button class="btn btn-sm btn-light" onclick="lpAgregarTramo()">&#43; Agregar tramo</button>
+                <button class="btn btn-sm btn-light" onclick="lpMargenFijo()">&#61; Margen fijo</button>
                 <button class="btn btn-sm btn-light" onclick="lpAnalizarMargenes()">&#128202; Analizar mis márgenes actuales</button>
               </div>
               <div id="lpAnalisisMargenes" style="display:none"></div>
@@ -19870,6 +19871,20 @@ function lpAgregarTramo(){
   lpRecalcularPreview();
 }
 
+// Reemplaza todos los tramos por uno solo con margen parejo (para listas que ya
+// vienen con un margen fijo bajo, como las que traen precio de venta calculado).
+function lpMargenFijo(){
+  var actual = (lpState.tramosEditando && lpState.tramosEditando[0]) ? lpState.tramosEditando[0].ganancia : 14;
+  var v = prompt('Margen fijo para TODOS los productos de este proveedor (%).\n\nEjemplo: 14 significa 14% de ganancia sobre el costo, parejo para todo.', actual);
+  if(v === null) return;
+  var m = Number(String(v).replace(',', '.'));
+  if(isNaN(m) || m < 0){ toast('Ingresá un porcentaje válido', 'error'); return; }
+  lpState.tramosEditando = [{ desde: 0, hasta: null, ganancia: m }];
+  lpRenderTramos();
+  lpRecalcularPreview();
+  toast('Margen fijo de ' + m + '% aplicado a todo el proveedor', 'success');
+}
+
 function lpEliminarTramo(idx){
   if(lpState.tramosEditando.length <= 1){
     toast('Tiene que haber al menos un tramo', 'error');
@@ -20368,6 +20383,9 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     var cf = document.getElementById('lpCotizField'), cb = document.getElementById('lpCotizBtn'), cn = document.getElementById('lpCotizNote');
     if(cf) cf.style.display = ''; if(cb) cb.style.display = ''; if(cn) cn.style.display = '';
     if(lpState.tieneColMoneda){
+      // La lista trae moneda por producto: el selector global no aplica, lo ocultamos
+      var monFieldX = document.getElementById('lpMonedaImportField');
+      if(monFieldX) monFieldX.style.display = 'none';
       var nUsd = lpState.importacion.rows.filter(function(r){ return r._moneda === 'USD'; }).length;
       var nArs = lpState.importacion.rows.length - nUsd;
       toast('Lista mixta: ' + nArs + ' en pesos y ' + nUsd + ' en dólares. Cargá la cotización (solo afecta a los de dólares).', 'info');
@@ -20959,3 +20977,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+                                                             
