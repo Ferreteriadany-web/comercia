@@ -20258,11 +20258,15 @@ async function lpProcesarArchivo(file){
     // (ej. "Precio De Venta Con Iva" contiene "iva" pero NO es la columna de IVA).
     var colIva = lpDetectarColIva(headers);
     var colMoneda = lpDetectarCol(headers, ['moneda', 'divisa', 'currency']);
+    // Margen por producto (opcional): "Porc. Utilidad", "Utilidad", "Margen", "Ganancia".
+    // Si viene, cada producto usa ESE margen en vez del tramo del proveedor.
+    var colMargen = lpDetectarCol(headers, ['porc. utilidad', 'porc utilidad', '% utilidad', 'utilidad', 'margen', 'ganancia', '% ganancia']);
     var excl = [];
     if(colDescuento >= 0) excl.push(colDescuento);
     if(colProveedor >= 0) excl.push(colProveedor);
     if(colIva >= 0) excl.push(colIva);
     if(colMoneda >= 0) excl.push(colMoneda);
+    if(colMargen >= 0) excl.push(colMargen);
     var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'artículo', 'referencia', 'ref'], excl);
     if(colCodigo >= 0) excl.push(colCodigo);
     var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc'], excl);
@@ -20273,7 +20277,7 @@ async function lpProcesarArchivo(file){
     lpImpCtx = {
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
-      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda }
+      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -20299,6 +20303,7 @@ var LP_CAMPOS_MAP = [
   { k: 'desc',      label: 'Descripción' },
   { k: 'iva',       label: 'IVA (%)' },
   { k: 'descuento', label: 'Descuento por producto (%)' },
+  { k: 'margen',    label: 'Margen / Utilidad por producto (%)' },
   { k: 'proveedor', label: 'Proveedor (solo lista sábana)' },
   { k: 'moneda',    label: 'Moneda' }
 ];
@@ -20343,6 +20348,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colCodigo = colMap.codigo, colPrecio = colMap.precio, colDesc = (colMap.desc>=0?colMap.desc:-1);
   var colIva = (colMap.iva>=0?colMap.iva:-1), colDescuento = (colMap.descuento>=0?colMap.descuento:-1);
   var colProveedor = (colMap.proveedor>=0?colMap.proveedor:-1), colMoneda = (colMap.moneda>=0?colMap.moneda:-1);
+  var colMargen = (colMap.margen>=0?colMap.margen:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
   // Si la lista trae su propia columna de moneda, esa manda por fila (no el selector global).
   lpState.tieneColMoneda = (colMoneda >= 0);
@@ -20360,6 +20366,11 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     if(colDescuento >= 0){ var dv = Number(r[colDescuento]); if(!isNaN(dv)) descProd = Math.max(0, Math.min(100, dv)); }
     var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
       ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
+    // Margen por producto desde el Excel (override del tramo del proveedor)
+    if(colMargen >= 0){
+      var mgv = Number(r[colMargen]);
+      if(!isNaN(mgv) && mgv >= 0){ fila.margenCustom = mgv; }
+    }
     if(colMoneda >= 0){
       var mv = String(r[colMoneda] || '').trim().toLowerCase();
       if(mv){ fila._monedaRaw = /u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv) ? 'USD' : 'ARS'; }
@@ -20494,6 +20505,14 @@ function lpProcesarMatching(){
     //  3) sino 0 (solo aplica el descuento del proveedor).
     if(row.descProducto == null){
       row.descProducto = (matched && matched.descuentoProducto != null) ? matched.descuentoProducto : 0;
+    }
+
+    // Margen por producto:
+    //  1) el del Excel (si vino),
+    //  2) sino el guardado en el producto (de una importación previa),
+    //  3) sino null (usa los tramos del proveedor).
+    if(row.margenCustom == null && matched && matched.margenProducto != null){
+      row.margenCustom = matched.margenProducto;
     }
 
     row.seleccionado = true;
@@ -20869,6 +20888,7 @@ async function lpEjecutarAplicar(filas){
         var provNombre = r._provNombre || (imp.proveedor && imp.proveedor.proveedorNombre) || '';
         var provId = r._provId || (imp.proveedor && imp.proveedor.id) || lpSanitizarId(provNombre);
         var descProd = Number(r.descProducto) || 0;
+        var margenGuardar = (r.margenCustom != null) ? Number(r.margenCustom) : (r.calc && r.calc.margen != null ? r.calc.margen : null);
         // Datos para Firestore (con serverTimestamp)
         var dataFs = {
           precioVenta: r.calc.final,
@@ -20877,6 +20897,7 @@ async function lpEjecutarAplicar(filas){
           descuentoProducto: descProd,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
+        if(margenGuardar != null) dataFs.margenProducto = margenGuardar;
         // Datos para cache local (con Date string)
         var dataLocal = {
           precioVenta: r.calc.final,
@@ -20885,6 +20906,7 @@ async function lpEjecutarAplicar(filas){
           descuentoProducto: descProd,
           fechaUltimoCambioPrecio: nowIso
         };
+        if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
         var esCrear = (r.estado === 'crear');
         if(esCrear){
           dataFs.codigo = r.codigoProv;
