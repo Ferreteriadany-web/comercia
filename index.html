@@ -5018,6 +5018,9 @@
         <a class="nav-item active" data-module="ventas" onclick="navTo('ventas')">
           <span class="nav-item-icon"><i class="ti ti-cash-register"></i></span><span>Ventas</span>
         </a>
+        <a class="nav-item" data-module="presupuestos" onclick="navTo('presupuestos')">
+          <span class="nav-item-icon"><i class="ti ti-file-text"></i></span><span>Presupuestos</span>
+        </a>
         <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
           <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Pedidos</span>
         </a>
@@ -5531,6 +5534,59 @@
             &#128722; Ver carrito <span class="mobile-cart-count">0</span>
           </button>
 
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO PRESUPUESTOS ═══ -->
+      <div class="module" id="modulePresupuestos">
+        <header class="main-header">
+          <div style="display:flex;align-items:center;gap:14px">
+            <h1 class="main-title">Presupuestos</h1>
+          </div>
+          <div class="main-actions">
+            <button class="btn btn-primary btn-sm" onclick="nuevoPresupuesto()">&#43; Nuevo presupuesto</button>
+          </div>
+        </header>
+        <div class="main-body">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-card-head">
+                <div class="stat-label">Presupuestos</div>
+                <div class="stat-icon">&#128203;</div>
+              </div>
+              <div class="stat-value" id="presStatTotal">0</div>
+            </div>
+            <div class="stat-card success">
+              <div class="stat-card-head">
+                <div class="stat-label">Monto total</div>
+                <div class="stat-icon">&#128181;</div>
+              </div>
+              <div class="stat-value" id="presStatMonto" style="font-size:20px">$0</div>
+            </div>
+            <div class="stat-card purple">
+              <div class="stat-card-head">
+                <div class="stat-label">Este mes</div>
+                <div class="stat-icon">&#128197;</div>
+              </div>
+              <div class="stat-value" id="presStatMes">0</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="search-box">
+              <span class="search-icon">&#128269;</span>
+              <input class="search-input" id="presSearch" type="text" placeholder="Buscar por nº, cliente o ítem..." autocomplete="off">
+            </div>
+            <select class="form-input" id="presFiltroDia" onchange="renderHistorialPresupuestos()" style="width:160px;flex-shrink:0">
+              <option value="">Todas las fechas</option>
+              <option value="hoy">Hoy</option>
+              <option value="ayer">Ayer</option>
+              <option value="semana">Última semana</option>
+              <option value="mes">Último mes</option>
+            </select>
+          </div>
+
+          <div id="presList"></div>
         </div>
       </div>
 
@@ -8238,6 +8294,7 @@ function navTo(modulo){
   if(modulo==='listasProveedores') initListasProveedores();
   if(modulo==='clientes') initClientes();
   if(modulo==='ventas') initVentas();
+  if(modulo==='presupuestos') initPresupuestos();
   if(modulo==='ctacte') initCtaCte();
   if(modulo==='configuracion') initConfiguracion();
   if(modulo && modulo.indexOf('int') === 0) initIntegracion(modulo);
@@ -8310,6 +8367,8 @@ function puedeAcceder(modulo){
   if(!modulo) return true;
   // Integraciones (cualquier intXxx)
   if(modulo.indexOf('int') === 0) return tienePermiso('integraciones');
+  // Presupuestos comparte el permiso del POS / Ventas
+  if(modulo === 'presupuestos') return tienePermiso('pos');
   // Buscar el permiso cuyo módulo coincide
   var match = PERMISOS_DISPONIBLES.find(function(p){ return p.modulo === modulo; });
   if(!match) return true; // módulo sin permiso asociado → libre
@@ -14546,7 +14605,7 @@ async function confirmarVenta(){
 
   try{
     var ahora = new Date();
-    var nroTicket = 'V-' + ahora.getTime().toString().slice(-8);
+    var nroTicket = (modoVenta === 'presupuesto' ? 'P-' : 'V-') + ahora.getTime().toString().slice(-8);
 
     var ventaData = {
       numero: nroTicket,
@@ -14584,7 +14643,8 @@ async function confirmarVenta(){
       creadoEn: ahora.toISOString()
     };
 
-    var ref = await db.collection('empresas').doc(currentEmpresaId).collection('ventas').add(ventaData);
+    var coleccionDestino = (modoVenta === 'presupuesto') ? 'presupuestos' : 'ventas';
+    var ref = await db.collection('empresas').doc(currentEmpresaId).collection(coleccionDestino).add(ventaData);
     ventaData._id = ref.id;
 
     // Descontar stock (siempre, incluso si queda negativo)
@@ -14627,7 +14687,12 @@ async function confirmarVenta(){
       }
     }
 
-    ventas.unshift(ventaData);
+    if(modoVenta === 'presupuesto'){
+      if(typeof presupuestos !== 'undefined') presupuestos.unshift(ventaData);
+      if(typeof actualizarStatsPresupuestos === 'function') actualizarStatsPresupuestos();
+    } else {
+      ventas.unshift(ventaData);
+    }
     _ventaActualVer = ventaData;
 
     carritoVenta = [];
@@ -14640,7 +14705,7 @@ async function confirmarVenta(){
     if(typeof renderGridVentas === 'function') renderGridVentas();
 
     closeModals();
-    toast('Venta '+nroTicket+' registrada \u00b7 '+fmtPeso(total), 'success');
+    toast((modoVenta==='presupuesto' ? 'Presupuesto '+nroTicket+' guardado \u00b7 ' : 'Venta '+nroTicket+' registrada \u00b7 ')+fmtPeso(total), 'success');
     if(typeof closeMobileCart === 'function') closeMobileCart();
 
     setTimeout(function(){ mostrarTicket(ventaData); }, 400);
@@ -14675,7 +14740,9 @@ async function cargarVentas(){
 
 function actualizarStatsVentas(){
   var hoy = new Date().toDateString();
-  var ventasHoy = ventas.filter(function(v){
+  // Los presupuestos no son ventas: se excluyen de todos los totales
+  var ventasReales = ventas.filter(function(v){ return v.modo !== 'presupuesto'; });
+  var ventasHoy = ventasReales.filter(function(v){
     return new Date(v.fecha).toDateString() === hoy;
   });
   var totalHoy = ventasHoy.reduce(function(a,v){ return a+(v.total||0); }, 0);
@@ -14690,8 +14757,8 @@ function actualizarStatsVentas(){
   if((el=document.getElementById('vStatPromedio'))) el.textContent = fmtPeso(promedio);
   if((el=document.getElementById('vStatProductos'))) el.textContent = prodHoy;
 
-  var totalGeneral = ventas.reduce(function(a,v){ return a+(v.total||0); }, 0);
-  if((el=document.getElementById('vHistStatTotal'))) el.textContent = ventas.length;
+  var totalGeneral = ventasReales.reduce(function(a,v){ return a+(v.total||0); }, 0);
+  if((el=document.getElementById('vHistStatTotal'))) el.textContent = ventasReales.length;
   if((el=document.getElementById('vHistStatMonto'))) el.textContent = fmtPeso(totalGeneral);
 }
 
@@ -14701,6 +14768,7 @@ function renderHistorialVentas(){
 
   var ahora = new Date();
   var filtradas = ventas.filter(function(v){
+    if(v.modo === 'presupuesto') return false; // los presupuestos tienen su propia sección
     var f = new Date(v.fecha);
     if(filtroFecha==='hoy'){ if(f.toDateString() !== ahora.toDateString()) return false; }
     else if(filtroFecha==='ayer'){
@@ -14766,13 +14834,141 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 
+// ═══════════════════════════════════════════════════════
+// MÓDULO PRESUPUESTOS
+// ═══════════════════════════════════════════════════════
+// Los presupuestos se crean desde el mismo POS de Ventas (modo "Presupuesto")
+// pero se guardan en su propia colección 'presupuestos' y tienen su sección.
+// Los presupuestos viejos pueden seguir en 'ventas' (modo presupuesto): se
+// muestran igual acá combinando ambas fuentes.
+var presupuestos = [];
+var _presBindHecho = false;
+
+function initPresupuestos(){
+  if(presupuestos.length === 0) cargarPresupuestos();
+  if(ventas.length === 0) cargarVentas();        // para mostrar presupuestos legacy
+  if(clientes.length === 0) cargarClientes();
+  if(!_presBindHecho){
+    var s = document.getElementById('presSearch');
+    if(s){
+      var t = null;
+      s.addEventListener('input', function(){
+        if(t) clearTimeout(t);
+        t = setTimeout(renderHistorialPresupuestos, 200);
+      });
+    }
+    _presBindHecho = true;
+  }
+  actualizarStatsPresupuestos();
+  renderHistorialPresupuestos();
+}
+
+async function cargarPresupuestos(){
+  if(!currentEmpresaId) return;
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('presupuestos')
+      .orderBy('fecha', 'desc').limit(500).get();
+    presupuestos = [];
+    snap.forEach(function(d){ var v=d.data(); v._id=d.id; presupuestos.push(v); });
+    actualizarStatsPresupuestos();
+    renderHistorialPresupuestos();
+  }catch(err){
+    console.error('Error cargando presupuestos:', err);
+  }
+}
+
+// Lista combinada: colección nueva 'presupuestos' + legacy en 'ventas'
+function presLista(){
+  var legacy = ventas.filter(function(v){ return v.modo === 'presupuesto'; });
+  return presupuestos.concat(legacy).sort(function(a,b){
+    return String(b.fecha||'').localeCompare(String(a.fecha||''));
+  });
+}
+
+function presBuscar(id){
+  return presLista().find(function(x){ return x._id === id; });
+}
+
+function actualizarStatsPresupuestos(){
+  var lista = presLista();
+  var total = lista.reduce(function(a,v){ return a+(v.total||0); }, 0);
+  var ahora = new Date();
+  var delMes = lista.filter(function(v){
+    var f = new Date(v.fecha);
+    return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear();
+  }).length;
+  var el;
+  if((el=document.getElementById('presStatTotal'))) el.textContent = lista.length;
+  if((el=document.getElementById('presStatMonto'))) el.textContent = fmtPeso(total);
+  if((el=document.getElementById('presStatMes')))   el.textContent = delMes;
+}
+
+function renderHistorialPresupuestos(){
+  var cont = document.getElementById('presList');
+  if(!cont) return;
+  var filtroFecha = (document.getElementById('presFiltroDia')||{}).value || '';
+  var query = (((document.getElementById('presSearch')||{}).value)||'').toLowerCase().trim();
+  var ahora = new Date();
+
+  var filtradas = presLista().filter(function(v){
+    var f = new Date(v.fecha);
+    if(filtroFecha==='hoy'){ if(f.toDateString() !== ahora.toDateString()) return false; }
+    else if(filtroFecha==='ayer'){ var ay=new Date(ahora.getTime()-86400000); if(f.toDateString()!==ay.toDateString()) return false; }
+    else if(filtroFecha==='semana'){ if((ahora-f) > 7*86400000) return false; }
+    else if(filtroFecha==='mes'){ if((ahora-f) > 30*86400000) return false; }
+    if(query){
+      var hay = (v.numero||'').toLowerCase() + ' ' +
+                (v.cliente ? (v.cliente.razonSocial||'') : '').toLowerCase() + ' ' +
+                (v.items||[]).map(function(i){ return (i.descripcion||'')+' '+(i.codigo||''); }).join(' ').toLowerCase();
+      if(hay.indexOf(query) < 0) return false;
+    }
+    return true;
+  });
+
+  if(filtradas.length === 0){
+    cont.innerHTML = '<div class="empty-table">'+
+      '<div class="empty-table-icon">&#128203;</div>'+
+      '<div class="empty-table-title">Sin presupuestos</div>'+
+      '<div class="empty-table-desc">Creá uno nuevo con el botón de arriba, o ajustá los filtros.</div>'+
+    '</div>';
+    return;
+  }
+
+  var html = '';
+  filtradas.forEach(function(v){
+    var fecha = new Date(v.fecha);
+    var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    var clienteStr = v.cliente ? (v.cliente.razonSocial+' '+(v.cliente.nombre||'')) : 'Consumidor Final';
+    var itemCount = (v.items||[]).reduce(function(a,i){ return a+i.cantidad; }, 0);
+    html += '<div class="ticket-card" onclick="mostrarTicket(presBuscar(\''+escapeQ(v._id)+'\'))">'+
+      '<div class="ticket-card-head">'+
+        '<span class="ticket-num">'+eH(v.numero||'')+'</span>'+
+        '<span class="ticket-fecha">'+fechaStr+'</span>'+
+      '</div>'+
+      '<div class="ticket-cliente">'+eH(clienteStr)+'</div>'+
+      '<div class="ticket-totales">'+
+        '<span>'+itemCount+' ítem'+(itemCount!==1?'s':'')+'</span>'+
+        '<span style="margin-left:auto" class="ticket-total-monto">'+fmtPeso(v.total)+'</span>'+
+      '</div>'+
+    '</div>';
+  });
+  cont.innerHTML = html;
+}
+
+// Lleva al POS de Ventas ya en modo presupuesto para armar uno nuevo.
+function nuevoPresupuesto(){
+  navTo('ventas');
+  setTimeout(function(){ if(typeof cambiarModoVenta==='function') cambiarModoVenta('presupuesto'); }, 60);
+  toast('Armá el presupuesto y tocá "Cobrar" para guardarlo', 'success');
+}
+
 function mostrarTicket(v){
   if(!v) return;
   _ventaActualVer = v;
   var fecha = new Date(v.fecha);
   var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR');
 
-  document.getElementById('vDetEyebrow').textContent = 'Ticket ' + v.numero;
+  document.getElementById('vDetEyebrow').textContent = (v.modo==='presupuesto' ? 'Presupuesto ' : 'Ticket ') + v.numero;
   document.getElementById('vDetTitle').textContent = fmtPeso(v.total);
 
   var clienteHtml = v.cliente
