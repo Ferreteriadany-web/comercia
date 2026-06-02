@@ -942,6 +942,94 @@
   .stat-card.danger .stat-value{color:var(--danger)}
   .stat-card.cyan .stat-value{color:var(--cyan)}
 
+  /* STOCK BAJO */
+  #statStockBajoCard{transition:opacity .18s, box-shadow .18s, transform .18s}
+  #statStockBajoCard.activo{box-shadow:0 0 0 2px var(--danger), var(--shadow-md)}
+  .stock-badge{
+    display:inline-block;
+    min-width:30px;
+    text-align:center;
+    font-family:var(--mono);
+    font-weight:600;
+    font-size:12px;
+    padding:2px 8px;
+    border-radius:999px;
+  }
+  .stock-badge.low{background:var(--danger-soft);color:var(--danger)}
+  .stock-badge.ok{color:var(--text-soft)}
+
+  /* TABS DEL MODAL DE PRODUCTO */
+  .prod-modal-tabs{
+    display:flex;
+    gap:4px;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:var(--r-md);
+    padding:3px;
+    margin-bottom:18px;
+  }
+  .prod-modal-tab{
+    flex:1;
+    padding:9px 10px;
+    font-size:12px;
+    font-weight:600;
+    color:var(--text-soft);
+    background:transparent;
+    border:none;
+    border-radius:var(--r-sm);
+    cursor:pointer;
+    transition:all .12s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  .prod-modal-tab.active{
+    background:var(--paper);
+    color:var(--text);
+    box-shadow:var(--shadow-sm);
+  }
+  [data-theme="dark"] .prod-modal-tab.active{background:var(--paper-2)}
+  .prod-modal-tab .tab-alert-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);display:none}
+  .prod-modal-tab.has-alert .tab-alert-dot{display:inline-block}
+
+  /* PANEL DE STOCK */
+  .stock-status{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 14px;
+    border-radius:var(--r-md);
+    border:1px solid var(--line);
+    background:var(--bg-2);
+    margin-bottom:16px;
+  }
+  .stock-status-icon{font-size:18px;line-height:1}
+  .stock-status-text{font-size:13px;font-weight:600;color:var(--text)}
+  .stock-status-sub{font-size:11px;color:var(--text-soft);margin-top:1px}
+  .stock-status.ok{background:var(--success-soft);border-color:transparent}
+  .stock-status.ok .stock-status-text{color:var(--success)}
+  .stock-status.low{background:var(--danger-soft);border-color:transparent}
+  .stock-status.low .stock-status-text{color:var(--danger)}
+  .stock-stepper{display:flex;align-items:center;gap:6px}
+  .stock-stepper .form-input{text-align:center}
+  .stock-step-btn{
+    width:36px;height:36px;flex:0 0 36px;
+    border:1px solid var(--line-2);
+    background:var(--paper);
+    border-radius:var(--r-sm);
+    font-size:18px;font-weight:600;line-height:1;
+    color:var(--text);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .12s;
+  }
+  .stock-step-btn:hover{background:var(--bg-2);border-color:var(--accent)}
+  .stock-repo{
+    font-size:12px;color:var(--text);
+    margin-top:6px;padding:9px 11px;
+    background:var(--accent-soft);border-radius:var(--r-sm);
+    display:none;
+  }
+  .stock-repo.show{display:block}
+
   /* TOOLBAR + SEARCH */
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
   .search-box{flex:1;min-width:240px;position:relative}
@@ -5054,6 +5142,13 @@
               </div>
               <div class="stat-value" id="statUltimaAct" style="font-size:16px;font-family:var(--sans);font-weight:600">Sin datos</div>
             </div>
+            <div class="stat-card danger" id="statStockBajoCard" onclick="prodToggleStockBajo()" style="cursor:pointer" title="Mostrar/ocultar solo productos con stock bajo">
+              <div class="stat-card-head">
+                <div class="stat-label">Stock bajo</div>
+                <div class="stat-icon">&#9888;</div>
+              </div>
+              <div class="stat-value" id="statStockBajo">0</div>
+            </div>
           </div>
 
           <div class="toolbar" style="position:relative;z-index:10">
@@ -5087,11 +5182,12 @@
                   <th>Rubro</th>
                   <th style="text-align:right">Costo</th>
                   <th style="text-align:right">Venta</th>
+                  <th style="text-align:right">Stock</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody id="prodTbody">
-                <tr><td colspan="8" class="empty-table">
+                <tr><td colspan="9" class="empty-table">
                   <div class="empty-table-icon">&#128230;</div>
                   <div class="empty-table-title">Aún no tenés productos</div>
                   <div class="empty-table-desc">Importá un Excel o agregá productos manualmente para empezar.</div>
@@ -6849,6 +6945,13 @@
     <div class="alert error" id="prodAlert"></div>
     <input type="hidden" id="prodEditId">
 
+    <!-- TABS -->
+    <div class="prod-modal-tabs">
+      <button type="button" class="prod-modal-tab active" id="prodTabBtnGeneral" onclick="prodSwitchTab('general')">General</button>
+      <button type="button" class="prod-modal-tab" id="prodTabBtnStock" onclick="prodSwitchTab('stock')">&#128230; Stock <span class="tab-alert-dot"></span></button>
+    </div>
+
+    <div class="prod-tab-pane" id="prodTabGeneral">
     <!-- FOTO -->
     <div class="form-section-title">Foto del producto</div>
     <div class="prod-foto-section">
@@ -6939,6 +7042,42 @@
         <input class="form-input" type="number" id="prodVenta" placeholder="0" min="0" step="0.01">
       </div>
     </div>
+    </div><!-- /prodTabGeneral -->
+
+    <div class="prod-tab-pane" id="prodTabStock" style="display:none">
+      <!-- Estado en vivo -->
+      <div class="stock-status" id="prodStockStatus">
+        <div class="stock-status-icon" id="prodStockStatusIcon">&#9898;</div>
+        <div>
+          <div class="stock-status-text" id="prodStockStatusText">Sin control de stock</div>
+          <div class="stock-status-sub" id="prodStockStatusSub">Definí un stock mínimo para activar las alertas.</div>
+        </div>
+      </div>
+
+      <div class="form-section-title">Existencias</div>
+      <div class="form-group">
+        <label class="form-label">Stock actual</label>
+        <div class="stock-stepper">
+          <button type="button" class="stock-step-btn" onclick="prodStockStep(-1)" title="Restar 1">&minus;</button>
+          <input class="form-input" type="number" id="prodStock" placeholder="0" step="1" oninput="prodStockStatusUpdate()">
+          <button type="button" class="stock-step-btn" onclick="prodStockStep(1)" title="Sumar 1">&plus;</button>
+        </div>
+      </div>
+
+      <div class="form-section-title">Alertas y reposición</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Stock mínimo</label>
+          <input class="form-input" type="number" id="prodStockMin" placeholder="0" min="0" step="1" oninput="prodStockStatusUpdate()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Stock ideal <span style="color:var(--text-mute);font-weight:400">(opcional)</span></label>
+          <input class="form-input" type="number" id="prodStockIdeal" placeholder="0" min="0" step="1" oninput="prodStockStatusUpdate()">
+        </div>
+      </div>
+      <div class="stock-repo" id="prodStockRepo"></div>
+      <div class="prod-foto-hint" style="margin-top:8px">El <strong>mínimo</strong> dispara la alerta (si es 0, este producto no alerta). El <strong>ideal</strong> es el nivel al que te gusta reponer: si lo cargás, te sugerimos cuánto comprar.</div>
+    </div><!-- /prodTabStock -->
 
     <button class="btn-form" id="btnSaveProduct" onclick="saveProduct()">Guardar producto</button>
   </div>
@@ -8065,6 +8204,8 @@ var productosFiltered = [];
 var prodPage = 0;
 var prodPageSize = 50;
 var prodSearchTimer = null;
+var prodFiltroStockBajo = false;
+var _stockBajoAvisado = false;
 
 // ═══════════════════════════════════════════════════════
 // NAVEGACIÓN ENTRE MÓDULOS
@@ -9670,6 +9811,17 @@ function actualizarStats(){
   } else {
     document.getElementById('statUltimaAct').textContent = 'Sin datos';
   }
+
+  // Stock bajo: conteo, estado visual de la tarjeta y aviso único
+  var bajos = contarStockBajo();
+  var elBajo = document.getElementById('statStockBajo');
+  if(elBajo) elBajo.textContent = bajos.toLocaleString('es-AR');
+  var cardBajo = document.getElementById('statStockBajoCard');
+  if(cardBajo) cardBajo.style.opacity = bajos > 0 ? '1' : '.55';
+  if(bajos > 0 && !_stockBajoAvisado){
+    _stockBajoAvisado = true;
+    toast('\u26A0\uFE0F ' + bajos + ' producto' + (bajos === 1 ? '' : 's') + ' con stock bajo', 'error');
+  }
 }
 
 
@@ -9873,7 +10025,7 @@ function renderProductos(){
   var pag = document.getElementById('prodPagination');
 
   if(productos.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-table">'+
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-table">'+
       '<div class="empty-table-icon">&#128230;</div>'+
       '<div class="empty-table-title">Aún no tenés productos</div>'+
       '<div class="empty-table-desc">Importá un Excel o agregá productos manualmente para empezar.</div>'+
@@ -9885,20 +10037,22 @@ function renderProductos(){
     return;
   }
 
-  if(productosFiltered.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-table">'+
-      '<div class="empty-table-icon">&#128269;</div>'+
-      '<div class="empty-table-title">Sin resultados</div>'+
-      '<div class="empty-table-desc">Probá con otra búsqueda.</div></td></tr>';
+  var lista = prodListaVisible();
+
+  if(lista.length === 0){
+    var emptyMsg = prodFiltroStockBajo
+      ? '<div class="empty-table-icon">&#9989;</div><div class="empty-table-title">Sin stock bajo</div><div class="empty-table-desc">Ningún producto del filtro actual está en o por debajo de su mínimo.</div>'
+      : '<div class="empty-table-icon">&#128269;</div><div class="empty-table-title">Sin resultados</div><div class="empty-table-desc">Probá con otra búsqueda.</div>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-table">'+emptyMsg+'</td></tr>';
     pag.style.display = 'none';
     return;
   }
 
   var start = prodPage * prodPageSize;
-  var end = Math.min(start + prodPageSize, productosFiltered.length);
+  var end = Math.min(start + prodPageSize, lista.length);
   var rows = '';
   for(var i=start;i<end;i++){
-    var p = productosFiltered[i];
+    var p = lista[i];
     var thumb = '';
     if(p.fotoUrl){
       thumb = '<img src="'+eH(p.fotoUrl)+'" loading="lazy" style="width:24px;height:24px;object-fit:cover;border-radius:7px;vertical-align:middle;margin-right:6px;border:1px solid var(--line)" onerror="this.style.display=\'none\'">';
@@ -9912,6 +10066,7 @@ function renderProductos(){
       '<td>'+(p.rubro?'<span class="badge-rubro">'+eH(p.rubro)+'</span>':'<span style="color:var(--text-mute)">-</span>')+'</td>'+
       '<td style="text-align:right;font-family:var(--mono)">'+(p.precioCosto?fmtPeso(p.precioCosto):'<span style="color:var(--text-mute)">-</span>')+'</td>'+
       '<td style="text-align:right" class="price-cell">'+(p.precioVenta?fmtPeso(p.precioVenta):'<span style="color:var(--text-mute);font-weight:400">-</span>')+'</td>'+
+      '<td style="text-align:right">'+stockCellHtml(p)+'</td>'+
       '<td><div class="actions-cell">'+
         '<button class="icon-btn" onclick="imprimirEtiquetaUno(\''+escapeQ(p._id)+'\')" title="Imprimir etiqueta"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></button>'+
         '<button class="icon-btn" onclick="editProduct(\''+escapeQ(p._id)+'\')" title="Editar">&#9998;</button>'+
@@ -9923,9 +10078,9 @@ function renderProductos(){
 
   pag.style.display = 'flex';
   document.getElementById('prodShowing').textContent = (start+1)+'-'+end;
-  document.getElementById('prodTotal').textContent = productosFiltered.length.toLocaleString('es-AR');
+  document.getElementById('prodTotal').textContent = lista.length.toLocaleString('es-AR');
   document.getElementById('prodPrevBtn').disabled = prodPage === 0;
-  document.getElementById('prodNextBtn').disabled = end >= productosFiltered.length;
+  document.getElementById('prodNextBtn').disabled = end >= lista.length;
 
   // Estado del checkbox "seleccionar todos"
   actualizarSelAllCheckbox();
@@ -9935,7 +10090,116 @@ function prodPrevPage(){
   if(prodPage > 0){ prodPage--; renderProductos(); }
 }
 function prodNextPage(){
-  if((prodPage+1)*prodPageSize < productosFiltered.length){ prodPage++; renderProductos(); }
+  if((prodPage+1)*prodPageSize < prodListaVisible().length){ prodPage++; renderProductos(); }
+}
+
+// ═══════════════════════════════════════════════════════
+// STOCK BAJO — detección, filtro y render de celda
+// ═══════════════════════════════════════════════════════
+// Un producto está en alerta si definió un mínimo (>0) y su stock
+// actual está en o por debajo de ese mínimo. Si stockMin es 0 o no
+// está definido, el producto nunca genera alerta (opt-in por producto).
+function esStockBajo(p){
+  var min = Number(p && p.stockMin) || 0;
+  if(min <= 0) return false;
+  var stk = Number(p && p.stock) || 0;
+  return stk <= min;
+}
+
+// Cuántos productos están actualmente en alerta de stock bajo.
+function contarStockBajo(){
+  var n = 0;
+  for(var i=0;i<productos.length;i++) if(esStockBajo(productos[i])) n++;
+  return n;
+}
+
+// La lista que se muestra en la tabla: el resultado de búsqueda, y si
+// el filtro de stock bajo está activo, solo los que están en alerta.
+function prodListaVisible(){
+  return prodFiltroStockBajo ? productosFiltered.filter(esStockBajo) : productosFiltered;
+}
+
+// HTML de la celda de stock (con badge rojo si está bajo).
+function stockCellHtml(p){
+  if(p.stock == null && !(Number(p.stockMin) > 0)){
+    return '<span style="color:var(--text-mute)">-</span>';
+  }
+  var stk = Number(p.stock) || 0;
+  if(esStockBajo(p)){
+    return '<span class="stock-badge low" title="Stock en o por debajo del mínimo ('+(Number(p.stockMin)||0)+')">'+stk+'</span>';
+  }
+  return '<span class="stock-badge ok">'+stk+'</span>';
+}
+
+// Toggle del filtro "solo stock bajo" (se activa desde la tarjeta de stats).
+function prodToggleStockBajo(){
+  prodFiltroStockBajo = !prodFiltroStockBajo;
+  var card = document.getElementById('statStockBajoCard');
+  if(card) card.classList.toggle('activo', prodFiltroStockBajo);
+  prodPage = 0;
+  renderProductos();
+}
+
+// ── Modal de producto: pestañas General / Stock ──
+function prodSwitchTab(tab){
+  var isStock = (tab === 'stock');
+  document.getElementById('prodTabGeneral').style.display = isStock ? 'none' : '';
+  document.getElementById('prodTabStock').style.display = isStock ? '' : 'none';
+  document.getElementById('prodTabBtnGeneral').classList.toggle('active', !isStock);
+  document.getElementById('prodTabBtnStock').classList.toggle('active', isStock);
+}
+
+// Botones -/+ para ajustar el stock actual rápido (nunca baja de 0).
+function prodStockStep(delta){
+  var inp = document.getElementById('prodStock');
+  var v = (Number(inp.value) || 0) + delta;
+  if(v < 0) v = 0;
+  inp.value = v;
+  prodStockStatusUpdate();
+}
+
+// Recalcula el indicador de estado en vivo + la sugerencia de reposición
+// a medida que el usuario edita los campos de la solapa Stock.
+function prodStockStatusUpdate(){
+  var box = document.getElementById('prodStockStatus');
+  if(!box) return;
+  var stock = Number(document.getElementById('prodStock').value) || 0;
+  var min   = Number(document.getElementById('prodStockMin').value) || 0;
+  var ideal = Number(document.getElementById('prodStockIdeal').value) || 0;
+  var icon = document.getElementById('prodStockStatusIcon');
+  var txt  = document.getElementById('prodStockStatusText');
+  var sub  = document.getElementById('prodStockStatusSub');
+  var repo = document.getElementById('prodStockRepo');
+  var tabBtn = document.getElementById('prodTabBtnStock');
+
+  box.classList.remove('ok','low');
+  if(tabBtn) tabBtn.classList.remove('has-alert');
+
+  if(min <= 0){
+    icon.innerHTML = '&#9898;';
+    txt.textContent = 'Sin control de stock';
+    sub.textContent = 'Definí un stock mínimo para activar las alertas.';
+  } else if(stock <= min){
+    box.classList.add('low');
+    if(tabBtn) tabBtn.classList.add('has-alert');
+    icon.innerHTML = '&#9888;&#65039;';
+    txt.textContent = 'Stock bajo';
+    sub.textContent = 'Hay ' + stock + ' y el mínimo es ' + min + '. Conviene reponer.';
+  } else {
+    box.classList.add('ok');
+    icon.innerHTML = '&#9989;';
+    txt.textContent = 'Stock OK';
+    sub.textContent = 'Hay ' + stock + ', por encima del mínimo (' + min + ').';
+  }
+
+  if(ideal > 0 && stock < ideal){
+    var faltan = ideal - stock;
+    repo.classList.add('show');
+    repo.innerHTML = '&#128666; Sugerencia: reponé <strong>' + faltan + '</strong> unidad' + (faltan === 1 ? '' : 'es') + ' para llegar al ideal de ' + ideal + '.';
+  } else {
+    repo.classList.remove('show');
+    repo.innerHTML = '';
+  }
 }
 
 function eH(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -9956,11 +10220,16 @@ function openProductModal(){
   document.getElementById('prodRubro').value = '';
   document.getElementById('prodCosto').value = '';
   document.getElementById('prodVenta').value = '';
+  document.getElementById('prodStock').value = '';
+  document.getElementById('prodStockMin').value = '';
+  document.getElementById('prodStockIdeal').value = '';
   prodFotoReset();
   prodBarcodeRender();
   hideAlerts();
   closeModals();
   document.getElementById('modalProduct').classList.add('show');
+  prodSwitchTab('general');
+  prodStockStatusUpdate();
   autoCollapseSidebar();
 }
 
@@ -9977,6 +10246,9 @@ function editProduct(id){
   document.getElementById('prodRubro').value = p.rubro || '';
   document.getElementById('prodCosto').value = p.precioCosto || '';
   document.getElementById('prodVenta').value = p.precioVenta || '';
+  document.getElementById('prodStock').value = (p.stock != null ? p.stock : '');
+  document.getElementById('prodStockMin').value = (p.stockMin != null ? p.stockMin : '');
+  document.getElementById('prodStockIdeal').value = (p.stockIdeal != null ? p.stockIdeal : '');
   prodFotoReset();
   if(p.fotoUrl){
     prodFotoMostrar(p.fotoUrl);
@@ -9988,6 +10260,8 @@ function editProduct(id){
   hideAlerts();
   closeModals();
   document.getElementById('modalProduct').classList.add('show');
+  prodSwitchTab('general');
+  prodStockStatusUpdate();
   autoCollapseSidebar();
 }
 
@@ -10007,6 +10281,9 @@ async function saveProduct(){
     rubro: document.getElementById('prodRubro').value.trim(),
     precioCosto: Number(document.getElementById('prodCosto').value) || 0,
     precioVenta: Number(document.getElementById('prodVenta').value) || 0,
+    stock: Number(document.getElementById('prodStock').value) || 0,
+    stockMin: Number(document.getElementById('prodStockMin').value) || 0,
+    stockIdeal: Number(document.getElementById('prodStockIdeal').value) || 0,
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
     fotoPath: document.getElementById('prodFotoPath').value || '',
     updatedAt: new Date().toISOString()
