@@ -5069,6 +5069,7 @@
             <div class="label-sel-text"><span id="prodSelCount">0</span> producto<span id="prodSelPlural">s</span> seleccionado<span id="prodSelPlural2">s</span></div>
             <div class="label-sel-actions">
               <button class="btn btn-line btn-sm" onclick="prodSelLimpiar()">Limpiar</button>
+              <button class="btn btn-line btn-sm" onclick="prodAsignarProveedorMasivo()">&#127970; Asignar proveedor</button>
               <button class="btn btn-primary btn-sm" onclick="abrirEtiquetasModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Imprimir etiquetas</button>
             </div>
           </div>
@@ -10297,6 +10298,49 @@ function prodSelLimpiar(){
   prodSelectedIds.clear();
   renderProductos();
   actualizarBarraSeleccion();
+}
+
+// Asigna (o cambia) el proveedor a todos los productos seleccionados
+async function prodAsignarProveedorMasivo(){
+  var ids = Array.from(prodSelectedIds);
+  if(ids.length === 0){ toast('No hay productos seleccionados', 'info'); return; }
+  var nombre = prompt('Asignar proveedor a ' + ids.length + ' producto(s).\n\nEscribí el nombre del proveedor (ej: Poxipol):');
+  if(nombre === null) return;
+  nombre = nombre.trim();
+  if(!nombre){ toast('Tenés que escribir un nombre de proveedor', 'error'); return; }
+  if(!confirm('¿Asignar el proveedor "' + nombre + '" a ' + ids.length + ' producto(s)?')) return;
+
+  toast('Asignando proveedor...', 'info');
+  try{
+    var nowTs = firebase.firestore.FieldValue.serverTimestamp();
+    var nowIso = new Date().toISOString();
+    var actualizados = [];
+    var B = 400;
+    for(var i = 0; i < ids.length; i += B){
+      var slice = ids.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(id){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(id);
+        batch.set(ref, { proveedor: nombre, updatedAt: nowTs }, {merge: true});
+        var p = productos.find(function(x){ return x._id === id; });
+        if(p){ p.proveedor = nombre; p.updatedAt = nowIso; actualizados.push(p); }
+      });
+      await batch.commit();
+    }
+    // Actualizar cache local
+    if(actualizados.length){ try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('idb', e); } }
+
+    toast('✅ Proveedor "' + nombre + '" asignado a ' + ids.length + ' producto(s)', 'success');
+    prodSelectedIds.clear();
+    renderProductos();
+    actualizarBarraSeleccion();
+    actualizarStats();
+    // Refrescar lista de proveedores si está cargada
+    if(typeof lpCargarProveedores === 'function'){ try{ lpCargarProveedores(); }catch(e){} }
+  }catch(err){
+    console.error(err);
+    toast('Error al asignar: ' + err.message, 'error');
+  }
 }
 
 function actualizarBarraSeleccion(){
