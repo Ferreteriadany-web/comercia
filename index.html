@@ -19504,7 +19504,7 @@ function lpAbrirEditarProveedor(provId){
   document.getElementById('lpModalIva').value = String(prov.ivaDefault != null ? prov.ivaDefault : 0);
   document.getElementById('lpModalBase').value = prov.baseGanancia || 'conDescuento';
   document.getElementById('lpModalMoneda').value = prov.moneda || 'ARS';
-  document.getElementById('lpBtnEliminarProv').style.display = prov._configurado ? 'inline-block' : 'none';
+  document.getElementById('lpBtnEliminarProv').style.display = 'inline-block';
   lpRenderTramos();
   lpRecalcularPreview();
   document.getElementById('lpModalProveedor').classList.add('show');
@@ -19992,15 +19992,70 @@ async function lpGuardarProveedor(){
 
 async function lpEliminarProveedor(){
   if(!lpState.proveedorEditando) return;
-  if(!confirm('¿Eliminar la configuración de este proveedor? Los productos asociados no se borran, solo la configuración de cálculo.')) return;
+  var prov = lpState.proveedores.find(function(p){ return p.id === lpState.proveedorEditando; });
+  var nombreProv = (prov && prov.proveedorNombre) || (document.getElementById('lpModalNombre').value || '').trim();
+
+  // Contar productos de este proveedor
+  var nprov = nombreProv.toLowerCase();
+  var prodsDelProv = productos.filter(function(p){
+    return String(p.proveedor || '').trim().toLowerCase() === nprov;
+  });
+  var nProds = prodsDelProv.length;
+
+  // Si no tiene productos, solo borra la config (como antes)
+  if(nProds === 0){
+    if(!confirm('¿Eliminar la configuración de "' + nombreProv + '"? (No tiene productos asociados)')) return;
+    try{
+      await db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(lpState.proveedorEditando).delete();
+      toast('Configuración eliminada', 'success');
+      lpCerrarModal();
+      lpCargarProveedores();
+    }catch(err){ toast('Error: ' + err.message, 'error'); }
+    return;
+  }
+
+  // Tiene productos: preguntar qué hacer
+  var opcion = confirm('El proveedor "' + nombreProv + '" tiene ' + nProds + ' producto(s).\n\n' +
+    'Aceptar = BORRAR el proveedor Y sus ' + nProds + ' productos del catálogo.\n' +
+    'Cancelar = no hacer nada.\n\n' +
+    '⚠️ Esto NO se puede deshacer.');
+  if(!opcion) return;
+
+  var conf = prompt('Vas a BORRAR ' + nProds + ' productos de "' + nombreProv + '".\n\nPara confirmar, escribí BORRAR (en mayúsculas):');
+  if(conf !== 'BORRAR'){ toast('Cancelado (no se borró nada)', 'info'); return; }
+
+  toast('Borrando ' + nProds + ' productos...', 'info');
   try{
-    await db.collection('empresas').doc(currentEmpresaId)
-      .collection('listas_proveedores').doc(lpState.proveedorEditando).delete();
-    toast('Configuración eliminada', 'success');
+    var ids = prodsDelProv.map(function(p){ return p._id; }).filter(Boolean);
+    var B = 400;
+    for(var i = 0; i < ids.length; i += B){
+      var slice = ids.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(id){
+        batch.delete(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(id));
+      });
+      await batch.commit();
+    }
+    // Borrar la config del proveedor también
+    try{
+      await db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(lpState.proveedorEditando).delete();
+    }catch(e){ console.warn('config prov', e); }
+
+    // Limpiar cache local
+    try{ await idbBorrarIds(currentEmpresaId, ids); }catch(e){ console.warn('idb', e); }
+    var setBorrar = {};
+    ids.forEach(function(id){ setBorrar[id] = true; });
+    productos = productos.filter(function(p){ return !setBorrar[p._id]; });
+    if(typeof productosFiltrados !== 'undefined'){ productosFiltrados = productosFiltrados.filter(function(p){ return !setBorrar[p._id]; }); }
+
+    toast('✅ Proveedor y ' + nProds + ' productos eliminados', 'success');
     lpCerrarModal();
     lpCargarProveedores();
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
   }catch(err){
-    toast('Error: ' + err.message, 'error');
+    console.error(err);
+    toast('Error al borrar: ' + err.message, 'error');
   }
 }
 
