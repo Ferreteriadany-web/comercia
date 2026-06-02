@@ -5015,6 +5015,9 @@
       <button class="sidebar-toggle" onclick="toggleSidebar()" title="Ocultar/mostrar barra lateral" aria-label="Toggle sidebar">&#9665;</button>
       <div class="sidebar-logo"><span class="logo-mark"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gSide" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gSide)"/><path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><circle cx="29" cy="20" r="2.4" fill="#fff"/></svg></span>Comercia</div>
       <nav class="sidebar-nav">
+        <a class="nav-item" data-module="inicio" onclick="navTo('inicio')">
+          <span class="nav-item-icon"><i class="ti ti-home"></i></span><span>Inicio</span>
+        </a>
         <a class="nav-item active" data-module="ventas" onclick="navTo('ventas')">
           <span class="nav-item-icon"><i class="ti ti-cash-register"></i></span><span>Ventas</span>
         </a>
@@ -5298,6 +5301,59 @@
         </div>
       </div>
 
+
+      <!-- ═══ MÓDULO INICIO (Dashboard) ═══ -->
+      <div class="module" id="moduleInicio">
+        <header class="main-header">
+          <div style="display:flex;align-items:center;gap:14px">
+            <h1 class="main-title" id="inicioSaludo">Inicio</h1>
+          </div>
+        </header>
+        <div class="main-body">
+          <div class="stats-row">
+            <div class="stat-card" onclick="navTo('ventas')" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Ventas hoy</div><div class="stat-icon">&#128722;</div></div>
+              <div class="stat-value" id="dashVentasHoy">0</div>
+            </div>
+            <div class="stat-card success" onclick="navTo('ventas')" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Facturado hoy</div><div class="stat-icon">&#128176;</div></div>
+              <div class="stat-value" id="dashFacturadoHoy" style="font-size:20px">$0</div>
+            </div>
+            <div class="stat-card danger" onclick="navTo('ctacte')" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Por cobrar</div><div class="stat-icon">&#9888;</div></div>
+              <div class="stat-value" id="dashPorCobrar" style="font-size:20px">$0</div>
+            </div>
+            <div class="stat-card purple" id="dashStockBajoCard" onclick="dashIrStockBajo()" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Stock bajo</div><div class="stat-icon">&#128230;</div></div>
+              <div class="stat-value" id="dashStockBajo">0</div>
+            </div>
+          </div>
+
+          <div class="stats-row" style="margin-top:14px">
+            <div class="stat-card" onclick="navTo('presupuestos')" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Presupuestos del mes</div><div class="stat-icon">&#128203;</div></div>
+              <div class="stat-value" id="dashPresupMes">0</div>
+            </div>
+            <div class="stat-card" onclick="navTo('productos')" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Productos</div><div class="stat-icon">&#128239;</div></div>
+              <div class="stat-value" id="dashProductos">0</div>
+            </div>
+            <div class="stat-card" onclick="navTo('clientes')" style="cursor:pointer">
+              <div class="stat-card-head"><div class="stat-label">Clientes</div><div class="stat-icon">&#128100;</div></div>
+              <div class="stat-value" id="dashClientes">0</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+            <button class="btn btn-primary btn-sm" onclick="navTo('ventas')">&#128722; Nueva venta</button>
+            <button class="btn btn-line btn-sm" onclick="nuevoPresupuesto()">&#128203; Nuevo presupuesto</button>
+            <button class="btn btn-line btn-sm" onclick="navTo('entradaStock')">&#128230; Entrada de stock</button>
+          </div>
+
+          <div class="form-section-title" style="margin-top:24px">Últimas ventas</div>
+          <div id="dashUltimasVentas"></div>
+        </div>
+      </div>
 
       <!-- ═══ MÓDULO VENTAS ═══ -->
       <div class="module" id="moduleVentas">
@@ -8232,14 +8288,9 @@ async function cargarEmpresaUsuario(user){
 
     cargarProductos();
 
-    // Arrancar en Ventas (lo más usado). Si no tiene permiso, ir al primer módulo permitido.
+    // Arrancar en el Dashboard de inicio.
     try{
-      if(typeof puedeAcceder === 'function' && puedeAcceder('ventas')){
-        navTo('ventas');
-      } else if(typeof puedeAcceder === 'function'){
-        var primero = ['productos','clientes','entradaStock','pedidos','reportes'].find(function(m){ return puedeAcceder(m); });
-        if(primero) navTo(primero);
-      }
+      navTo('inicio');
     }catch(e){ console.warn('nav inicial', e); }
 
     if(banner){
@@ -8332,6 +8383,7 @@ function navTo(modulo){
   if(modulo==='pedidos') initPedidos();
   if(modulo==='listasProveedores') initListasProveedores();
   if(modulo==='clientes') initClientes();
+  if(modulo==='inicio') initInicio();
   if(modulo==='ventas') initVentas();
   if(modulo==='presupuestos') initPresupuestos();
   if(modulo==='ctacte') initCtaCte();
@@ -14933,6 +14985,99 @@ document.addEventListener('DOMContentLoaded', function(){
     });
   }
 });
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO INICIO (Dashboard)
+// ═══════════════════════════════════════════════════════
+function dashSetTxt(id, val){ var el = document.getElementById(id); if(el) el.textContent = val; }
+function dashBuscarVenta(id){ return (typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === id; }) : null; }
+
+async function initInicio(){
+  try{
+    var jobs = [];
+    if(typeof ventas !== 'undefined' && ventas.length === 0 && typeof cargarVentas === 'function') jobs.push(cargarVentas());
+    if(typeof clientes !== 'undefined' && clientes.length === 0 && typeof cargarClientes === 'function') jobs.push(cargarClientes());
+    if(typeof presupuestos !== 'undefined' && presupuestos.length === 0 && typeof cargarPresupuestos === 'function') jobs.push(cargarPresupuestos());
+    renderInicio();                                   // render inmediato con lo que ya haya
+    if(jobs.length){ await Promise.all(jobs); renderInicio(); }  // re-render al terminar de cargar
+  }catch(e){ console.warn('initInicio', e); renderInicio(); }
+}
+
+function renderInicio(){
+  if(!document.getElementById('moduleInicio')) return;
+
+  var saludoEl = document.getElementById('inicioSaludo');
+  if(saludoEl){
+    var nombreEmp = (typeof currentEmpresa !== 'undefined' && currentEmpresa) ? currentEmpresa.nombre : '';
+    var hoyStr = new Date().toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
+    saludoEl.innerHTML = (nombreEmp ? eH(nombreEmp) : 'Inicio') +
+      ' <span style="font-size:13px;font-weight:400;color:var(--text-soft)">\u00b7 '+hoyStr+'</span>';
+  }
+
+  // Ventas de hoy (sin contar presupuestos)
+  var hoy = new Date().toDateString();
+  var ventasArr = (typeof ventas !== 'undefined') ? ventas.filter(function(v){ return v.modo !== 'presupuesto'; }) : [];
+  var ventasHoy = ventasArr.filter(function(v){ return new Date(v.fecha).toDateString() === hoy; });
+  var facturadoHoy = ventasHoy.reduce(function(a,v){ return a+(v.total||0); }, 0);
+  dashSetTxt('dashVentasHoy', ventasHoy.length);
+  dashSetTxt('dashFacturadoHoy', fmtPeso(facturadoHoy));
+
+  // Por cobrar (suma de saldos de cuenta corriente)
+  var porCobrar = 0;
+  if(typeof clientes !== 'undefined'){
+    clientes.forEach(function(c){ if((c.saldoCC||0) > 0) porCobrar += c.saldoCC; });
+  }
+  dashSetTxt('dashPorCobrar', fmtPeso(porCobrar));
+
+  // Stock bajo
+  var sb = (typeof contarStockBajo === 'function') ? contarStockBajo() : 0;
+  dashSetTxt('dashStockBajo', sb);
+  var sbCard = document.getElementById('dashStockBajoCard');
+  if(sbCard) sbCard.style.opacity = sb > 0 ? '1' : '.6';
+
+  // Presupuestos del mes
+  var ahora = new Date();
+  var presArr = (typeof presLista === 'function') ? presLista() : [];
+  var presMes = presArr.filter(function(v){
+    var f = new Date(v.fecha);
+    return f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear();
+  }).length;
+  dashSetTxt('dashPresupMes', presMes);
+
+  dashSetTxt('dashProductos', (typeof productos !== 'undefined') ? productos.length : 0);
+  dashSetTxt('dashClientes', (typeof clientes !== 'undefined') ? clientes.length : 0);
+
+  // Últimas 5 ventas
+  var cont = document.getElementById('dashUltimasVentas');
+  if(cont){
+    var ultimas = ventasArr.slice().sort(function(a,b){
+      return String(b.fecha||'').localeCompare(String(a.fecha||''));
+    }).slice(0,5);
+    if(ultimas.length === 0){
+      cont.innerHTML = '<div class="empty-table"><div class="empty-table-icon">&#128722;</div><div class="empty-table-title">Todavía no hay ventas</div></div>';
+    } else {
+      cont.innerHTML = ultimas.map(function(v){
+        var f = new Date(v.fecha);
+        var fechaStr = f.toLocaleDateString('es-AR') + ' ' + f.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+        var cli = v.cliente ? (v.cliente.razonSocial||'') : 'Consumidor Final';
+        return '<div class="ticket-card" onclick="mostrarTicket(dashBuscarVenta(\''+escapeQ(v._id)+'\'))">'+
+          '<div class="ticket-card-head"><span class="ticket-num">'+eH(v.numero||'')+'</span><span class="ticket-fecha">'+fechaStr+'</span></div>'+
+          '<div class="ticket-cliente">'+eH(cli)+'</div>'+
+          '<div class="ticket-totales"><span>'+eH(v.modo||'venta')+'</span><span style="margin-left:auto" class="ticket-total-monto">'+fmtPeso(v.total)+'</span></div>'+
+        '</div>';
+      }).join('');
+    }
+  }
+}
+
+function dashIrStockBajo(){
+  navTo('productos');
+  setTimeout(function(){
+    if(typeof prodToggleStockBajo === 'function' && typeof prodFiltroStockBajo !== 'undefined' && !prodFiltroStockBajo){
+      prodToggleStockBajo();
+    }
+  }, 150);
+}
 
 // ═══════════════════════════════════════════════════════
 // MÓDULO PRESUPUESTOS
