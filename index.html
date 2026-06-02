@@ -20254,7 +20254,9 @@ async function lpProcesarArchivo(file){
     // porque "descuento" contiene "desc" y se confundiría con "descripción".
     var colDescuento = lpDetectarCol(headers, ['descuento', 'dto', 'dcto', 'bonif', 'bonificacion', 'bonificación', '% desc', 'desc %', 'desc.']);
     var colProveedor = lpDetectarCol(headers, ['proveedor', 'prov', 'fabricante', 'marca proveedor']);
-    var colIva = lpDetectarCol(headers, ['iva', 'i.v.a.', '% iva', 'alicuota', 'alícuota']);
+    // IVA: detectar columna de alícuota, EXCLUYENDO las que sean de precio
+    // (ej. "Precio De Venta Con Iva" contiene "iva" pero NO es la columna de IVA).
+    var colIva = lpDetectarColIva(headers);
     var colMoneda = lpDetectarCol(headers, ['moneda', 'divisa', 'currency']);
     var excl = [];
     if(colDescuento >= 0) excl.push(colDescuento);
@@ -20404,6 +20406,26 @@ function lpLeerArchivo(file){
     reader.onerror = function(){ reject(reader.error); };
     reader.readAsArrayBuffer(file);
   });
+}
+
+// Detecta la columna de IVA (alícuota), evitando columnas de precio que
+// contienen "iva" (ej. "Precio De Venta Con Iva"). Una columna de IVA real
+// es una alícuota: su nombre NO incluye "precio", "venta", "costo" ni "$".
+function lpDetectarColIva(headers){
+  function esPrecio(h){ return /precio|venta|costo|importe|\$|valor|total|neto/.test(h); }
+  // 1) Coincidencia exacta o muy clara
+  for(var i = 0; i < headers.length; i++){
+    var h = headers[i];
+    if(esPrecio(h)) continue;
+    if(h === 'iva' || h === 'i.v.a.' || h === '% iva' || h === 'iva %' ||
+       h.indexOf('alicuota') >= 0 || h.indexOf('alícuota') >= 0) return i;
+  }
+  // 2) Contiene "iva" pero NO es columna de precio
+  for(var j = 0; j < headers.length; j++){
+    if(esPrecio(headers[j])) continue;
+    if(headers[j].indexOf('iva') >= 0) return j;
+  }
+  return -1;
 }
 
 function lpDetectarCol(headers, candidatos, exclude){
