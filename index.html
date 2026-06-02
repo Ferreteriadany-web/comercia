@@ -5027,6 +5027,7 @@
           </div>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
+            <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -5068,6 +5069,7 @@
           <div class="label-selection-bar" id="prodSelBar">
             <div class="label-sel-text"><span id="prodSelCount">0</span> producto<span id="prodSelPlural">s</span> seleccionado<span id="prodSelPlural2">s</span></div>
             <div class="label-sel-actions">
+              <button class="btn btn-line btn-sm" onclick="prodSelTodosFiltrados()">Seleccionar todos los filtrados</button>
               <button class="btn btn-line btn-sm" onclick="prodSelLimpiar()">Limpiar</button>
               <button class="btn btn-line btn-sm" onclick="prodAsignarProveedorMasivo()">&#127970; Asignar proveedor</button>
               <button class="btn btn-primary btn-sm" onclick="abrirEtiquetasModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:4px"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>Imprimir etiquetas</button>
@@ -6802,6 +6804,38 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL FOTOS EN MASA ═══════════════════ -->
+<div class="modal-overlay" id="modalFotosMasivas">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">Productos</div>
+    <h2 class="modal-title">Cargar fotos en masa</h2>
+    <p class="modal-subtitle">Subí varias fotos juntas. Cada foto se asigna al producto cuyo <strong>código</strong> coincida con el <strong>nombre del archivo</strong>.</p>
+
+    <div style="background:var(--bg-2);border-radius:var(--r-md);padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text-soft);line-height:1.5">
+      <strong>Cómo nombrar las fotos:</strong> el archivo tiene que llamarse igual que el código del producto.<br>
+      Ejemplo: para el producto código <code>POX-001</code> → la foto debe ser <code>POX-001.jpg</code> (o .png, .webp).
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Elegí las fotos</label>
+      <input type="file" id="fotosMasivasInput" accept="image/*" multiple style="width:100%;font-size:13px">
+    </div>
+
+    <div id="fotosMasivasProgreso" style="display:none;margin:14px 0">
+      <div class="prod-foto-progress"><div class="prod-foto-progress-fill" id="fotosMasivasFill" style="width:0%"></div></div>
+      <p id="fotosMasivasEstado" style="font-size:12px;color:var(--text-soft);margin-top:6px;text-align:center;font-family:var(--mono)"></p>
+    </div>
+
+    <div id="fotosMasivasResumen" style="display:none;margin:14px 0;font-size:13px"></div>
+
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cerrar</button>
+      <button class="btn-form" id="fotosMasivasBtn" onclick="prodFotosMasivasProcesar()" style="flex:2">Subir y vincular</button>
+    </div>
   </div>
 </div>
 
@@ -9762,9 +9796,24 @@ function showProdDropdown(query){
   dd.classList.add('show');
   _ddProdSel = -1;
 
-  productosFiltered = results.map(function(r){return r.p;});
+  // La lista principal se filtra con TODOS los productos que coinciden (sin límite),
+  // no solo los 30 del dropdown de sugerencias.
+  productosFiltered = filtrarTodosProductos(query);
   prodPage = 0;
   renderProductos();
+}
+
+// Filtra TODOS los productos que coinciden con la búsqueda (sin tope de 30).
+// Se usa para la tabla principal, así se pueden seleccionar todos los de un proveedor.
+function filtrarTodosProductos(query){
+  var q = String(query || '').trim().toLowerCase();
+  if(!q) return productos.slice();
+  var words = q.split(/\s+/).filter(function(w){ return w.length > 0; });
+  return productos.filter(function(p){
+    var haystack = ((p.codigo||'') + ' ' + (p.descripcion||'') + ' ' + (p.proveedor||'') + ' ' +
+                    (p.codBarra||'') + ' ' + (p.marca||'') + ' ' + (p.rubro||'')).toLowerCase();
+    return words.every(function(w){ return haystack.indexOf(w) >= 0; });
+  });
 }
 
 function selectDdItem(idx){
@@ -10183,8 +10232,96 @@ function comprimirImagen(file, maxSize, quality){
 }
 
 // ═══════════════════════════════════════════════════════
-// CÓDIGO DE BARRAS
+// FOTOS EN MASA (vincula por nombre de archivo = código)
 // ═══════════════════════════════════════════════════════
+function prodFotosMasivasAbrir(){
+  document.getElementById('fotosMasivasInput').value = '';
+  document.getElementById('fotosMasivasProgreso').style.display = 'none';
+  document.getElementById('fotosMasivasResumen').style.display = 'none';
+  document.getElementById('fotosMasivasFill').style.width = '0%';
+  document.getElementById('fotosMasivasBtn').disabled = false;
+  document.getElementById('modalFotosMasivas').classList.add('show');
+}
+
+// Normaliza un código para comparar (igual criterio que sanitizarId, pero para matchear)
+function _normCod(s){ return String(s || '').trim().toLowerCase(); }
+
+async function prodFotosMasivasProcesar(){
+  var input = document.getElementById('fotosMasivasInput');
+  var files = input.files ? Array.from(input.files) : [];
+  if(files.length === 0){ toast('Elegí al menos una foto', 'error'); return; }
+
+  // Index de productos por código (normalizado)
+  var index = {};
+  productos.forEach(function(p){
+    if(p.codigo) index[_normCod(p.codigo)] = p;
+  });
+
+  var btn = document.getElementById('fotosMasivasBtn');
+  btn.disabled = true;
+  var prog = document.getElementById('fotosMasivasProgreso');
+  var fill = document.getElementById('fotosMasivasFill');
+  var estado = document.getElementById('fotosMasivasEstado');
+  prog.style.display = 'block';
+
+  var vinculadas = 0, sinProducto = [], errores = [];
+  var actualizados = [];
+
+  for(var i = 0; i < files.length; i++){
+    var file = files[i];
+    // Nombre sin extensión = código
+    var nombre = file.name.replace(/\.[^.]+$/, '');
+    var codNorm = _normCod(nombre);
+    estado.textContent = 'Procesando ' + (i+1) + ' de ' + files.length + ': ' + file.name;
+    fill.style.width = Math.round((i / files.length) * 100) + '%';
+
+    var prod = index[codNorm];
+    if(!prod){ sinProducto.push(file.name); continue; }
+    if(!file.type.startsWith('image/')){ errores.push(file.name + ' (no es imagen)'); continue; }
+
+    try{
+      var blob = await comprimirImagen(file, 800, 0.82);
+      var productoId = prod._id || sanitizarId(prod.codigo);
+      var fullPath = 'empresas/' + currentEmpresaId + '/productos/' + productoId + '/' + Date.now() + '.jpg';
+      var ref = storage.ref(fullPath);
+      await ref.put(blob, { contentType: 'image/jpeg' });
+      var url = await ref.getDownloadURL();
+
+      // Guardar en Firestore
+      await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(productoId)
+        .set({ fotoUrl: url, fotoPath: fullPath, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+      // Memoria local
+      prod.fotoUrl = url; prod.fotoPath = fullPath;
+      actualizados.push(prod);
+      vinculadas++;
+    }catch(err){
+      console.error('Error con ' + file.name, err);
+      errores.push(file.name + ' (' + (err.code || err.message || 'error') + ')');
+    }
+  }
+
+  fill.style.width = '100%';
+  estado.textContent = 'Listo';
+
+  // Guardar cache local
+  if(actualizados.length){ try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){} }
+
+  // Resumen
+  var res = document.getElementById('fotosMasivasResumen');
+  var html = '<div style="padding:10px 12px;background:var(--success-soft);border:1px solid var(--success);border-radius:var(--r-sm);color:var(--success);margin-bottom:8px"><strong>' + vinculadas + '</strong> foto(s) vinculadas correctamente.</div>';
+  if(sinProducto.length){
+    html += '<div style="padding:10px 12px;background:var(--bg-2);border-radius:var(--r-sm);margin-bottom:8px"><strong>' + sinProducto.length + '</strong> sin producto con ese código:<br><span style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">' + sinProducto.slice(0,10).map(eH).join(', ') + (sinProducto.length>10?' …':'') + '</span></div>';
+  }
+  if(errores.length){
+    html += '<div style="padding:10px 12px;background:var(--danger-soft);border:1px solid var(--danger);border-radius:var(--r-sm);color:var(--danger)"><strong>' + errores.length + '</strong> con error:<br><span style="font-size:11px;font-family:var(--mono)">' + errores.slice(0,8).map(eH).join(', ') + '</span></div>';
+  }
+  res.innerHTML = html;
+  res.style.display = 'block';
+  btn.disabled = false;
+  renderProductos();
+  toast(vinculadas + ' fotos vinculadas', vinculadas > 0 ? 'success' : 'info');
+}
+
 function prodBarcodeGenerar(){
   var tipo = document.getElementById('prodBarcodeTipo').value;
   var codigo;
@@ -10283,12 +10420,11 @@ function prodSelToggle(id, checked){
 }
 
 function prodSelToggleAll(checked){
-  // Aplica a los productos visibles en la página actual
-  var start = prodPage * prodPageSize;
-  var end = Math.min(start + prodPageSize, productosFiltered.length);
-  for(var i=start; i<end; i++){
-    if(checked) prodSelectedIds.add(productosFiltered[i]._id);
-    else prodSelectedIds.delete(productosFiltered[i]._id);
+  // Selecciona/deselecciona TODOS los productos del filtro actual (no solo la página)
+  if(checked){
+    productosFiltered.forEach(function(p){ if(p._id) prodSelectedIds.add(p._id); });
+  } else {
+    productosFiltered.forEach(function(p){ if(p._id) prodSelectedIds.delete(p._id); });
   }
   renderProductos();
   actualizarBarraSeleccion();
@@ -10298,6 +10434,15 @@ function prodSelLimpiar(){
   prodSelectedIds.clear();
   renderProductos();
   actualizarBarraSeleccion();
+}
+
+// Selecciona TODOS los productos del filtro actual (no solo la página visible)
+function prodSelTodosFiltrados(){
+  if(!productosFiltered || productosFiltered.length === 0){ toast('No hay productos filtrados', 'info'); return; }
+  productosFiltered.forEach(function(p){ if(p._id) prodSelectedIds.add(p._id); });
+  renderProductos();
+  actualizarBarraSeleccion();
+  toast(prodSelectedIds.size + ' productos seleccionados', 'success');
 }
 
 // Asigna (o cambia) el proveedor a todos los productos seleccionados
