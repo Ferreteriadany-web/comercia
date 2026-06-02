@@ -366,6 +366,40 @@
   }
   .hero-trust strong{color:var(--text);font-weight:600}
 
+  /* Tag de 14 días — versión grande */
+  .hero-tag-lg{
+    font-size:14px;
+    padding:8px 16px;
+    font-weight:600;
+  }
+  /* Badge destacado de 14 días gratis (bajo los botones) */
+  .hero-freebadge{
+    margin-top:20px;
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    background:var(--paper);
+    border:1px solid var(--line-2);
+    border-radius:99px;
+    padding:11px 18px;
+    font-size:15px;
+    color:var(--text);
+    box-shadow:var(--shadow-sm);
+  }
+  .hero-freebadge strong{font-weight:700;color:var(--accent-text)}
+  .hero-freebadge-check{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:22px;height:22px;
+    border-radius:50%;
+    background:var(--success);
+    color:#fff;
+    font-size:13px;
+    font-weight:700;
+    flex-shrink:0;
+  }
+
   /* HERO MOCKUP */
   .hero-visual{position:relative;aspect-ratio:1/1}
   .mock-card{
@@ -4692,12 +4726,16 @@
   <section class="hero">
     <div class="hero-grid">
       <div>
-        <span class="hero-tag"><span class="hero-tag-dot"></span>14 días gratis · sin tarjeta</span>
+        <span class="hero-tag hero-tag-lg"><span class="hero-tag-dot"></span>14 días gratis · sin tarjeta</span>
         <h1 class="hero-title">La gestión de tu negocio <em>en un solo lugar</em>.</h1>
         <p class="hero-desc">Compras, ventas, presupuestos y stock. Comercia unifica todo lo que tu comercio necesita para crecer, sin complicaciones.</p>
         <div class="hero-ctas">
           <button class="btn btn-cta" onclick="openRegister()">Empezar ahora &rarr;</button>
           <button class="btn btn-line" onclick="openLogin()">Ya tengo cuenta</button>
+        </div>
+        <div class="hero-freebadge">
+          <span class="hero-freebadge-check">&#10003;</span>
+          <span><strong>14 días gratis</strong> · no pedimos tarjeta de crédito</span>
         </div>
         <div class="hero-trust"><strong>Hecho en Argentina</strong> &middot; para comercios reales</div>
       </div>
