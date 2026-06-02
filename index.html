@@ -6149,6 +6149,9 @@
                 <button class="btn btn-sm btn-primary" id="lpBtnConfigTodos" style="display:none" onclick="lpConfigurarTodosAuto()">&#9881; Configurar todos automáticamente</button>
               </div>
             </div>
+            <div style="margin-bottom:14px">
+              <input type="text" id="lpProvBuscar" class="search-input" placeholder="Buscar proveedor por nombre..." oninput="lpFiltrarProveedores(this.value)" autocomplete="off" style="width:100%">
+            </div>
             <div id="lpProveedoresList">
               <div class="lp-empty">Cargando proveedores...</div>
             </div>
@@ -19355,15 +19358,40 @@ async function lpCargarProveedores(){
       return;
     }
 
-    var html = '';
-    lista.forEach(function(p){
-      html += lpRenderProveedorCard(p);
-    });
-    cont.innerHTML = html;
+    // Guardar la lista para poder filtrarla con el buscador
+    lpState.proveedoresLista = lista;
+    var filtro = (document.getElementById('lpProvBuscar') || {}).value || '';
+    lpRenderListaProveedores(filtro);
   }catch(err){
     console.error(err);
     cont.innerHTML = '<div class="lp-empty" style="color:#dc2626">Error cargando proveedores: ' + eH(err.message) + '</div>';
   }
+}
+
+// Renderiza la lista de proveedores aplicando el filtro de búsqueda
+function lpRenderListaProveedores(filtro){
+  var cont = document.getElementById('lpProveedoresList');
+  if(!cont) return;
+  var lista = lpState.proveedoresLista || [];
+  var q = String(filtro || '').trim().toLowerCase();
+  if(q){
+    lista = lista.filter(function(p){
+      return String(p.proveedorNombre || '').toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  if(lista.length === 0){
+    cont.innerHTML = '<div class="lp-empty">No hay proveedores que coincidan con "' + eH(filtro) + '".</div>';
+    return;
+  }
+  var html = '';
+  lista.forEach(function(p){
+    html += lpRenderProveedorCard(p);
+  });
+  cont.innerHTML = html;
+}
+
+function lpFiltrarProveedores(valor){
+  lpRenderListaProveedores(valor);
 }
 
 function lpRenderProveedorCard(p){
@@ -19995,16 +20023,22 @@ async function lpEliminarProveedor(){
   var prov = lpState.proveedores.find(function(p){ return p.id === lpState.proveedorEditando; });
   var nombreProv = (prov && prov.proveedorNombre) || (document.getElementById('lpModalNombre').value || '').trim();
 
-  // Contar productos de este proveedor
-  var nprov = nombreProv.toLowerCase();
+  // Normalizador flexible: minúsculas, sin espacios extra, sin puntos finales
+  function norm(s){ return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/\.+$/, ''); }
+  var nprov = norm(nombreProv);
+  var idProv = lpState.proveedorEditando;
   var prodsDelProv = productos.filter(function(p){
-    return String(p.proveedor || '').trim().toLowerCase() === nprov;
+    var pp = norm(p.proveedor);
+    if(pp === nprov) return true;
+    // match por id sanitizado (mismo método que usa el sistema para agrupar)
+    if(typeof lpSanitizarId === 'function' && p.proveedor && lpSanitizarId(p.proveedor) === idProv) return true;
+    return false;
   });
   var nProds = prodsDelProv.length;
 
   // Si no tiene productos, solo borra la config (como antes)
   if(nProds === 0){
-    if(!confirm('¿Eliminar la configuración de "' + nombreProv + '"? (No tiene productos asociados)')) return;
+    if(!confirm('No encontré productos asociados a "' + nombreProv + '".\n\n¿Eliminar solo la configuración de cálculo de este proveedor?')) return;
     try{
       await db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(lpState.proveedorEditando).delete();
       toast('Configuración eliminada', 'success');
