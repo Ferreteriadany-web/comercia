@@ -20325,6 +20325,8 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colIva = (colMap.iva>=0?colMap.iva:-1), colDescuento = (colMap.descuento>=0?colMap.descuento:-1);
   var colProveedor = (colMap.proveedor>=0?colMap.proveedor:-1), colMoneda = (colMap.moneda>=0?colMap.moneda:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
+  // Si la lista trae su propia columna de moneda, esa manda por fila (no el selector global).
+  lpState.tieneColMoneda = (colMoneda >= 0);
 
   var rows = [];
   for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
@@ -20365,7 +20367,13 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   if(hayUsd){
     var cf = document.getElementById('lpCotizField'), cb = document.getElementById('lpCotizBtn'), cn = document.getElementById('lpCotizNote');
     if(cf) cf.style.display = ''; if(cb) cb.style.display = ''; if(cn) cn.style.display = '';
-    if((Number(lpState.cotizacionUsd) || 0) <= 0) toast('Hay ítems en dólares: cargá la cotización', 'info');
+    if(lpState.tieneColMoneda){
+      var nUsd = lpState.importacion.rows.filter(function(r){ return r._moneda === 'USD'; }).length;
+      var nArs = lpState.importacion.rows.length - nUsd;
+      toast('Lista mixta: ' + nArs + ' en pesos y ' + nUsd + ' en dólares. Cargá la cotización (solo afecta a los de dólares).', 'info');
+    } else if((Number(lpState.cotizacionUsd) || 0) <= 0){
+      toast('Hay ítems en dólares: cargá la cotización', 'info');
+    }
   }
 }
 
@@ -20476,11 +20484,18 @@ function lpRecalcularFila(row){
   //  1) columna del Excel  2) la guardada en el producto (proveedores mixtos)
   //  3) la del proveedor    4) la elegida al importar (simple)  5) ARS
   var monedaProd = (row.productoActual && row.productoActual.moneda) ? row.productoActual.moneda : null;
-  var moneda = row._monedaRaw
-            || monedaProd
-            || prov.moneda
-            || (imp && imp.modo === 'simple' ? lpState.monedaImport : null)
-            || 'ARS';
+  // Si la lista trae columna de moneda propia, ESA manda (no el selector global lpState.monedaImport),
+  // así una lista mixta (pesos + dólares) no convierte por error los ítems en pesos.
+  var moneda;
+  if(lpState.tieneColMoneda){
+    moneda = row._monedaRaw || monedaProd || 'ARS';
+  } else {
+    moneda = row._monedaRaw
+          || monedaProd
+          || prov.moneda
+          || (imp && imp.modo === 'simple' ? lpState.monedaImport : null)
+          || 'ARS';
+  }
   var cotiz = (moneda === 'USD') ? (Number(lpState.cotizacionUsd) || 0) : 0;
   row._moneda = moneda;
   var provParaCalc = Object.assign({}, prov, { ivaDefault: ivaUsar, descProducto: descProd, moneda: moneda, cotizacion: cotiz });
