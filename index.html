@@ -7406,21 +7406,23 @@
 <div class="modal-overlay" id="modalCobro">
   <div class="modal" style="max-width:540px;max-height:90vh;overflow-y:auto">
     <button class="modal-close" onclick="closeModals()">&times;</button>
-    <div class="modal-eyebrow">Confirmar venta</div>
-    <h2 class="modal-title">Cobrar</h2>
+    <div class="modal-eyebrow" id="vCobroEyebrow">Confirmar venta</div>
+    <h2 class="modal-title" id="vCobroTitulo">Cobrar</h2>
 
     <div style="background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r-md);padding:14px 18px;margin-bottom:18px;text-align:center">
-      <div style="font-size:11px;color:var(--accent-text);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:4px">Total a cobrar</div>
+      <div style="font-size:11px;color:var(--accent-text);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:4px" id="vCobroTotalLbl">Total a cobrar</div>
       <div style="font-size:30px;font-weight:700;color:var(--accent-text);letter-spacing:-0.025em" id="vCobroTotal">$0</div>
     </div>
 
     <div class="alert error" id="vCobroAlert"></div>
 
-    <div class="form-section-title">Métodos de pago</div>
-    <div id="vPagosList"></div>
-    <button class="btn btn-line btn-sm" onclick="agregarPago()" style="margin-top:6px">+ Agregar otro método</button>
+    <div id="vPagoSeccion">
+      <div class="form-section-title">Métodos de pago</div>
+      <div id="vPagosList"></div>
+      <button class="btn btn-line btn-sm" onclick="agregarPago()" style="margin-top:6px">+ Agregar otro método</button>
 
-    <div class="pago-resumen" id="vPagoResumen" style="margin-top:14px"></div>
+      <div class="pago-resumen" id="vPagoResumen" style="margin-top:14px"></div>
+    </div>
 
     <div id="vRemitoDatos" style="display:none">
       <div class="form-section-title">Datos de entrega</div>
@@ -8298,6 +8300,7 @@ var prodPageSize = 50;
 var prodSearchTimer = null;
 var prodFiltroStockBajo = false;
 var _stockBajoAvisado = false;
+var _prodStockOriginal = null;
 
 // ═══════════════════════════════════════════════════════
 // NAVEGACIÓN ENTRE MÓDULOS
@@ -9240,7 +9243,7 @@ async function esAplicar(){
       slice.forEach(function(f){
         var nuevoStock = (Number(f.stockActual) || 0) + (Number(f.cantidad) || 0);
         var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(f.prod._id);
-        batch.update(ref, { stock: nuevoStock, updatedAt: new Date().toISOString() });
+        batch.update(ref, { stock: firebase.firestore.FieldValue.increment(Number(f.cantidad) || 0), updatedAt: new Date().toISOString() });
         var prodLocal = productos.find(function(p){ return p._id === f.prod._id; });
         if(prodLocal){ prodLocal.stock = nuevoStock; localUpdates.push(prodLocal); }
       });
@@ -10318,6 +10321,7 @@ function openProductModal(){
   document.getElementById('prodStock').value = '';
   document.getElementById('prodStockMin').value = '';
   document.getElementById('prodStockIdeal').value = '';
+  _prodStockOriginal = null;
   prodFotoReset();
   prodBarcodeRender();
   hideAlerts();
@@ -10342,6 +10346,7 @@ function editProduct(id){
   document.getElementById('prodCosto').value = p.precioCosto || '';
   document.getElementById('prodVenta').value = p.precioVenta || '';
   document.getElementById('prodStock').value = (p.stock != null ? p.stock : '');
+  _prodStockOriginal = (p.stock != null ? p.stock : 0);
   document.getElementById('prodStockMin').value = (p.stockMin != null ? p.stockMin : '');
   document.getElementById('prodStockIdeal').value = (p.stockIdeal != null ? p.stockIdeal : '');
   prodFotoReset();
@@ -10376,13 +10381,29 @@ async function saveProduct(){
     rubro: document.getElementById('prodRubro').value.trim(),
     precioCosto: Number(document.getElementById('prodCosto').value) || 0,
     precioVenta: Number(document.getElementById('prodVenta').value) || 0,
-    stock: Number(document.getElementById('prodStock').value) || 0,
     stockMin: Number(document.getElementById('prodStockMin').value) || 0,
     stockIdeal: Number(document.getElementById('prodStockIdeal').value) || 0,
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
     fotoPath: document.getElementById('prodFotoPath').value || '',
     updatedAt: new Date().toISOString()
   };
+
+  // Stock: evitamos pisar cambios concurrentes (ventas/entradas de otro dispositivo).
+  var stockField = Number(document.getElementById('prodStock').value) || 0;
+  var stockLocalFinal = stockField; // valor numérico para la vista/caché local
+  if(editId){
+    if(_prodStockOriginal === null || stockField === _prodStockOriginal){
+      // No tocaste el stock: no lo escribimos (dejamos intacto el valor del servidor)
+      var actual = productos.find(function(x){ return x._id === editId; });
+      stockLocalFinal = (actual && actual.stock != null) ? actual.stock : stockField;
+    } else {
+      // Lo cambiaste a propósito: aplicamos la diferencia de forma atómica
+      data.stock = firebase.firestore.FieldValue.increment(stockField - _prodStockOriginal);
+    }
+  } else {
+    data.stock = stockField; // producto nuevo
+  }
+
   var btn = document.getElementById('btnSaveProduct');
   btn.disabled = true; btn.textContent = 'Guardando...';
   try{
@@ -10390,6 +10411,7 @@ async function saveProduct(){
     if(!editId) data.creadoEn = new Date().toISOString();
     await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(docId).set(data, {merge: !!editId});
     var nuevoProd = Object.assign({_id: docId}, data);
+    nuevoProd.stock = stockLocalFinal;   // valor numérico local (no el sentinel de increment)
     await idbGuardarBatch(currentEmpresaId, [nuevoProd]);
     var existIdx = productos.findIndex(function(x){ return x._id===docId; });
     if(existIdx >= 0) productos[existIdx] = nuevoProd; else productos.push(nuevoProd);
@@ -13720,6 +13742,8 @@ function cambiarModoVenta(modo){
   }
 
   // Actualizar texto del título del carrito según modo
+  var btnC = document.getElementById('vBtnCobrar');
+  if(btnC) btnC.innerHTML = (modo === 'presupuesto') ? 'Guardar presupuesto &#128221;' : 'Cobrar &#128181;';
   actualizarTituloCarrito();
   if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
 }
@@ -14559,9 +14583,16 @@ function openPagoModal(){
     return;
   }
   var total = window._ventaActual ? window._ventaActual.totalFinal : 0;
-  pagosVenta = [{ metodo: 'efectivo', monto: total }];
+  var esPresup = (modoVenta === 'presupuesto');
+  pagosVenta = esPresup ? [] : [{ metodo: 'efectivo', monto: total }];
   document.getElementById('vCobroTotal').textContent = fmtPeso(total);
   document.getElementById('vCobroObs').value = '';
+  // Modo presupuesto: ocultar el cobro y adaptar los textos
+  var seccionPagos = document.getElementById('vPagoSeccion');
+  if(seccionPagos) seccionPagos.style.display = esPresup ? 'none' : '';
+  document.getElementById('vCobroEyebrow').textContent = esPresup ? 'Guardar presupuesto' : 'Confirmar venta';
+  document.getElementById('vCobroTitulo').textContent = esPresup ? 'Presupuesto' : 'Cobrar';
+  document.getElementById('vCobroTotalLbl').textContent = esPresup ? 'Total del presupuesto' : 'Total a cobrar';
   // Datos de entrega: solo para remito y factura
   var mostrarEntrega = (modoVenta === 'remito' || modoVenta === 'factura');
   var boxEntrega = document.getElementById('vRemitoDatos');
@@ -14581,7 +14612,7 @@ function openPagoModal(){
   var btnConf = document.getElementById('vBtnConfirmar');
   if(btnConf){
     btnConf.disabled = false;
-    btnConf.textContent = 'Confirmar venta \u2713';
+    btnConf.textContent = esPresup ? 'Guardar presupuesto \u2713' : 'Confirmar venta \u2713';
   }
 }
 
@@ -14639,10 +14670,26 @@ function actualizarResumenPago(){
 async function confirmarVenta(){
   if(carritoVenta.length === 0){ showAlert('vCobroAlert','Carrito vacío'); return; }
   var total = window._ventaActual ? window._ventaActual.totalFinal : 0;
-  var sumado = pagosVenta.reduce(function(a,p){ return a+(p.monto||0); }, 0);
-  if(sumado < total - 0.01){
-    showAlert('vCobroAlert','Falta cobrar '+fmtPeso(total-sumado));
-    return;
+  var esPresup = (modoVenta === 'presupuesto');
+  if(!esPresup){
+    var sumado = pagosVenta.reduce(function(a,p){ return a+(p.monto||0); }, 0);
+    if(sumado < total - 0.01){
+      showAlert('vCobroAlert','Falta cobrar '+fmtPeso(total-sumado));
+      return;
+    }
+    // Aviso de sobreventa: productos que quedarían en stock negativo
+    var faltantes = [];
+    carritoVenta.forEach(function(item){
+      var p = item.producto;
+      if(p && p.stock != null && (p.stock - item.cantidad) < 0 && (p.stock > 0 || Number(p.stockMin) > 0)){
+        faltantes.push('\u00b7 ' + (p.descripcion || p.codigo || 'Producto') + ': hay ' + p.stock + ', vendés ' + item.cantidad);
+      }
+    });
+    if(faltantes.length){
+      if(!confirm('Stock insuficiente en:\n\n' + faltantes.join('\n') + '\n\n¿Confirmás igual? El stock quedará en negativo.')){
+        return;
+      }
+    }
   }
 
   var btn = document.getElementById('vBtnConfirmar');
@@ -14710,10 +14757,10 @@ async function confirmarVenta(){
         var stockActual = (item.producto.stock != null) ? item.producto.stock : 0;
         var stockNuevo = stockActual - item.cantidad;
         batch.update(prodRef, {
-          stock: stockNuevo,
+          stock: firebase.firestore.FieldValue.increment(-item.cantidad),
           updatedAt: new Date().toISOString()
         });
-        item.producto.stock = stockNuevo;
+        item.producto.stock = stockNuevo;   // vista local optimista; el servidor es la fuente real
         item.producto.updatedAt = new Date().toISOString();
         cacheUpdates.push(item.producto);
       }
@@ -14722,6 +14769,7 @@ async function confirmarVenta(){
         await idbGuardarBatch(currentEmpresaId, cacheUpdates);
       }catch(stockErr){
         console.warn('No se pudo descontar stock:', stockErr);
+        toast('\u26A0\uFE0F La venta se guardó, pero no se pudo actualizar el stock. Revisalo.', 'error');
       }
     }
 
@@ -15007,11 +15055,49 @@ function renderHistorialPresupuestos(){
   cont.innerHTML = html;
 }
 
+// Carga los ítems de un presupuesto en el carrito del POS para cerrarlo como venta.
+function convertirPresupuestoAVenta(){
+  var v = _ventaActualVer;
+  if(!v) return;
+  if(carritoVenta.length > 0 && !confirm('Esto reemplaza el carrito actual con los ítems del presupuesto. ¿Seguir?')) return;
+
+  carritoVenta = [];
+  var noEncontrados = 0;
+  (v.items || []).forEach(function(it){
+    var p = productos.find(function(x){ return x._id === it.productoId; });
+    if(!p && it.codigo) p = productos.find(function(x){ return x.codigo === it.codigo; });
+    if(!p){
+      // El producto ya no existe en el catálogo: lo reconstruimos para no perder el ítem
+      p = { _id: it.productoId || ('tmp_'+Math.random().toString(36).slice(2)),
+            codigo: it.codigo || '', descripcion: it.descripcion || '',
+            precioVenta: it.precioUnit || 0, stock: null };
+      noEncontrados++;
+    }
+    carritoVenta.push({ producto: p, cantidad: it.cantidad || 1, obra: it.obra || '' });
+  });
+
+  // Cliente (si el del presupuesto sigue existiendo)
+  clienteVenta = null;
+  if(v.cliente && v.cliente.id){
+    var full = clientes.find(function(x){ return x._id === v.cliente.id; });
+    if(full && typeof seleccionarClienteVenta === 'function') seleccionarClienteVenta(full._id);
+  }
+
+  cambiarModoVenta(clienteVenta ? 'factura' : 'remito');
+  navTo('ventas');
+  if(typeof ventasTabSwitch === 'function') ventasTabSwitch('pos');
+  renderCarrito();
+  recalcularVenta();
+  if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
+  closeModals();
+  toast('Presupuesto cargado al carrito' + (noEncontrados ? ' ('+noEncontrados+' producto/s ya no existen)' : '') + '. Revisá y guardá la venta.', 'success');
+}
+
 // Lleva al POS de Ventas ya en modo presupuesto para armar uno nuevo.
 function nuevoPresupuesto(){
   navTo('ventas');
   setTimeout(function(){ if(typeof cambiarModoVenta==='function') cambiarModoVenta('presupuesto'); }, 60);
-  toast('Armá el presupuesto y tocá "Cobrar" para guardarlo', 'success');
+  toast('Armá el presupuesto y tocá "Guardar presupuesto"', 'success');
 }
 
 function mostrarTicket(v){
@@ -15078,6 +15164,9 @@ function mostrarTicket(v){
   var editarEntregaBtn = (v.modo==='remito' || v.modo==='factura')
     ? '<button class="btn btn-line btn-sm" style="margin-top:12px;width:100%" onclick="abrirEditarEntrega()">&#9999;&#65039; Editar entrega (retira / obra)</button>'
     : '';
+  var convertirBtn = (v.modo==='presupuesto')
+    ? '<button class="btn-form" style="margin-top:12px;width:100%" onclick="convertirPresupuestoAVenta()">&#128722; Convertir a venta</button>'
+    : '';
 
   // Etiqueta del modo
   var modoLbl = 'TICKET';
@@ -15106,7 +15195,7 @@ function mostrarTicket(v){
       pagosHtml+
       (v.observaciones?'<div class="ticket-print-sep"></div><div style="font-size:11px;color:var(--text-mute)">Notas: '+eH(v.observaciones)+'</div>':'')+
     '</div>'+
-    editarEntregaBtn;
+    editarEntregaBtn + convertirBtn;
 
   closeModals();
   document.getElementById('modalDetalleVenta').classList.add('show');
@@ -17049,7 +17138,7 @@ async function ccConfirmarDevolucion(){
         if(p){
           var nuevoStock = (Number(p.stock)||0) + (Number(it.cantidad)||0);
           var pRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(it._id);
-          batch.update(pRef, { stock: nuevoStock, updatedAt: ahora.toISOString() });
+          batch.update(pRef, { stock: firebase.firestore.FieldValue.increment(Number(it.cantidad)||0), updatedAt: ahora.toISOString() });
           p.stock = nuevoStock;
           prodsActualizados.push(p);
         }
