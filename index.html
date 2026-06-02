@@ -4930,11 +4930,11 @@
         <a class="nav-item active" data-module="ventas" onclick="navTo('ventas')">
           <span class="nav-item-icon"><i class="ti ti-cash-register"></i></span><span>Ventas</span>
         </a>
-        <a class="nav-item" data-module="productos" onclick="navTo('productos')">
-          <span class="nav-item-icon"><i class="ti ti-package"></i></span><span>Productos</span>
+        <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
+          <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Pedidos</span>
         </a>
-        <a class="nav-item" data-module="clientes" onclick="navTo('clientes')">
-          <span class="nav-item-icon"><i class="ti ti-users"></i></span><span>Clientes</span>
+        <a class="nav-item" data-module="ctacte" onclick="navTo('ctacte')">
+          <span class="nav-item-icon"><i class="ti ti-credit-card"></i></span><span>Cuentas Corrientes</span>
         </a>
         <a class="nav-item" data-module="entradaStock" onclick="navTo('entradaStock')">
           <span class="nav-item-icon"><i class="ti ti-truck-delivery"></i></span><span>Entrada de Stock</span>
@@ -4942,25 +4942,37 @@
         <a class="nav-item" data-module="listasProveedores" onclick="navTo('listasProveedores')">
           <span class="nav-item-icon"><i class="ti ti-file-invoice"></i></span><span>Listas Proveedores</span>
         </a>
-        <a class="nav-item" data-module="ctacte" onclick="navTo('ctacte')">
-          <span class="nav-item-icon"><i class="ti ti-credit-card"></i></span><span>Cuentas Corrientes</span>
-        </a>
         <a class="nav-item" data-module="reportes" onclick="navTo('reportes')">
           <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Reportes</span>
         </a>
-        <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
-          <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Pedidos</span>
-        </a>
-        <a class="nav-item" data-module="empleados" onclick="navTo('empleados')">
-          <span class="nav-item-icon"><i class="ti ti-user-cog"></i></span><span>Empleados</span>
-        </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
-            <span class="nav-item-icon"><i class="ti ti-plug"></i></span>
-            <span class="nav-group-label">Integraciones</span>
+            <span class="nav-item-icon"><i class="ti ti-database"></i></span>
+            <span class="nav-group-label">Base de Datos</span>
             <span class="nav-group-arrow">&#9662;</span>
           </div>
           <div class="nav-group-items">
+            <a class="nav-item nav-item-sub" data-module="clientes" onclick="navTo('clientes')">
+              <span class="nav-item-icon"><i class="ti ti-users"></i></span><span>Clientes</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="productos" onclick="navTo('productos')">
+              <span class="nav-item-icon"><i class="ti ti-package"></i></span><span>Productos</span>
+            </a>
+          </div>
+        </div>
+        <div class="nav-group collapsed">
+          <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
+            <span class="nav-item-icon"><i class="ti ti-settings"></i></span>
+            <span class="nav-group-label">Configuración</span>
+            <span class="nav-group-arrow">&#9662;</span>
+          </div>
+          <div class="nav-group-items">
+            <a class="nav-item nav-item-sub" data-module="empleados" onclick="navTo('empleados')">
+              <span class="nav-item-icon"><i class="ti ti-user-cog"></i></span><span>Empleados</span>
+            </a>
+            <a class="nav-item nav-item-sub" data-module="configuracion" onclick="navTo('configuracion')">
+              <span class="nav-item-icon"><i class="ti ti-adjustments"></i></span><span>Configuración</span>
+            </a>
             <a class="nav-item nav-item-sub" data-module="intMercadolibre" onclick="navTo('intMercadolibre')">
               <span class="nav-item-icon"><i class="ti ti-building-store"></i></span><span>Mercado Libre</span>
             </a>
@@ -4981,9 +4993,6 @@
             </a>
           </div>
         </div>
-        <a class="nav-item" data-module="configuracion" onclick="navTo('configuracion')">
-          <span class="nav-item-icon"><i class="ti ti-settings"></i></span><span>Configuración</span>
-        </a>
       </nav>
       <div class="sidebar-foot">
         <div class="app-user-avatar" id="appUserAvatar">&middot;</div>
@@ -5663,6 +5672,7 @@
 
                 <div class="cc-detail-actions">
                   <button class="btn btn-primary btn-sm" onclick="ccAbrirCobro()">&#128181; Registrar cobro</button>
+                  <button class="btn btn-line btn-sm" onclick="ccAbrirDevolucion()">&#8617; Registrar devolución</button>
                   <button class="btn btn-line btn-sm" onclick="ccAbrirObras()">&#127959; Gestionar obras</button>
                   <button class="btn btn-line btn-sm" onclick="ccExportarExcel()">&#128190; Exportar Excel</button>
                   <button class="btn btn-line btn-sm" onclick="ccCerrarCuenta()" id="ccBtnCerrar" style="color:var(--danger);border-color:var(--danger)">&#128274; Cerrar cuenta</button>
@@ -7279,6 +7289,63 @@
     <div style="display:flex;gap:10px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
       <button class="btn-form" onclick="ccConfirmarCobro()" id="ccBtnConfirmarCobro" style="flex:2">Confirmar cobro</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL DEVOLUCIÓN ═══════════════════ -->
+<div class="modal-overlay" id="modalDevolucionCC">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">Cuenta corriente</div>
+    <h2 class="modal-title">Registrar devolución</h2>
+    <p class="modal-subtitle"><span id="ccDevCliente"></span> · Saldo actual: <strong id="ccDevSaldoActual"></strong></p>
+    <div class="alert error" id="ccDevAlert"></div>
+
+    <div class="cart-modo-tabs" style="margin-bottom:14px;border-radius:var(--r-md);border:1px solid var(--line)">
+      <button class="cart-modo-tab active" id="ccDevTabMonto" onclick="ccDevCambiarModo('monto')">Por monto</button>
+      <button class="cart-modo-tab" id="ccDevTabProd" onclick="ccDevCambiarModo('productos')">Por productos</button>
+    </div>
+
+    <!-- MODO MONTO -->
+    <div id="ccDevPaneMonto">
+      <div class="form-group">
+        <label class="form-label">Monto a devolver *</label>
+        <input class="form-input" type="number" id="ccDevMonto" placeholder="0" min="0.01" step="0.01" style="font-family:var(--mono);font-weight:600;font-size:18px;text-align:right" oninput="ccDevActualizarResumen()">
+      </div>
+    </div>
+
+    <!-- MODO PRODUCTOS -->
+    <div id="ccDevPaneProd" style="display:none">
+      <div class="form-group">
+        <label class="form-label">Agregar producto devuelto</label>
+        <input class="form-input" type="text" id="ccDevBuscarProd" placeholder="Buscá por código o descripción..." oninput="ccDevBuscarProducto(this.value)" autocomplete="off">
+        <div id="ccDevResultados" style="max-height:160px;overflow:auto;margin-top:4px"></div>
+      </div>
+      <div id="ccDevListaProd" style="margin-bottom:12px"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-soft);cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="ccDevReponerStock" checked> Reponer el stock de los productos devueltos
+      </label>
+    </div>
+
+    <div class="form-group" id="ccDevObraGroup" style="display:none">
+      <label class="form-label">¿Aplicar a obra específica? <span style="color:var(--text-mute);font-weight:400">(opcional)</span></label>
+      <select class="form-input" id="ccDevObra">
+        <option value="">Sin asignar a obra (deuda general)</option>
+      </select>
+      <div style="font-size:10px;color:var(--text-mute);margin-top:4px;font-family:var(--mono)">La devolución descuenta primero del saldo de esa obra.</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Motivo / observaciones</label>
+      <textarea class="form-input" id="ccDevObs" rows="2" placeholder="Ej: producto fallado, no era el correcto..." style="resize:vertical"></textarea>
+    </div>
+
+    <div id="ccDevResumen" style="padding:10px 12px;background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r-sm);font-size:13px;color:var(--accent-text);margin-bottom:14px;font-family:var(--mono);display:none"></div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" onclick="ccConfirmarDevolucion()" id="ccBtnConfirmarDev" style="flex:2">Confirmar devolución</button>
     </div>
   </div>
 </div>
@@ -15643,6 +15710,9 @@ function ccRenderDetalle(cliente){
     } else if(m.tipo === 'pago' || m.tipo === 'cierre'){
       totalPagado += (m.monto || 0);
       cobros.push(m);
+    } else if(m.tipo === 'devolucion'){
+      totalPagado += (m.monto || 0);
+      cobros.push(m);
     }
   });
   // Total comprado HISTÓRICO (incluye pagadas)
@@ -15716,13 +15786,23 @@ function ccRenderDetalle(cliente){
       var fechaStr = fecha.toLocaleDateString('es-AR') + ' ' + fecha.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
       var metodoLbl = m.metodo || 'efectivo';
       var esCierre = m.tipo === 'cierre';
+      var esDevolucion = m.tipo === 'devolucion';
+      var titulo, badgeExtra = '';
+      if(esDevolucion){
+        titulo = 'DEVOLUCIÓN';
+        badgeExtra = '<span style="font-size:9px;background:var(--accent-soft);color:var(--accent-text);padding:1px 6px;border-radius:99px;margin-left:6px;font-weight:600">DEVOLUCIÓN</span>';
+        var nItems = (m.items && m.items.length) ? m.items.reduce(function(a,i){ return a+(i.cantidad||1); },0) : 0;
+        if(nItems > 0) badgeExtra += '<span style="font-size:9px;color:var(--text-mute);margin-left:6px;font-family:var(--mono)">'+nItems+' u.</span>';
+      } else {
+        titulo = (esCierre?'CIERRE':'COBRO') + ' &middot; ' + metodoLbl.toUpperCase();
+      }
       html2 += '<div class="cc-mov-card">'+
         '<div class="cc-mov-row1">'+
           '<div>'+
-            '<span class="cc-mov-num">'+(esCierre?'CIERRE':'COBRO')+' &middot; '+metodoLbl.toUpperCase()+'</span>'+
+            '<span class="cc-mov-num">'+titulo+'</span>'+ badgeExtra +
             '<span class="cc-mov-fecha" style="margin-left:8px">'+fechaStr+'</span>'+
           '</div>'+
-          '<span class="cc-mov-monto pago">+'+fmtPeso(m.monto)+'</span>'+
+          '<span class="cc-mov-monto pago">'+(esDevolucion?'−':'+')+fmtPeso(m.monto)+'</span>'+
         '</div>'+
         (m.descripcion?'<div class="cc-mov-meta"><span>'+eH(m.descripcion)+'</span></div>':'')+
       '</div>';
@@ -15979,6 +16059,232 @@ async function ccConfirmarCobro(){
   }finally{
     btn.disabled = false;
     btn.textContent = 'Confirmar cobro';
+  }
+}
+
+// ═══════════════════ DEVOLUCIONES ═══════════════════
+var ccDevModo = 'monto';
+var ccDevProductos = [];   // [{codigo, descripcion, _id, cantidad, precio}]
+
+function ccAbrirDevolucion(){
+  if(!ccClienteSelId) return;
+  var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
+  if(!c) return;
+  ccDevModo = 'monto';
+  ccDevProductos = [];
+  document.getElementById('ccDevCliente').textContent = c.razonSocial || c.nombre || 'Cliente';
+  document.getElementById('ccDevSaldoActual').textContent = fmtPeso(c.saldoCC || 0);
+  document.getElementById('ccDevMonto').value = '';
+  document.getElementById('ccDevObs').value = '';
+  document.getElementById('ccDevBuscarProd').value = '';
+  document.getElementById('ccDevResultados').innerHTML = '';
+  document.getElementById('ccDevListaProd').innerHTML = '';
+  document.getElementById('ccDevReponerStock').checked = true;
+  document.getElementById('ccDevResumen').style.display = 'none';
+  hideAlerts();
+  ccDevCambiarModo('monto');
+
+  // Selector de obra (igual que en cobro)
+  var grupoObra = document.getElementById('ccDevObraGroup');
+  var selObra = document.getElementById('ccDevObra');
+  var obras = (c.saldosPorObra && Object.keys(c.saldosPorObra).filter(function(o){ return o && o !== OBRA_GENERAL_KEY; })) || [];
+  if(obras.length > 0){
+    selObra.innerHTML = '<option value="">Sin asignar a obra (deuda general)</option>' +
+      obras.map(function(o){ return '<option value="'+escapeQ(o)+'">'+eH(o)+' · '+fmtPeso(c.saldosPorObra[o]||0)+'</option>'; }).join('');
+    grupoObra.style.display = '';
+  } else {
+    grupoObra.style.display = 'none';
+    selObra.innerHTML = '<option value="">Sin asignar a obra (deuda general)</option>';
+  }
+
+  document.getElementById('modalDevolucionCC').classList.add('show');
+}
+
+function ccDevCambiarModo(modo){
+  ccDevModo = modo;
+  document.getElementById('ccDevTabMonto').classList.toggle('active', modo==='monto');
+  document.getElementById('ccDevTabProd').classList.toggle('active', modo==='productos');
+  document.getElementById('ccDevPaneMonto').style.display = (modo==='monto') ? 'block' : 'none';
+  document.getElementById('ccDevPaneProd').style.display = (modo==='productos') ? 'block' : 'none';
+  ccDevActualizarResumen();
+}
+
+function ccDevBuscarProducto(q){
+  var cont = document.getElementById('ccDevResultados');
+  q = (q||'').trim().toLowerCase();
+  if(q.length < 2){ cont.innerHTML = ''; return; }
+  var res = productos.filter(function(p){
+    return (p.codigo && String(p.codigo).toLowerCase().indexOf(q) >= 0) ||
+           (p.descripcion && String(p.descripcion).toLowerCase().indexOf(q) >= 0);
+  }).slice(0, 8);
+  if(res.length === 0){ cont.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-mute)">Sin resultados</div>'; return; }
+  cont.innerHTML = res.map(function(p){
+    return '<div onclick="ccDevAgregarProducto(\''+escapeQ(p._id)+'\')" style="padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-sm);margin-bottom:4px;cursor:pointer;font-size:12px" onmouseover="this.style.background=\'var(--bg-2)\'" onmouseout="this.style.background=\'transparent\'">'+
+      '<strong>'+eH((p.descripcion||p.codigo||'').substring(0,50))+'</strong>'+
+      '<span style="color:var(--text-mute);font-family:var(--mono);margin-left:6px">'+eH(p.codigo||'')+' · '+fmtPeso(p.precioVenta||0)+'</span></div>';
+  }).join('');
+}
+
+function ccDevAgregarProducto(id){
+  var p = productos.find(function(x){ return x._id === id; });
+  if(!p) return;
+  var ya = ccDevProductos.find(function(x){ return x._id === id; });
+  if(ya){ ya.cantidad++; }
+  else ccDevProductos.push({ _id: p._id, codigo: p.codigo||'', descripcion: p.descripcion||p.codigo||'', cantidad: 1, precio: Number(p.precioVenta)||0 });
+  document.getElementById('ccDevBuscarProd').value = '';
+  document.getElementById('ccDevResultados').innerHTML = '';
+  ccDevRenderProductos();
+}
+
+function ccDevRenderProductos(){
+  var cont = document.getElementById('ccDevListaProd');
+  if(ccDevProductos.length === 0){ cont.innerHTML = '<div style="padding:10px;text-align:center;font-size:12px;color:var(--text-mute)">Agregá los productos que el cliente devuelve.</div>'; ccDevActualizarResumen(); return; }
+  var html = '';
+  ccDevProductos.forEach(function(it, idx){
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--line);border-radius:var(--r-sm);margin-bottom:6px">'+
+      '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+eH(it.descripcion)+'</div>'+
+        '<div style="font-size:10px;color:var(--text-mute);font-family:var(--mono)">'+eH(it.codigo)+'</div></div>'+
+      '<input type="number" min="1" step="1" value="'+it.cantidad+'" onchange="ccDevEditarCant('+idx+',this.value)" style="width:48px;text-align:center;font-family:var(--mono);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px">'+
+      '<input type="number" min="0" step="0.01" value="'+it.precio+'" onchange="ccDevEditarPrecio('+idx+',this.value)" style="width:80px;text-align:right;font-family:var(--mono);border:1px solid var(--line);border-radius:var(--r-sm);padding:4px" title="precio unitario">'+
+      '<button onclick="ccDevQuitar('+idx+')" style="background:transparent;border:none;color:var(--text-mute);cursor:pointer;font-size:14px">&times;</button>'+
+    '</div>';
+  });
+  cont.innerHTML = html;
+  ccDevActualizarResumen();
+}
+
+function ccDevEditarCant(idx, v){ if(ccDevProductos[idx]){ ccDevProductos[idx].cantidad = Math.max(1, Number(v)||1); ccDevActualizarResumen(); } }
+function ccDevEditarPrecio(idx, v){ if(ccDevProductos[idx]){ ccDevProductos[idx].precio = Math.max(0, Number(v)||0); ccDevActualizarResumen(); } }
+function ccDevQuitar(idx){ ccDevProductos.splice(idx,1); ccDevRenderProductos(); }
+
+function ccDevMontoTotal(){
+  if(ccDevModo === 'monto') return parseFloat(document.getElementById('ccDevMonto').value) || 0;
+  return ccDevProductos.reduce(function(a,it){ return a + (it.cantidad * it.precio); }, 0);
+}
+
+function ccDevActualizarResumen(){
+  var total = ccDevMontoTotal();
+  var box = document.getElementById('ccDevResumen');
+  if(total <= 0){ box.style.display = 'none'; return; }
+  var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
+  var saldo = c ? (c.saldoCC||0) : 0;
+  var nuevoSaldo = saldo - total;
+  var txt = 'Devolución: ' + fmtPeso(total);
+  if(nuevoSaldo < -0.005) txt += ' · Queda a favor del cliente: ' + fmtPeso(Math.abs(nuevoSaldo));
+  else txt += ' · Nuevo saldo: ' + fmtPeso(Math.max(0, nuevoSaldo));
+  box.textContent = txt;
+  box.style.display = 'block';
+}
+
+async function ccConfirmarDevolucion(){
+  if(!ccClienteSelId) return;
+  var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
+  if(!c) return;
+  var total = ccDevMontoTotal();
+  if(total <= 0){ return showAlert('ccDevAlert','Ingresá un monto o agregá productos.'); }
+  if(ccDevModo === 'productos' && ccDevProductos.length === 0){ return showAlert('ccDevAlert','Agregá al menos un producto.'); }
+
+  var btn = document.getElementById('ccBtnConfirmarDev');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    var obs = document.getElementById('ccDevObs').value.trim();
+    var selObra = document.getElementById('ccDevObra');
+    var obraSel = selObra && selObra.value ? selObra.value : '';
+    var reponer = document.getElementById('ccDevReponerStock').checked && ccDevModo === 'productos';
+    var ahora = new Date();
+    var saldo = c.saldoCC || 0;
+
+    var movData = {
+      tipo: 'devolucion',
+      fecha: ahora.toISOString(),
+      monto: total,
+      metodo: 'devolucion',
+      descripcion: obs,
+      obra: obraSel,
+      items: ccDevModo === 'productos' ? ccDevProductos.map(function(it){ return { codigo: it.codigo, descripcion: it.descripcion, cantidad: it.cantidad, precio: it.precio, productoId: it._id }; }) : [],
+      cobradorUid: currentUser ? currentUser.uid : '',
+      cobradorEmail: currentUser ? currentUser.email : '',
+      creadoEn: ahora.toISOString()
+    };
+    var nuevoSaldo = saldo - total;  // puede quedar negativo (saldo a favor)
+
+    // Ajustar saldosPorObra (igual que un cobro: descuenta de la obra elegida, o del general y prorratea)
+    var saldosPorObra = Object.assign({}, c.saldosPorObra || {});
+    var montoAplicar = Math.min(total, Math.max(0, saldo));  // lo que efectivamente reduce deuda
+    if(obraSel){
+      var saldoObra = saldosPorObra[obraSel] || 0;
+      var aplicarObra = Math.min(montoAplicar, saldoObra);
+      saldosPorObra[obraSel] = Math.max(0, saldoObra - aplicarObra);
+      var remanente = montoAplicar - aplicarObra;
+      if(remanente > 0) saldosPorObra[OBRA_GENERAL_KEY] = Math.max(0, (saldosPorObra[OBRA_GENERAL_KEY]||0) - remanente);
+    } else {
+      var saldoGen = saldosPorObra[OBRA_GENERAL_KEY] || 0;
+      var aplicarGen = Math.min(montoAplicar, saldoGen);
+      saldosPorObra[OBRA_GENERAL_KEY] = Math.max(0, saldoGen - aplicarGen);
+      var falta = montoAplicar - aplicarGen;
+      if(falta > 0){
+        var totalSaldoObras = 0;
+        Object.keys(saldosPorObra).forEach(function(o){ if(o !== OBRA_GENERAL_KEY) totalSaldoObras += (saldosPorObra[o]||0); });
+        if(totalSaldoObras > 0){
+          Object.keys(saldosPorObra).forEach(function(o){
+            if(o === OBRA_GENERAL_KEY) return;
+            var sO = saldosPorObra[o]||0;
+            saldosPorObra[o] = Math.max(0, sO - (sO/totalSaldoObras)*falta);
+          });
+        }
+      }
+    }
+    delete saldosPorObra[''];
+    delete saldosPorObra['__general__'];
+
+    // Guardar movimiento + actualizar cliente
+    var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(ccClienteSelId);
+    var movRef = db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(ccClienteSelId).collection('movimientos').doc();
+    var batch = db.batch();
+    batch.set(movRef, movData);
+    batch.update(cliRef, {
+      saldoCC: nuevoSaldo,
+      saldosPorObra: saldosPorObra,
+      ultimoMovimientoCC: ahora.toISOString(),
+      updatedAt: ahora.toISOString()
+    });
+
+    // Reponer stock de los productos devueltos
+    var prodsActualizados = [];
+    if(reponer){
+      ccDevProductos.forEach(function(it){
+        if(!it._id) return;
+        var p = productos.find(function(x){ return x._id === it._id; });
+        if(p){
+          var nuevoStock = (Number(p.stock)||0) + (Number(it.cantidad)||0);
+          var pRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(it._id);
+          batch.update(pRef, { stock: nuevoStock, updatedAt: ahora.toISOString() });
+          p.stock = nuevoStock;
+          prodsActualizados.push(p);
+        }
+      });
+    }
+
+    await batch.commit();
+
+    // Memoria local
+    c.saldoCC = nuevoSaldo;
+    c.saldosPorObra = saldosPorObra;
+    c.ultimoMovimientoCC = ahora.toISOString();
+    await idbGuardarClientes(currentEmpresaId, [c]);
+    if(prodsActualizados.length){ try{ await idbGuardarBatch(currentEmpresaId, prodsActualizados); }catch(e){} }
+
+    ccMovimientos = await cargarMovimientosCtaCte(ccClienteSelId);
+    ccRenderDetalle(c);
+    ccRenderLista();
+    closeModals();
+    var msg = 'Devolución registrada: ' + fmtPeso(total) + (reponer ? ' · stock repuesto' : '');
+    toast(msg, 'success');
+  }catch(err){
+    console.error(err);
+    showAlert('ccDevAlert','Error al registrar: ' + err.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Confirmar devolución';
   }
 }
 
@@ -16339,8 +16645,8 @@ async function cerrarObraEspecifica(obraKey, c, eliminarDeListaObras){
       docsParaBorrar.push(d.ref);
       montoVentas += (m.subtotalesPorObra[obraKey] || 0);
     }
-    // Si es pago/cierre dirigido a esta obra
-    else if((m.tipo === 'pago' || m.tipo === 'cierre') && (m.obra === obraKey || (obraKey === OBRA_GENERAL_KEY && !m.obra))){
+    // Si es pago/cierre/devolución dirigido a esta obra
+    else if((m.tipo === 'pago' || m.tipo === 'cierre' || m.tipo === 'devolucion') && (m.obra === obraKey || (obraKey === OBRA_GENERAL_KEY && !m.obra))){
       docsParaBorrar.push(d.ref);
       montoCobros += (m.monto || 0);
     }
@@ -16421,7 +16727,7 @@ async function ccExportarExcelObra(obraKey, obraNombre){
       })) return true;
       return false;
     }
-    if(m.tipo === 'pago' || m.tipo === 'cierre'){
+    if(m.tipo === 'pago' || m.tipo === 'cierre' || m.tipo === 'devolucion'){
       return m.obra === obraKey || (obraKey === OBRA_GENERAL_KEY && !m.obra);
     }
     return false;
@@ -16611,6 +16917,7 @@ async function ccExportarExcelObra(obraKey, obraNombre){
     if(m.tipo === 'venta') tipo = 'VENTA (CTA CTE)';
     else if(m.tipo === 'venta_pagada') tipo = 'VENTA (PAGADA)';
     else if(m.tipo === 'cierre') tipo = 'CIERRE';
+    else if(m.tipo === 'devolucion') tipo = 'DEVOLUCIÓN';
     else tipo = 'COBRO';
 
     var monto;
@@ -17338,6 +17645,17 @@ async function ccExportarExcel(esCierre){
       haber = m.monto || 0;
       acumulado -= (m.monto || 0);
       detalle = m.descripcion || 'Cierre de cuenta';
+    } else if(m.tipo === 'devolucion'){
+      tipo = 'DEVOLUCIÓN';
+      num = '';
+      haber = m.monto || 0;
+      acumulado -= (m.monto || 0);
+      var detDev = m.descripcion || 'Devolución';
+      if(m.items && m.items.length > 0){
+        var primeroD = m.items[0].descripcion || m.items[0].codigo || '';
+        detDev += ' (' + (m.items.length === 1 ? primeroD.substring(0,50) : primeroD.substring(0,30)+' +'+(m.items.length-1)+' más') + ')';
+      }
+      detalle = detDev;
     } else {
       tipo = 'COBRO';
       num = '';
