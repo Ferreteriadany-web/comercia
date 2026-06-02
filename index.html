@@ -7422,6 +7422,20 @@
 
     <div class="pago-resumen" id="vPagoResumen" style="margin-top:14px"></div>
 
+    <div id="vRemitoDatos" style="display:none">
+      <div class="form-section-title">Datos de entrega</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quién retira</label>
+          <input class="form-input" type="text" id="vRemitoRetira" placeholder="Nombre de quien retira" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Obra / Destino</label>
+          <input class="form-input" type="text" id="vRemitoObra" placeholder="Obra a la que va" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
     <div class="form-section-title">Observaciones</div>
     <textarea class="form-input" id="vCobroObs" rows="2" placeholder="Notas sobre la venta (opcional)..." style="resize:vertical"></textarea>
 
@@ -7656,6 +7670,28 @@
     <div style="display:flex;gap:10px;margin-top:18px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
       <button class="btn-form" onclick="ccConfirmarCierre()" id="ccBtnConfirmarCierre" disabled style="flex:2;background:var(--danger);border-color:var(--danger);color:#fff;opacity:.5">Sí, borrar y cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL EDITAR ENTREGA (retira / obra) ═══════════════════ -->
+<div class="modal-overlay" id="modalEditarEntrega">
+  <div class="modal" style="max-width:440px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#128666; Entrega</div>
+    <h2 class="modal-title">Datos de entrega</h2>
+    <p class="modal-subtitle">Aclarará quién retira y a qué obra va. Aparece en el remito.</p>
+    <div class="form-group">
+      <label class="form-label">Quién retira</label>
+      <input class="form-input" type="text" id="edRetira" placeholder="Nombre de quien retira" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Obra / Destino</label>
+      <input class="form-input" type="text" id="edObra" placeholder="Obra a la que va" autocomplete="off">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" id="edGuardarBtn" onclick="guardarEntrega()" style="flex:2">Guardar &#10003;</button>
     </div>
   </div>
 </div>
@@ -14526,6 +14562,16 @@ function openPagoModal(){
   pagosVenta = [{ metodo: 'efectivo', monto: total }];
   document.getElementById('vCobroTotal').textContent = fmtPeso(total);
   document.getElementById('vCobroObs').value = '';
+  // Datos de entrega: solo para remito y factura
+  var mostrarEntrega = (modoVenta === 'remito' || modoVenta === 'factura');
+  var boxEntrega = document.getElementById('vRemitoDatos');
+  if(boxEntrega) boxEntrega.style.display = mostrarEntrega ? '' : 'none';
+  document.getElementById('vRemitoRetira').value = '';
+  // Si todos los ítems comparten una misma obra, la usamos de encabezado
+  var obrasCarrito = {};
+  carritoVenta.forEach(function(it){ if(it.obra) obrasCarrito[it.obra] = 1; });
+  var obrasUnicas = Object.keys(obrasCarrito);
+  document.getElementById('vRemitoObra').value = (obrasUnicas.length === 1) ? obrasUnicas[0] : '';
   hideAlerts();
   renderPagosList();
   actualizarResumenPago();
@@ -14616,7 +14662,11 @@ async function confirmarVenta(){
         razonSocial: clienteVenta.razonSocial,
         nombre: clienteVenta.nombre || '',
         numDoc: clienteVenta.numDoc || '',
-        catFiscal: clienteVenta.catFiscal || ''
+        catFiscal: clienteVenta.catFiscal || '',
+        tipoDoc: clienteVenta.tipoDoc || '',
+        telefono: clienteVenta.telefono || '',
+        email: clienteVenta.email || '',
+        direccion: clienteVenta.direccion || ''
       } : null,
       items: carritoVenta.map(function(item){
         return {
@@ -14638,6 +14688,8 @@ async function confirmarVenta(){
       total: window._ventaActual.totalFinal,
       pagos: pagosVenta.filter(function(p){ return p.monto > 0; }),
       observaciones: document.getElementById('vCobroObs').value.trim(),
+      retira: (document.getElementById('vRemitoRetira') ? document.getElementById('vRemitoRetira').value.trim() : ''),
+      obraRemito: (document.getElementById('vRemitoObra') ? document.getElementById('vRemitoObra').value.trim() : ''),
       vendedorUid: currentUser ? currentUser.uid : '',
       vendedorEmail: currentUser ? currentUser.email : '',
       creadoEn: ahora.toISOString()
@@ -15016,6 +15068,17 @@ function mostrarTicket(v){
     return '<div class="ticket-print-line"><span class="l">'+eH(lbl)+'</span><span class="r">'+fmtPeso(p.monto)+'</span></div>';
   }).join('');
 
+  // Datos de entrega (retira / obra)
+  var entregaHtml = '';
+  if(v.obraRemito || v.retira){
+    entregaHtml = '<div class="ticket-print-sep"></div>'+
+      (v.obraRemito ? '<div class="ticket-print-line"><span class="l">Obra:</span><span class="r">'+eH(v.obraRemito)+'</span></div>' : '')+
+      (v.retira ? '<div class="ticket-print-line"><span class="l">Retira:</span><span class="r">'+eH(v.retira)+'</span></div>' : '');
+  }
+  var editarEntregaBtn = (v.modo==='remito' || v.modo==='factura')
+    ? '<button class="btn btn-line btn-sm" style="margin-top:12px;width:100%" onclick="abrirEditarEntrega()">&#9999;&#65039; Editar entrega (retira / obra)</button>'
+    : '';
+
   // Etiqueta del modo
   var modoLbl = 'TICKET';
   if(v.modo === 'factura') modoLbl = 'FACTURA';
@@ -15031,6 +15094,7 @@ function mostrarTicket(v){
         '<div style="font-size:11px;color:var(--text-mute)">'+fechaStr+'</div>'+
       '</div>'+
       clienteHtml+
+      entregaHtml+
       '<div class="ticket-print-sep"></div>'+
       itemsHtml+
       '<div class="ticket-print-sep"></div>'+
@@ -15041,10 +15105,47 @@ function mostrarTicket(v){
       '<div class="ticket-print-sep"></div>'+
       pagosHtml+
       (v.observaciones?'<div class="ticket-print-sep"></div><div style="font-size:11px;color:var(--text-mute)">Notas: '+eH(v.observaciones)+'</div>':'')+
-    '</div>';
+    '</div>'+
+    editarEntregaBtn;
 
   closeModals();
   document.getElementById('modalDetalleVenta').classList.add('show');
+}
+
+// Abre el modal para editar los datos de entrega del comprobante visible.
+function abrirEditarEntrega(){
+  if(!_ventaActualVer) return;
+  document.getElementById('edRetira').value = _ventaActualVer.retira || '';
+  document.getElementById('edObra').value = _ventaActualVer.obraRemito || '';
+  closeModals();
+  document.getElementById('modalEditarEntrega').classList.add('show');
+  setTimeout(function(){ var i=document.getElementById('edRetira'); if(i) i.focus(); }, 100);
+}
+
+// Guarda retira/obra en el comprobante (Firestore + memoria) y refresca la vista.
+async function guardarEntrega(){
+  if(!_ventaActualVer) return;
+  var v = _ventaActualVer;
+  var btn = document.getElementById('edGuardarBtn');
+  var retira = document.getElementById('edRetira').value.trim();
+  var obra   = document.getElementById('edObra').value.trim();
+  if(btn){ btn.disabled = true; btn.textContent = 'Guardando...'; }
+  try{
+    if(v._id){
+      var col = (v.modo === 'presupuesto') ? 'presupuestos' : 'ventas';
+      await db.collection('empresas').doc(currentEmpresaId).collection(col).doc(v._id)
+        .update({ retira: retira, obraRemito: obra });
+    }
+    v.retira = retira;        // _ventaActualVer es la misma referencia que está en el array
+    v.obraRemito = obra;
+    if(typeof renderHistorialVentas === 'function') renderHistorialVentas();
+    toast('Datos de entrega actualizados', 'success');
+    mostrarTicket(v);         // reabre el detalle ya actualizado
+  }catch(err){
+    console.error('Error guardando entrega:', err);
+    toast('No se pudo guardar: '+(err.message||''), 'error');
+    if(btn){ btn.disabled = false; btn.textContent = 'Guardar \u2713'; }
+  }
 }
 
 function imprimirTicketActual(){
@@ -15264,14 +15365,31 @@ async function waGuardarTemplateUsuario(template){
   }catch(e){ console.warn('No se pudo guardar template WA:', e); }
 }
 
+// Devuelve el teléfono/email del cliente de un comprobante. Si el comprobante
+// no los tiene guardados (ventas viejas), los busca en la ficha del cliente por id.
+function ventaClienteContacto(v){
+  var c = (v && v.cliente) || {};
+  var tel = c.telefono || '';
+  var email = c.email || '';
+  if((!tel || !email) && c.id && typeof clientes !== 'undefined' && clientes.length){
+    var full = clientes.find(function(x){ return x._id === c.id; });
+    if(full){
+      if(!tel) tel = full.telefono || '';
+      if(!email) email = full.email || '';
+    }
+  }
+  return { telefono: tel, email: email };
+}
+
 async function compartirVentaWhatsApp(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
 
   // Determinar teléfono del cliente con normalización inteligente para Argentina
+  var contacto = ventaClienteContacto(v);
   var tel = '';
-  if(v.cliente && v.cliente.telefono){
-    var raw = v.cliente.telefono.replace(/[^0-9]/g, '');
+  if(contacto.telefono){
+    var raw = contacto.telefono.replace(/[^0-9]/g, '');
     if(raw.length >= 8){
       if(raw.charAt(0) === '0') raw = raw.substring(1);
       if(raw.length === 11 && raw.substring(2,4) === '15'){
@@ -15322,7 +15440,7 @@ async function compartirVentaWhatsApp(){
   if(infoEl){
     if(tel){
       var clienteName = v.cliente.razonSocial || v.cliente.nombre || '';
-      infoEl.innerHTML = 'Se enviará a <strong>' + eH(clienteName) + '</strong> (' + eH(v.cliente.telefono) + ')';
+      infoEl.innerHTML = 'Se enviará a <strong>' + eH(clienteName) + '</strong> (' + eH(contacto.telefono) + ')';
     } else {
       infoEl.textContent = 'Vas a elegir el contacto en WhatsApp.';
     }
@@ -15413,10 +15531,7 @@ async function copiarLinkPdfVenta(){
 async function compartirVentaEmail(){
   if(!_ventaActualVer) return;
   var v = _ventaActualVer;
-  var emailDestino = '';
-  if(v.cliente && v.cliente.email){
-    emailDestino = v.cliente.email;
-  }
+  var emailDestino = ventaClienteContacto(v).email || '';
   var modoLbl = (v.modo || 'ticket').toUpperCase();
   var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Comercia';
   var asunto = modoLbl + ' N° ' + v.numero + ' - ' + empresaNombre;
@@ -15868,6 +15983,14 @@ function construirHtmlVentaA4(v){
         '<div class="cliente-row"><span class="cliente-lbl">Email</span><span class="cliente-val">'+eH(clienteEmail)+'</span></div>'
       : '')+
   '</div>'+
+
+  ((v.obraRemito || v.retira) ?
+    '<div class="section-title">Entrega</div>'+
+    '<div class="cliente-card">'+
+      (v.obraRemito ? '<div class="cliente-row"><span class="cliente-lbl">Obra</span><span class="cliente-val">'+eH(v.obraRemito)+'</span></div>' : '')+
+      (v.retira ? '<div class="cliente-row"><span class="cliente-lbl">Retira</span><span class="cliente-val">'+eH(v.retira)+'</span></div>' : '')+
+    '</div>'
+  : '')+
 
   '<div class="section-title">Detalle</div>'+
   '<div class="items-card">'+
