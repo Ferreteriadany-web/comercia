@@ -16553,6 +16553,8 @@ function construirHtmlVentaA4(v){
   var empresaMail = currentEmpresa && currentEmpresa.email ? currentEmpresa.email : '';
   var empresaLogo = currentEmpresa && currentEmpresa.logoUrl ? currentEmpresa.logoUrl : '';
   var empresaColorBase = currentEmpresa && currentEmpresa.colorPrincipal ? currentEmpresa.colorPrincipal : '#1f1f23';
+  var bc = empresaColorBase;  // color de marca para acentos del comprobante
+  var esNotaDoc = (v.modo === 'nota_credito' || v.modo === 'nota_debito');
 
   // Logo de la empresa (si subió uno)
   var empresaLogoHtml = '';
@@ -16632,18 +16634,19 @@ function construirHtmlVentaA4(v){
 '.doc{width:794px;min-height:1123px;margin:0 auto;background:#fff;position:relative;display:flex;flex-direction:column;overflow:hidden}'+
 
 /* HEADER MINIMALISTA B&N */
-'.doc-head{padding:10mm 12mm 6mm;border-bottom:2px solid #000;background:#fff;color:#000}'+
+'.doc-accent{height:6px;width:100%;background:'+bc+'}'+
+'.doc-head{padding:9mm 12mm 6mm;border-bottom:3px solid '+bc+';background:#fff;color:#000}'+
 '.doc-head-grid{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}'+
 '.doc-head-empresa{flex:1;display:flex;gap:10px;align-items:center}'+
-'.head-logo{width:52px;height:52px;flex-shrink:0;border:1px solid #ccc;background:#fff;padding:3px;display:flex;align-items:center;justify-content:center}'+
+'.head-logo{width:70px;height:70px;flex-shrink:0;border:1px solid #e5e5e5;border-radius:10px;background:#fff;padding:5px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.06)}'+
 '.head-logo img{max-width:100%;max-height:100%;object-fit:contain}'+
 '.doc-head-empresa-info{flex:1;min-width:0}'+
-'.doc-head-empresa-name{font-size:22px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;color:#000;margin-bottom:2px}'+
+'.doc-head-empresa-name{font-size:22px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;color:'+bc+';margin-bottom:2px}'+
 '.doc-head-empresa-data{font-size:9px;color:#555;line-height:1.45;margin-top:3px}'+
 '.doc-head-empresa-data span{margin-right:8px}'+
 
-'.doc-head-doc{text-align:right;border:1.5px solid #000;padding:8px 14px;min-width:170px;background:#fff}'+
-'.doc-head-letra{font-size:28px;font-weight:900;color:#000;line-height:1;letter-spacing:0.05em;margin-bottom:2px}'+
+'.doc-head-doc{text-align:right;border:1.5px solid '+bc+';border-radius:8px;padding:8px 14px;min-width:170px;background:#fff}'+
+'.doc-head-letra{font-size:28px;font-weight:900;color:'+bc+';line-height:1;letter-spacing:0.05em;margin-bottom:2px}'+
 '.doc-head-tipo{font-size:10px;font-weight:700;color:#000;letter-spacing:0.1em;margin-bottom:6px;text-transform:uppercase}'+
 '.doc-head-numero{font-size:14px;font-weight:700;color:#000;font-family:"SF Mono","Monaco","Courier New",monospace;margin-bottom:6px;border-top:1px solid #ccc;padding-top:4px}'+
 '.doc-head-fecha-val{font-size:10px;color:#000;font-family:"SF Mono",monospace;font-weight:600}'+
@@ -16652,19 +16655,20 @@ function construirHtmlVentaA4(v){
 '.doc-body{padding:6mm 12mm;flex:1}'+
 
 /* TÍTULOS DE SECCIÓN */
-'.section-title{font-size:9px;font-weight:700;color:#000;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;margin-top:10px;border-bottom:1px solid #000;padding-bottom:2px}'+
+'.section-title{font-size:9px;font-weight:700;color:'+bc+';letter-spacing:0.12em;text-transform:uppercase;margin-bottom:4px;margin-top:10px;border-bottom:1.5px solid '+bc+';padding-bottom:2px}'+
 '.section-title:first-child{margin-top:0}'+
 
 /* TARJETA CLIENTE — sin colores */
-'.cliente-card{border:1px solid #999;padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;font-size:10.5px}'+
+'.cliente-card{border:1px solid #ccc;border-radius:6px;padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;font-size:10.5px}'+
 '.cliente-row{display:flex;align-items:baseline;gap:6px;padding:1px 0}'+
 '.cliente-lbl{font-size:8.5px;font-weight:700;color:#666;letter-spacing:0.05em;text-transform:uppercase;min-width:62px;flex-shrink:0}'+
 '.cliente-val{font-size:10.5px;font-weight:600;color:#000;flex:1;word-break:break-word}'+
 
 /* TABLA DE ITEMS — B&N pura */
-'.items-card{border:1px solid #000}'+
+'.items-card{border:1px solid '+bc+';border-radius:6px;overflow:hidden}'+
 '.items-table{width:100%;border-collapse:collapse}'+
-'.items-table thead th{background:#000;color:#fff;padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;text-align:left;border-right:1px solid #444}'+
+'.items-table thead th{background:'+bc+';color:#fff;padding:6px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;text-align:left;border-right:1px solid rgba(255,255,255,0.18)}'+
+'.items-table tbody tr:nth-child(even) td{background:#f6f6f7}'+
 '.items-table thead th:last-child{border-right:none}'+
 '.items-table thead th.th-center{text-align:center}'+
 '.items-table thead th.th-right{text-align:right}'+
@@ -16683,7 +16687,7 @@ function construirHtmlVentaA4(v){
 '.pie-grid{display:grid;grid-template-columns:1fr 280px;gap:10px;margin-top:8px}'+
 
 /* PAGOS */
-'.pagos-card{border:1px solid #999;padding:8px 12px;background:#fafafa}'+
+'.pagos-card{border:1px solid #ccc;border-radius:6px;padding:8px 12px;background:#fafafa}'+
 '.pagos-card-title{font-size:9px;font-weight:700;color:#000;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px;border-bottom:1px solid #999;padding-bottom:3px}'+
 '.pagos-table{width:100%;border-collapse:collapse}'+
 '.pagos-table td{padding:2px 0;font-size:10px;border:none}'+
@@ -16691,12 +16695,12 @@ function construirHtmlVentaA4(v){
 '.td-pago-val{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#000}'+
 
 /* TOTALES */
-'.totales-card{border:1px solid #000}'+
+'.totales-card{border:1px solid '+bc+';border-radius:6px;overflow:hidden}'+
 '.totales-table{width:100%;border-collapse:collapse}'+
 '.totales-table td{padding:5px 12px;font-size:10.5px;border-bottom:1px solid #eee;background:#fff}'+
 '.totales-table .lbl-tot{color:#555;font-weight:500}'+
 '.totales-table .val-tot{text-align:right;font-family:"SF Mono",monospace;font-weight:700;color:#000;width:120px}'+
-'.totales-table .row-total td{background:#000;color:#fff;font-size:13px;font-weight:800;padding:9px 12px;border:none;letter-spacing:0.02em}'+
+'.totales-table .row-total td{background:'+bc+';color:#fff;font-size:13px;font-weight:800;padding:9px 12px;border:none;letter-spacing:0.02em}'+
 '.totales-table .row-total .val-tot{color:#fff;font-size:16px;font-weight:900}'+
 
 /* OBSERVACIONES */
@@ -16720,7 +16724,8 @@ function construirHtmlVentaA4(v){
 
 /* FOOTER — minimalista */
 '.doc-foot{border-top:1px solid #ccc;padding:6px 12mm;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;font-size:9px;color:#888;background:#fff}'+
-'.doc-foot-brand{font-weight:700;color:#000;letter-spacing:0.08em}'+
+'.doc-foot-brand{font-weight:800;color:#000;letter-spacing:0.02em;font-size:11px}'+
+'.doc-foot-logo{flex-shrink:0}'+
 '.doc-foot-tag{font-style:italic}'+
 '.doc-type-badge{border:1px solid #000;padding:2px 8px;font-size:8.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#000;background:#fff}'+
 
@@ -16732,12 +16737,15 @@ function construirHtmlVentaA4(v){
 '@media (max-width:840px){.doc{width:100%;min-width:0}.doc-head{padding:8mm 5mm 5mm}.doc-head-grid{grid-template-columns:1fr;gap:10px}.doc-head-doc{text-align:left;min-width:0}.doc-body{padding:5mm}.cliente-card{grid-template-columns:1fr}.items-card{overflow-x:auto}.pie-grid{grid-template-columns:1fr}.print-fab{padding:8px 12px;font-size:11px;top:10px;right:10px}.doc-foot{padding:6px 5mm;font-size:8px}}'+
 
 '@media print{body{margin:0}.doc{margin:0;width:794px}.print-fab{display:none !important}-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
-'@media print{.items-table thead th,.totales-table .row-total td{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}}'+
+'@media print{.doc-accent,.items-table thead th,.items-table tbody tr:nth-child(even) td,.totales-table .row-total td{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}}'+
 '</style></head><body>'+
 
 '<button class="print-fab" onclick="window.print()">&#128424; Imprimir / Guardar PDF</button>'+
 
 '<div class="doc">'+
+
+/* BARRA DE ACENTO */
+'<div class="doc-accent"></div>'+
 
 /* HEADER */
 '<div class="doc-head">'+
@@ -16787,38 +16795,58 @@ function construirHtmlVentaA4(v){
     '</div>'
   : '')+
 
-  '<div class="section-title">Detalle</div>'+
-  '<div class="items-card">'+
-    '<table class="items-table">'+
-      '<thead><tr>'+
-        '<th class="th-center" style="width:26px">#</th>'+
-        '<th style="width:90px">Código</th>'+
-        '<th>Descripción</th>'+
-        '<th class="th-center" style="width:42px">Cant</th>'+
-        '<th class="th-right" style="width:80px">P. Unit</th>'+
-        '<th class="th-right" style="width:90px">Subtotal</th>'+
-      '</tr></thead>'+
-      '<tbody>'+itemsRows+'</tbody>'+
-    '</table>'+
-  '</div>'+
-
-  '<div class="pie-grid">'+
-    '<div>'+
-      (pagosRows ? '<div class="pagos-card">'+
-        '<div class="pagos-card-title">Forma de pago</div>'+
-        '<table class="pagos-table"><tbody>'+pagosRows+'</tbody></table>'+
-      '</div>' : '')+
-      (v.observaciones ? '<div class="obs-card"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
+  (esNotaDoc ?
+    /* ── Cuerpo de NOTA (crédito / débito) ── */
+    '<div class="section-title">Detalle de la nota</div>'+
+    '<div class="cliente-card" style="grid-template-columns:1fr">'+
+      '<div class="cliente-row"><span class="cliente-lbl">Tipo</span><span class="cliente-val">'+(v.modo==='nota_credito'?'Nota de crédito':'Nota de débito')+'</span></div>'+
+      (v.refNumero ? '<div class="cliente-row"><span class="cliente-lbl">Comprobante</span><span class="cliente-val">'+eH(v.refNumero)+'</span></div>' : '')+
+      (v.motivo ? '<div class="cliente-row"><span class="cliente-lbl">Motivo</span><span class="cliente-val">'+eH(v.motivo)+'</span></div>' : '')+
     '</div>'+
-    '<div class="totales-card">'+
-      '<table class="totales-table">'+
-        '<tr><td class="lbl-tot">Subtotal neto</td><td class="val-tot">'+fmtPeso(v.neto||0)+'</td></tr>'+
-        '<tr><td class="lbl-tot">IVA ('+(v.ivaPct||0)+'%)</td><td class="val-tot">'+fmtPeso(v.ivaMonto||0)+'</td></tr>'+
-        (v.descuentoPct>0?'<tr><td class="lbl-tot">Descuento ('+v.descuentoPct+'%)</td><td class="val-tot">-'+fmtPeso(v.descuentoMonto)+'</td></tr>':'')+
-        '<tr class="row-total"><td class="lbl-tot">TOTAL</td><td class="val-tot">'+fmtPeso(v.total)+'</td></tr>'+
+    (v.observaciones ? '<div class="obs-card" style="margin-top:8px"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
+    '<div class="pie-grid">'+
+      '<div></div>'+
+      '<div class="totales-card">'+
+        '<table class="totales-table">'+
+          '<tr class="row-total"><td class="lbl-tot">'+(v.modo==='nota_credito'?'IMPORTE NC':'IMPORTE ND')+'</td><td class="val-tot">'+fmtPeso(v.total)+'</td></tr>'+
+        '</table>'+
+      '</div>'+
+    '</div>'
+  :
+    /* ── Cuerpo normal (factura / remito / presupuesto) ── */
+    '<div class="section-title">Detalle</div>'+
+    '<div class="items-card">'+
+      '<table class="items-table">'+
+        '<thead><tr>'+
+          '<th class="th-center" style="width:26px">#</th>'+
+          '<th style="width:90px">Código</th>'+
+          '<th>Descripción</th>'+
+          '<th class="th-center" style="width:42px">Cant</th>'+
+          '<th class="th-right" style="width:80px">P. Unit</th>'+
+          '<th class="th-right" style="width:90px">Subtotal</th>'+
+        '</tr></thead>'+
+        '<tbody>'+itemsRows+'</tbody>'+
       '</table>'+
     '</div>'+
-  '</div>'+
+
+    '<div class="pie-grid">'+
+      '<div>'+
+        (pagosRows ? '<div class="pagos-card">'+
+          '<div class="pagos-card-title">Forma de pago</div>'+
+          '<table class="pagos-table"><tbody>'+pagosRows+'</tbody></table>'+
+        '</div>' : '')+
+        (v.observaciones ? '<div class="obs-card"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
+      '</div>'+
+      '<div class="totales-card">'+
+        '<table class="totales-table">'+
+          '<tr><td class="lbl-tot">Subtotal neto</td><td class="val-tot">'+fmtPeso(v.neto||0)+'</td></tr>'+
+          '<tr><td class="lbl-tot">IVA ('+(v.ivaPct||0)+'%)</td><td class="val-tot">'+fmtPeso(v.ivaMonto||0)+'</td></tr>'+
+          (v.descuentoPct>0?'<tr><td class="lbl-tot">Descuento ('+v.descuentoPct+'%)</td><td class="val-tot">-'+fmtPeso(v.descuentoMonto)+'</td></tr>':'')+
+          '<tr class="row-total"><td class="lbl-tot">TOTAL</td><td class="val-tot">'+fmtPeso(v.total)+'</td></tr>'+
+        '</table>'+
+      '</div>'+
+    '</div>'
+  )+
 
   (tieneCae ? '<div class="cae-card">'+
     '<div class="cae-qr">'+
@@ -16841,7 +16869,10 @@ function construirHtmlVentaA4(v){
 
 /* FOOTER minimalista */
 '<div class="doc-foot">'+
-  '<div><span class="doc-foot-brand">COMERCIA</span> <span class="doc-foot-tag">· gestión inteligente para tu comercio</span></div>'+
+  '<div style="display:flex;align-items:center;gap:7px">'+
+    '<svg class="doc-foot-logo" width="20" height="20" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gFoot" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="8" fill="url(#gFoot)"/><path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><circle cx="29" cy="20" r="2.4" fill="#fff"/></svg>'+
+    '<span><span class="doc-foot-brand">Comercia</span> <span class="doc-foot-tag">· gestión inteligente para tu comercio</span></span>'+
+  '</div>'+
   '<div class="doc-type-badge">'+(modoLbl==='FACTURA'?'Doc. Fiscal':'Doc. No Fiscal')+'</div>'+
 '</div>'+
 
