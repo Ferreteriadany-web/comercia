@@ -5434,6 +5434,15 @@
                   <button class="cart-modo-tab" id="vtModoPresupuesto" onclick="cambiarModoVenta('presupuesto')">Presupuesto</button>
                 </div>
 
+                <!-- Lista de precios -->
+                <div style="display:flex;align-items:center;gap:8px;margin:10px 0 2px">
+                  <span style="font-size:11px;color:var(--text-soft);font-weight:600;white-space:nowrap">Lista de precios:</span>
+                  <select class="form-input" id="vListaPrecio" onchange="cambiarListaPrecio(this.value)" style="height:32px;padding:4px 8px;font-size:12px;flex:1">
+                    <option value="minorista">Minorista</option>
+                    <option value="mayorista">Mayorista</option>
+                  </select>
+                </div>
+
                 <!-- Buscador de cliente con autocomplete -->
                 <div class="cart-cliente-search" style="position:relative">
                   <div class="search-box" style="margin:0">
@@ -7192,6 +7201,13 @@
         <label class="form-label">Venta</label>
         <input class="form-input" type="number" id="prodVenta" placeholder="0" min="0" step="0.01">
       </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Mayorista <span style="color:var(--text-mute);font-weight:400">(opcional)</span></label>
+        <input class="form-input" type="number" id="prodMayorista" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="form-group"></div>
     </div>
     </div><!-- /prodTabGeneral -->
 
@@ -10462,6 +10478,7 @@ function openProductModal(){
   document.getElementById('prodRubro').value = '';
   document.getElementById('prodCosto').value = '';
   document.getElementById('prodVenta').value = '';
+  document.getElementById('prodMayorista').value = '';
   document.getElementById('prodStock').value = '';
   document.getElementById('prodStockMin').value = '';
   document.getElementById('prodStockIdeal').value = '';
@@ -10489,6 +10506,7 @@ function editProduct(id){
   document.getElementById('prodRubro').value = p.rubro || '';
   document.getElementById('prodCosto').value = p.precioCosto || '';
   document.getElementById('prodVenta').value = p.precioVenta || '';
+  document.getElementById('prodMayorista').value = p.precioMayorista || '';
   document.getElementById('prodStock').value = (p.stock != null ? p.stock : '');
   _prodStockOriginal = (p.stock != null ? p.stock : 0);
   document.getElementById('prodStockMin').value = (p.stockMin != null ? p.stockMin : '');
@@ -10525,6 +10543,7 @@ async function saveProduct(){
     rubro: document.getElementById('prodRubro').value.trim(),
     precioCosto: Number(document.getElementById('prodCosto').value) || 0,
     precioVenta: Number(document.getElementById('prodVenta').value) || 0,
+    precioMayorista: Number(document.getElementById('prodMayorista').value) || 0,
     stockMin: Number(document.getElementById('prodStockMin').value) || 0,
     stockIdeal: Number(document.getElementById('prodStockIdeal').value) || 0,
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
@@ -13689,6 +13708,25 @@ var ventas = [];
 var carritoVenta = [];
 var clienteVenta = null;
 var modoVenta = 'factura';
+var listaPrecioActiva = 'minorista';
+
+// Precio activo de un producto según la lista seleccionada (minorista/mayorista).
+// El mayorista cae al minorista si el producto no tiene precio mayorista cargado.
+function precioDe(p){
+  if(!p) return 0;
+  if(listaPrecioActiva === 'mayorista' && Number(p.precioMayorista) > 0) return Number(p.precioMayorista);
+  return Number(p.precioVenta) || 0;
+}
+
+function cambiarListaPrecio(val){
+  listaPrecioActiva = (val === 'mayorista') ? 'mayorista' : 'minorista';
+  var sel = document.getElementById('vListaPrecio');
+  if(sel) sel.value = listaPrecioActiva;
+  if(typeof renderGridVentas === 'function') renderGridVentas();
+  if(typeof renderCarrito === 'function') renderCarrito();
+  if(typeof recalcularVenta === 'function') recalcularVenta();
+  if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
+}
 // Estado del selector de obra del carrito
 var obraGlobalActual = '';     // obra que aplica por defecto a toda la venta
 var _asignarIndividual = false; // si está en true, se ven selectores por-item
@@ -14097,7 +14135,7 @@ function renderGridVentas(){
         '<div class="vcard-code">'+eH(p.codigo||'-')+'</div>'+
         '<div class="vcard-desc">'+eH(p.descripcion||'-')+'</div>'+
         (p.precioVenta
-          ? '<div class="vcard-price">'+fmtPeso(p.precioVenta)+'</div>'
+          ? '<div class="vcard-price">'+fmtPeso(precioDe(p))+'</div>'
           : '<div class="vcard-noprice">Sin precio</div>')+
       '</div>'+
     '</div>';
@@ -14284,7 +14322,7 @@ function renderCarrito(){
   var html = '';
   carritoVenta.forEach(function(item, i){
     var p = item.producto;
-    var subt = (p.precioVenta||0) * item.cantidad;
+    var subt = precioDe(p) * item.cantidad;
     var obraActual = item.obra || '';
 
     // Mostrar selector por-item SOLO si modo individual está activo Y el cliente tiene obras
@@ -14337,7 +14375,7 @@ function renderCarrito(){
         '<button class="vci-qty-btn" onclick="incCarrito('+i+')">+</button>'+
       '</div>'+
       '<div class="vci-row2">'+
-        '<span class="vci-price">'+fmtPeso(p.precioVenta||0)+' c/u</span>'+
+        '<span class="vci-price">'+fmtPeso(precioDe(p))+' c/u</span>'+
         '<div style="display:flex;align-items:center;gap:6px">'+
           '<span class="vci-subtotal">'+fmtPeso(subt)+'</span>'+
           '<button class="vci-remove" onclick="quitarDelCarrito('+i+')" title="Quitar">&#128465;</button>'+
@@ -14523,7 +14561,7 @@ function crearObraDesdeCarrito(idx){
 function recalcularVenta(){
   // Precios YA incluyen IVA
   var bruto = carritoVenta.reduce(function(a,x){
-    return a + (x.producto.precioVenta||0) * x.cantidad;
+    return a + precioDe(x.producto) * x.cantidad;
   }, 0);
   var ivaPct = parseFloat(document.getElementById('vIvaSelect').value) || 0;
   var descPct = parseFloat(document.getElementById('vDescuentoPct').value) || 0;
@@ -14848,6 +14886,7 @@ async function confirmarVenta(){
       numero: nroTicket,
       fecha: ahora.toISOString(),
       modo: modoVenta,
+      listaPrecio: listaPrecioActiva,
       cliente: clienteVenta ? {
         id: clienteVenta._id,
         razonSocial: clienteVenta.razonSocial,
@@ -14864,9 +14903,9 @@ async function confirmarVenta(){
           productoId: item.producto._id,
           codigo: item.producto.codigo,
           descripcion: item.producto.descripcion,
-          precioUnit: item.producto.precioVenta || 0,
+          precioUnit: precioDe(item.producto),
           cantidad: item.cantidad,
-          subtotal: (item.producto.precioVenta || 0) * item.cantidad,
+          subtotal: precioDe(item.producto) * item.cantidad,
           obra: item.obra || ''
         };
       }),
