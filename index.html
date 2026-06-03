@@ -5024,6 +5024,9 @@
         <a class="nav-item" data-module="presupuestos" onclick="navTo('presupuestos')">
           <span class="nav-item-icon"><i class="ti ti-file-text"></i></span><span>Presupuestos</span>
         </a>
+        <a class="nav-item" data-module="caja" onclick="navTo('caja')">
+          <span class="nav-item-icon"><i class="ti ti-cash"></i></span><span>Caja</span>
+        </a>
         <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
           <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Pedidos</span>
         </a>
@@ -5643,6 +5646,42 @@
           </div>
 
           <div id="presList"></div>
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO CAJA / TESORERÍA ═══ -->
+      <div class="module" id="moduleCaja">
+        <header class="main-header">
+          <div style="display:flex;align-items:center;gap:14px">
+            <h1 class="main-title">Caja</h1>
+          </div>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="abrirArqueo()">&#129518; Arqueo</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirMovCaja()">&#43; Movimiento</button>
+          </div>
+        </header>
+        <div class="main-body">
+          <div class="stats-row">
+            <div class="stat-card success">
+              <div class="stat-card-head"><div class="stat-label">Ventas en efectivo (hoy)</div><div class="stat-icon">&#128181;</div></div>
+              <div class="stat-value" id="cajaVtaEfectivo" style="font-size:20px">$0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-head"><div class="stat-label">Ingresos (hoy)</div><div class="stat-icon">&#11014;&#65039;</div></div>
+              <div class="stat-value" id="cajaIngresos" style="font-size:20px">$0</div>
+            </div>
+            <div class="stat-card danger">
+              <div class="stat-card-head"><div class="stat-label">Egresos (hoy)</div><div class="stat-icon">&#11015;&#65039;</div></div>
+              <div class="stat-value" id="cajaEgresos" style="font-size:20px">$0</div>
+            </div>
+            <div class="stat-card purple">
+              <div class="stat-card-head"><div class="stat-label">Saldo en caja</div><div class="stat-icon">&#128176;</div></div>
+              <div class="stat-value" id="cajaSaldo" style="font-size:20px">$0</div>
+            </div>
+          </div>
+
+          <div class="form-section-title" style="margin-top:22px">Movimientos de hoy</div>
+          <div id="cajaMovList"></div>
         </div>
       </div>
 
@@ -7732,6 +7771,58 @@
   </div>
 </div>
 
+<!-- ═══════════════════ MODAL MOVIMIENTO DE CAJA ═══════════════════ -->
+<div class="modal-overlay" id="modalMovCaja">
+  <div class="modal" style="max-width:440px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#128176; Caja</div>
+    <h2 class="modal-title">Registrar movimiento</h2>
+    <div class="form-group">
+      <label class="form-label">Tipo</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn btn-line btn-sm" id="movTipoIngreso" onclick="movSetTipo('ingreso')" style="flex:1">&#11014;&#65039; Ingreso</button>
+        <button type="button" class="btn btn-line btn-sm" id="movTipoEgreso" onclick="movSetTipo('egreso')" style="flex:1">&#11015;&#65039; Egreso</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Concepto</label>
+      <input class="form-input" type="text" id="movConcepto" placeholder="Ej: pago proveedor, retiro, aporte..." autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Monto</label>
+      <input class="form-input" type="number" id="movMonto" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="alert error" id="movCajaAlert"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" id="movGuardarBtn" onclick="guardarMovCaja()" style="flex:2">Registrar &#10003;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL ARQUEO DE CAJA ═══════════════════ -->
+<div class="modal-overlay" id="modalArqueo">
+  <div class="modal" style="max-width:440px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#129518; Arqueo de caja</div>
+    <h2 class="modal-title">Arqueo</h2>
+    <p class="modal-subtitle">Contá el efectivo físico y compará con lo que debería haber.</p>
+    <div class="ticket-print-line"><span class="l">Saldo esperado en efectivo:</span><span class="r" id="arqEsperado" style="font-weight:700">$0</span></div>
+    <div class="form-group" style="margin-top:12px">
+      <label class="form-label">Efectivo contado</label>
+      <input class="form-input" type="number" id="arqContado" placeholder="0" min="0" step="0.01" oninput="arqCalcular()">
+    </div>
+    <div class="stock-status" id="arqResultado" style="display:none">
+      <div class="stock-status-icon" id="arqIcon">&#9898;</div>
+      <div><div class="stock-status-text" id="arqDifTxt">&mdash;</div><div class="stock-status-sub" id="arqDifSub"></div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cerrar</button>
+      <button class="btn-form" id="arqRegistrarBtn" onclick="registrarArqueo()" style="flex:2">Registrar arqueo &#10003;</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL EDITAR ENTREGA (retira / obra) ═══════════════════ -->
 <div class="modal-overlay" id="modalEditarEntrega">
   <div class="modal" style="max-width:440px">
@@ -8386,6 +8477,7 @@ function navTo(modulo){
   if(modulo==='inicio') initInicio();
   if(modulo==='ventas') initVentas();
   if(modulo==='presupuestos') initPresupuestos();
+  if(modulo==='caja') initCaja();
   if(modulo==='ctacte') initCtaCte();
   if(modulo==='configuracion') initConfiguracion();
   if(modulo && modulo.indexOf('int') === 0) initIntegracion(modulo);
@@ -15077,6 +15169,166 @@ function dashIrStockBajo(){
       prodToggleStockBajo();
     }
   }, 150);
+}
+
+// ═══════════════════════════════════════════════════════
+// MÓDULO CAJA / TESORERÍA
+// ═══════════════════════════════════════════════════════
+var cajaMovimientos = [];
+var _movTipo = 'egreso';
+
+function initCaja(){
+  if(typeof ventas !== 'undefined' && ventas.length === 0 && typeof cargarVentas === 'function'){
+    cargarVentas().then(renderCaja).catch(function(){});
+  }
+  cargarCajaMovimientos();
+}
+
+async function cargarCajaMovimientos(){
+  if(!currentEmpresaId){ renderCaja(); return; }
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('caja_movimientos')
+      .orderBy('fecha','desc').limit(300).get();
+    cajaMovimientos = [];
+    snap.forEach(function(d){ var m=d.data(); m._id=d.id; cajaMovimientos.push(m); });
+  }catch(err){ console.warn('Error cargando caja:', err); }
+  renderCaja();
+}
+
+function cajaEsHoy(fechaIso){ return new Date(fechaIso).toDateString() === new Date().toDateString(); }
+
+// Calcula el efectivo del día: ventas en efectivo + ingresos manuales − egresos manuales.
+function cajaCalculos(){
+  var hoy = new Date().toDateString();
+  var vtaEfectivo = 0;
+  if(typeof ventas !== 'undefined'){
+    ventas.forEach(function(v){
+      if(v.modo === 'presupuesto') return;
+      if(new Date(v.fecha).toDateString() !== hoy) return;
+      (v.pagos||[]).forEach(function(p){ if(p.metodo === 'efectivo') vtaEfectivo += (p.monto||0); });
+    });
+  }
+  var ingresos = 0, egresos = 0;
+  cajaMovimientos.forEach(function(m){
+    if(!cajaEsHoy(m.fecha)) return;
+    if(m.tipo === 'ingreso') ingresos += (m.monto||0); else egresos += (m.monto||0);
+  });
+  return { vtaEfectivo: vtaEfectivo, ingresos: ingresos, egresos: egresos, saldo: vtaEfectivo + ingresos - egresos };
+}
+
+function renderCaja(){
+  if(!document.getElementById('moduleCaja')) return;
+  var c = cajaCalculos();
+  var s = function(id,v){ var e=document.getElementById(id); if(e) e.textContent = fmtPeso(v); };
+  s('cajaVtaEfectivo', c.vtaEfectivo); s('cajaIngresos', c.ingresos); s('cajaEgresos', c.egresos); s('cajaSaldo', c.saldo);
+
+  var cont = document.getElementById('cajaMovList');
+  if(!cont) return;
+  var hoyMovs = cajaMovimientos.filter(function(m){ return cajaEsHoy(m.fecha); });
+  if(hoyMovs.length === 0){
+    cont.innerHTML = '<div class="empty-table"><div class="empty-table-icon">&#128176;</div><div class="empty-table-title">Sin movimientos hoy</div><div class="empty-table-desc">Registrá ingresos o egresos con el botón de arriba.</div></div>';
+    return;
+  }
+  cont.innerHTML = hoyMovs.map(function(m){
+    var hora = new Date(m.fecha).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    var esIng = (m.tipo === 'ingreso');
+    return '<div class="ticket-card" style="cursor:default">'+
+      '<div class="ticket-card-head"><span class="ticket-num">'+(esIng?'&#11014;&#65039; Ingreso':'&#11015;&#65039; Egreso')+'</span><span class="ticket-fecha">'+hora+'</span></div>'+
+      '<div class="ticket-cliente">'+eH(m.concepto||'(sin concepto)')+'</div>'+
+      '<div class="ticket-totales"><span style="color:'+(esIng?'var(--success)':'var(--danger)')+';font-weight:700">'+(esIng?'+':'\u2212')+fmtPeso(m.monto)+'</span>'+
+        '<span style="margin-left:auto"><button class="btn btn-line btn-sm" onclick="eliminarMovCaja(\''+escapeQ(m._id)+'\')">Eliminar</button></span></div>'+
+    '</div>';
+  }).join('');
+}
+
+function movSetTipo(t){
+  _movTipo = t;
+  var ing = document.getElementById('movTipoIngreso'), eg = document.getElementById('movTipoEgreso');
+  if(ing){ ing.style.background = t==='ingreso'?'var(--success-soft)':''; ing.style.borderColor = t==='ingreso'?'var(--success)':''; ing.style.color = t==='ingreso'?'var(--success)':''; }
+  if(eg){ eg.style.background = t==='egreso'?'var(--danger-soft)':''; eg.style.borderColor = t==='egreso'?'var(--danger)':''; eg.style.color = t==='egreso'?'var(--danger)':''; }
+}
+
+function abrirMovCaja(){
+  document.getElementById('movConcepto').value = '';
+  document.getElementById('movMonto').value = '';
+  if(typeof hideAlerts === 'function') hideAlerts();
+  movSetTipo('egreso');
+  closeModals();
+  document.getElementById('modalMovCaja').classList.add('show');
+}
+
+async function guardarMovCaja(){
+  var concepto = document.getElementById('movConcepto').value.trim();
+  var monto = Number(document.getElementById('movMonto').value) || 0;
+  if(monto <= 0){ return showAlert('movCajaAlert','Ingresá un monto mayor a 0'); }
+  var btn = document.getElementById('movGuardarBtn');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  var mov = { tipo: _movTipo, concepto: concepto, monto: monto, metodo: 'efectivo', fecha: new Date().toISOString(), usuario: currentUser ? currentUser.email : '' };
+  try{
+    var ref = await db.collection('empresas').doc(currentEmpresaId).collection('caja_movimientos').add(mov);
+    mov._id = ref.id;
+    cajaMovimientos.unshift(mov);
+    closeModals();
+    toast('Movimiento registrado', 'success');
+    renderCaja();
+  }catch(err){ showAlert('movCajaAlert','Error: '+(err.message||'')); }
+  finally{ btn.disabled = false; btn.textContent = 'Registrar \u2713'; }
+}
+
+async function eliminarMovCaja(id){
+  if(!confirm('¿Eliminar este movimiento?')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).collection('caja_movimientos').doc(id).delete();
+    cajaMovimientos = cajaMovimientos.filter(function(m){ return m._id !== id; });
+    renderCaja();
+    toast('Movimiento eliminado', 'success');
+  }catch(err){ toast('No se pudo eliminar: '+(err.message||''), 'error'); }
+}
+
+// ─── Arqueo de caja ───
+function abrirArqueo(){
+  var c = cajaCalculos();
+  document.getElementById('arqEsperado').textContent = fmtPeso(c.saldo);
+  document.getElementById('arqContado').value = '';
+  document.getElementById('arqResultado').style.display = 'none';
+  closeModals();
+  document.getElementById('modalArqueo').classList.add('show');
+}
+
+function arqCalcular(){
+  var c = cajaCalculos();
+  var box = document.getElementById('arqResultado');
+  var raw = document.getElementById('arqContado').value;
+  if(raw === ''){ box.style.display = 'none'; return; }
+  var dif = (Number(raw) || 0) - c.saldo;
+  box.style.display = '';
+  box.classList.remove('ok','low');
+  var icon = document.getElementById('arqIcon'), txt = document.getElementById('arqDifTxt'), sub = document.getElementById('arqDifSub');
+  if(Math.abs(dif) < 0.01){ box.classList.add('ok'); icon.innerHTML='&#9989;'; txt.textContent='Caja cuadrada'; sub.textContent='El conteo coincide con lo esperado.'; }
+  else if(dif > 0){ icon.innerHTML='&#11014;&#65039;'; txt.textContent='Sobran '+fmtPeso(dif); sub.textContent='Hay más efectivo que el esperado.'; }
+  else { box.classList.add('low'); icon.innerHTML='&#9888;&#65039;'; txt.textContent='Faltan '+fmtPeso(-dif); sub.textContent='Hay menos efectivo que el esperado.'; }
+}
+
+async function registrarArqueo(){
+  var c = cajaCalculos();
+  var raw = document.getElementById('arqContado').value;
+  if(raw === ''){ toast('Ingresá el efectivo contado','error'); return; }
+  var dif = (Number(raw) || 0) - c.saldo;
+  var btn = document.getElementById('arqRegistrarBtn');
+  btn.disabled = true; btn.textContent = 'Registrando...';
+  try{
+    if(Math.abs(dif) >= 0.01){
+      var mov = { tipo: dif>0?'ingreso':'egreso', concepto: dif>0?'Sobrante de arqueo':'Faltante de arqueo',
+                  monto: Math.abs(dif), metodo:'efectivo', fecha:new Date().toISOString(),
+                  usuario: currentUser?currentUser.email:'', arqueo:true };
+      var ref = await db.collection('empresas').doc(currentEmpresaId).collection('caja_movimientos').add(mov);
+      mov._id = ref.id; cajaMovimientos.unshift(mov);
+    }
+    closeModals();
+    toast('Arqueo registrado' + (Math.abs(dif)>=0.01 ? (' \u00b7 ajuste de '+fmtPeso(Math.abs(dif))) : ' \u00b7 caja cuadrada'), 'success');
+    renderCaja();
+  }catch(err){ toast('Error: '+(err.message||''),'error'); }
+  finally{ btn.disabled = false; btn.textContent = 'Registrar arqueo \u2713'; }
 }
 
 // ═══════════════════════════════════════════════════════
