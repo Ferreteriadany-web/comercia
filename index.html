@@ -6970,6 +6970,34 @@
             </div>
           </div>
 
+          <!-- Sección: Redondeo de precios -->
+          <div class="table-card" style="padding:24px;margin-top:16px">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text);letter-spacing:-0.01em">Redondeo de precios</h3>
+            <p style="font-size:12px;color:var(--text-mute);margin-bottom:18px">Ajusta automáticamente los precios de venta a un valor redondo en el POS. Por ejemplo: $5.472 &rarr; $5.500.</p>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Redondear a</label>
+                <select class="form-input" id="empresaRedondeoStep" onchange="actualizarPreviewRedondeo()">
+                  <option value="0">Sin redondear (precio exacto)</option>
+                  <option value="1">Pesos enteros ($1)</option>
+                  <option value="10">Múltiplos de $10</option>
+                  <option value="50">Múltiplos de $50</option>
+                  <option value="100">Múltiplos de $100</option>
+                  <option value="500">Múltiplos de $500</option>
+                  <option value="1000">Múltiplos de $1.000</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Modo</label>
+                <select class="form-input" id="empresaRedondeoModo" onchange="actualizarPreviewRedondeo()">
+                  <option value="cercano">Al más cercano</option>
+                  <option value="arriba">Siempre hacia arriba</option>
+                </select>
+              </div>
+            </div>
+            <div style="font-size:12px;color:var(--text-soft);margin-top:4px;font-family:var(--mono)" id="redondeoPreview">Ejemplo: $5.472 &rarr; $5.472</div>
+          </div>
+
         </div>
       </div>
 
@@ -13878,12 +13906,22 @@ function cambiarListaPrecio(val){
   if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
 }
 
+// Redondea un precio según la configuración de la empresa (paso + modo).
+function redondearPrecio(n){
+  n = Number(n) || 0;
+  var step = (currentEmpresa && currentEmpresa.redondeoStep != null) ? Number(currentEmpresa.redondeoStep) : 1;
+  if(!step || step <= 0) return n;              // sin redondeo → precio exacto
+  var modo = (currentEmpresa && currentEmpresa.redondeoModo) || 'cercano';
+  if(modo === 'arriba') return Math.ceil(n / step) * step;
+  return Math.round(n / step) * step;
+}
+
 // Precio unitario de un ítem del carrito: si el usuario lo editó usa ese valor,
-// si no, toma el precio de la lista activa redondeado a pesos enteros.
+// si no, toma el precio de la lista activa redondeado según configuración.
 function precioItem(item){
   if(!item) return 0;
   if(item.precioOverride != null && item.precioOverride !== '') return Number(item.precioOverride) || 0;
-  return Math.round(precioDe(item.producto));
+  return redondearPrecio(precioDe(item.producto));
 }
 
 function setPrecioItem(idx, val){
@@ -14303,7 +14341,7 @@ function renderGridVentas(){
         '<div class="vcard-code">'+eH(p.codigo||'-')+'</div>'+
         '<div class="vcard-desc">'+eH(p.descripcion||'-')+'</div>'+
         (p.precioVenta
-          ? '<div class="vcard-price">'+fmtPeso(Math.round(precioDe(p)))+'</div>'
+          ? '<div class="vcard-price">'+fmtPeso(redondearPrecio(precioDe(p)))+'</div>'
           : '<div class="vcard-noprice">Sin precio</div>')+
       '</div>'+
     '</div>';
@@ -19967,10 +20005,25 @@ function initConfiguracion(){
   document.getElementById('empresaColor').value = color;
   document.getElementById('empresaColorHex').value = color.toUpperCase();
   actualizarPreviewColor();
+  // Redondeo de precios
+  document.getElementById('empresaRedondeoStep').value = (emp.redondeoStep != null ? String(emp.redondeoStep) : '1');
+  document.getElementById('empresaRedondeoModo').value = emp.redondeoModo || 'cercano';
+  actualizarPreviewRedondeo();
 }
 
-function setColorEmpresa(color){
-  document.getElementById('empresaColor').value = color;
+function actualizarPreviewRedondeo(){
+  var step = Number(document.getElementById('empresaRedondeoStep').value) || 0;
+  var modo = document.getElementById('empresaRedondeoModo').value;
+  var ejemplo = 5472;
+  var res;
+  if(step <= 0) res = ejemplo;
+  else if(modo === 'arriba') res = Math.ceil(ejemplo/step)*step;
+  else res = Math.round(ejemplo/step)*step;
+  var el = document.getElementById('redondeoPreview');
+  if(el) el.innerHTML = 'Ejemplo: ' + fmtPeso(ejemplo) + ' &rarr; <strong style="color:var(--text)">' + fmtPeso(res) + '</strong>';
+}
+
+function setColorEmpresa(color){  document.getElementById('empresaColor').value = color;
   document.getElementById('empresaColorHex').value = color.toUpperCase();
   actualizarPreviewColor();
 }
@@ -20094,6 +20147,8 @@ async function guardarConfigEmpresa(){
       logoUrl: document.getElementById('empresaLogoUrl').value,
       logoPath: document.getElementById('empresaLogoPath').value,
       colorPrincipal: document.getElementById('empresaColor').value,
+      redondeoStep: Number(document.getElementById('empresaRedondeoStep').value) || 0,
+      redondeoModo: document.getElementById('empresaRedondeoModo').value,
       updatedAt: new Date().toISOString()
     };
     if(!data.nombre){
