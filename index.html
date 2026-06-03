@@ -1139,6 +1139,11 @@
   .dd-item-prov{font-size:10px;color:var(--text-mute);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.03em}
   .dd-item-desc{font-size:12px;color:var(--text);line-height:1.4;letter-spacing:-0.005em}
   .dd-item-meta{display:flex;gap:8px;margin-top:6px;font-size:10px;flex-wrap:wrap}
+  .dd-item-add{display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+  .dd-item-add-lbl{font-size:10px;color:var(--text-mute);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .dd-item-add-qty{width:64px;height:30px;padding:2px 8px;font-size:13px;font-family:var(--mono);border:1px solid var(--line-2);border-radius:var(--r-sm);background:var(--bg);color:var(--text);text-align:center}
+  .dd-item-add-qty:focus{outline:none;border-color:var(--accent)}
+  .dd-item-add .btn{margin-left:auto}
   .dd-meta-costo{color:var(--text-soft);font-family:var(--mono)}
   .dd-meta-venta{color:var(--success);font-family:var(--mono);font-weight:600}
   .dd-meta-rubro{
@@ -3561,6 +3566,8 @@
     border-top:1px dashed var(--line);
   }
   .vci-price{font-family:var(--mono);font-size:12px;color:var(--text-soft)}
+  .vci-price-input{width:74px;font-family:var(--mono);font-size:12px;color:var(--text);border:1px solid var(--line-2);border-radius:6px;padding:1px 5px;background:var(--bg);text-align:right;margin:0 2px}
+  .vci-price-input:focus{outline:none;border-color:var(--accent)}
   .vci-subtotal{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--success);letter-spacing:-0.005em}
   .vci-remove{
     background:transparent;
@@ -13148,7 +13155,7 @@ function showPedDropdown(query){
   for(var i=0;i<results.length;i++){
     var p = results[i];
     var yaEsta = pedItems.some(function(x){ return x.producto._id === p._id; });
-    html += '<div class="dd-item" id="pddi'+i+'" data-id="'+escapeQ(p._id)+'" onclick="agregarProductoPedido(\''+escapeQ(p._id)+'\')">'+
+    html += '<div class="dd-item" id="pddi'+i+'" data-id="'+escapeQ(p._id)+'" onclick="pedAddRow('+i+',\''+escapeQ(p._id)+'\')">'+
       '<div class="dd-item-row1">'+
         '<span class="dd-item-code">'+hl(p.codigo,query)+'</span>'+
         '<span class="dd-item-prov">'+(p.proveedor?eH(p.proveedor.substring(0,35)):'')+'</span>'+
@@ -13157,6 +13164,13 @@ function showPedDropdown(query){
       '<div class="dd-item-meta">'+
         (p.precioCosto?'<span class="dd-meta-costo">Costo: '+fmtPeso(p.precioCosto)+'</span>':'')+
         (p.precioVenta?'<span class="dd-meta-venta">Venta: '+fmtPeso(p.precioVenta)+'</span>':'')+
+      '</div>'+
+      '<div class="dd-item-add" onclick="event.stopPropagation()">'+
+        '<span class="dd-item-add-lbl">Cantidad</span>'+
+        '<input type="number" min="1" step="1" value="1" id="pdq'+i+'" class="dd-item-add-qty" '+
+          'onclick="event.stopPropagation()" '+
+          'onkeydown="if(event.key===\'Enter\'){event.preventDefault();event.stopPropagation();agregarProductoPedido(\''+escapeQ(p._id)+'\',parseInt(this.value)||1);}">'+
+        '<button class="btn btn-line btn-sm" onclick="event.stopPropagation();agregarProductoPedido(\''+escapeQ(p._id)+'\',parseInt(document.getElementById(\'pdq'+i+'\').value)||1)">&#43; Agregar</button>'+
       '</div>'+
     '</div>';
   }
@@ -13201,7 +13215,7 @@ function bindPedSearch(){
       e.preventDefault();
       if(_ddPedSel>=0){
         var id = items[_ddPedSel].getAttribute('data-id');
-        agregarProductoPedido(id);
+        pedAddRow(_ddPedSel, id);
       } else {
         agregarDesdeSearch();
       }
@@ -13217,20 +13231,28 @@ function agregarDesdeSearch(){
   var dd = document.getElementById('pedDropdown');
   var items = dd.querySelectorAll('.dd-item');
   if(items.length===1){
-    agregarProductoPedido(items[0].getAttribute('data-id'));
+    pedAddRow(0, items[0].getAttribute('data-id'));
   } else if(_ddPedSel>=0 && _ddPedSel<items.length){
-    agregarProductoPedido(items[_ddPedSel].getAttribute('data-id'));
+    pedAddRow(_ddPedSel, items[_ddPedSel].getAttribute('data-id'));
   } else if(inp.value.trim()){
     showPedDropdown(inp.value);
   }
 }
 
-function agregarProductoPedido(id){
+function pedAddRow(i, id){
+  var q = document.getElementById('pdq'+i);
+  var cant = q ? (parseInt(q.value)||1) : 1;
+  agregarProductoPedido(id, cant);
+}
+
+function agregarProductoPedido(id, cant){
+  cant = parseInt(cant) || 1;
+  if(cant < 1) cant = 1;
   var p = productos.find(function(x){ return x._id===id; });
   if(!p) return;
   var existing = pedItems.find(function(x){ return x.producto._id===id; });
   if(existing){
-    existing.cantidad++;
+    existing.cantidad += cant;
     hidePedDropdown();
     document.getElementById('pedSearch').value = '';
     renderPedido();
@@ -13239,13 +13261,13 @@ function agregarProductoPedido(id){
     toast('Cantidad actualizada a '+existing.cantidad, 'success');
     return;
   }
-  pedItems.push({ producto: p, cantidad: 1 });
+  pedItems.push({ producto: p, cantidad: cant });
   hidePedDropdown();
   document.getElementById('pedSearch').value = '';
   renderPedido();
   actualizarStatsPedido();
   guardarPedidoCompartido();
-  toast(p.descripcion ? p.descripcion.substring(0,30)+'... agregado' : 'Producto agregado', 'success');
+  toast((p.descripcion ? p.descripcion.substring(0,28)+'…' : 'Producto')+' x'+cant+' agregado', 'success');
 }
 
 function quitarItemPedido(idx){
@@ -13855,6 +13877,24 @@ function cambiarListaPrecio(val){
   if(typeof recalcularVenta === 'function') recalcularVenta();
   if(typeof guardarCarritoUsuario === 'function') guardarCarritoUsuario();
 }
+
+// Precio unitario de un ítem del carrito: si el usuario lo editó usa ese valor,
+// si no, toma el precio de la lista activa redondeado a pesos enteros.
+function precioItem(item){
+  if(!item) return 0;
+  if(item.precioOverride != null && item.precioOverride !== '') return Number(item.precioOverride) || 0;
+  return Math.round(precioDe(item.producto));
+}
+
+function setPrecioItem(idx, val){
+  if(!carritoVenta[idx]) return;
+  var n = Math.round(Number(val));
+  if(isNaN(n) || n < 0) n = 0;
+  carritoVenta[idx].precioOverride = n;
+  renderCarrito();
+  recalcularVenta();
+  guardarCarritoUsuario();
+}
 // Estado del selector de obra del carrito
 var obraGlobalActual = '';     // obra que aplica por defecto a toda la venta
 var _asignarIndividual = false; // si está en true, se ven selectores por-item
@@ -14263,7 +14303,7 @@ function renderGridVentas(){
         '<div class="vcard-code">'+eH(p.codigo||'-')+'</div>'+
         '<div class="vcard-desc">'+eH(p.descripcion||'-')+'</div>'+
         (p.precioVenta
-          ? '<div class="vcard-price">'+fmtPeso(precioDe(p))+'</div>'
+          ? '<div class="vcard-price">'+fmtPeso(Math.round(precioDe(p)))+'</div>'
           : '<div class="vcard-noprice">Sin precio</div>')+
       '</div>'+
     '</div>';
@@ -14450,7 +14490,7 @@ function renderCarrito(){
   var html = '';
   carritoVenta.forEach(function(item, i){
     var p = item.producto;
-    var subt = precioDe(p) * item.cantidad;
+    var subt = precioItem(item) * item.cantidad;
     var obraActual = item.obra || '';
 
     // Mostrar selector por-item SOLO si modo individual está activo Y el cliente tiene obras
@@ -14503,7 +14543,7 @@ function renderCarrito(){
         '<button class="vci-qty-btn" onclick="incCarrito('+i+')">+</button>'+
       '</div>'+
       '<div class="vci-row2">'+
-        '<span class="vci-price">'+fmtPeso(precioDe(p))+' c/u</span>'+
+        '<span class="vci-price">$<input class="vci-price-input" type="number" min="0" step="1" value="'+precioItem(item)+'" onfocus="this.select()" onchange="setPrecioItem('+i+',this.value)" title="Precio unitario (editable)"> c/u</span>'+
         '<div style="display:flex;align-items:center;gap:6px">'+
           '<span class="vci-subtotal">'+fmtPeso(subt)+'</span>'+
           '<button class="vci-remove" onclick="quitarDelCarrito('+i+')" title="Quitar">&#128465;</button>'+
@@ -14689,7 +14729,7 @@ function crearObraDesdeCarrito(idx){
 function recalcularVenta(){
   // Precios YA incluyen IVA
   var bruto = carritoVenta.reduce(function(a,x){
-    return a + precioDe(x.producto) * x.cantidad;
+    return a + precioItem(x) * x.cantidad;
   }, 0);
   var ivaPct = parseFloat(document.getElementById('vIvaSelect').value) || 0;
   var descPct = parseFloat(document.getElementById('vDescuentoPct').value) || 0;
@@ -15031,9 +15071,9 @@ async function confirmarVenta(){
           productoId: item.producto._id,
           codigo: item.producto.codigo,
           descripcion: item.producto.descripcion,
-          precioUnit: precioDe(item.producto),
+          precioUnit: precioItem(item),
           cantidad: item.cantidad,
-          subtotal: precioDe(item.producto) * item.cantidad,
+          subtotal: precioItem(item) * item.cantidad,
           obra: item.obra || ''
         };
       }),
