@@ -7209,6 +7209,23 @@
       </div>
       <div class="form-group"></div>
     </div>
+
+    <div class="form-section-title">Kit / Combo</div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;user-select:none">
+      <input type="checkbox" id="prodEsKit" onchange="prodToggleKit()" style="width:16px;height:16px">
+      Este producto es un kit (se arma con otros productos)
+    </label>
+    <div id="prodKitEditor" style="display:none;margin-top:10px">
+      <div class="prod-foto-hint" style="margin-bottom:8px">Al vender este kit se descuenta el stock de sus componentes (no el del kit).</div>
+      <div style="display:flex;gap:6px">
+        <input class="form-input" type="text" id="kitCompCodigo" placeholder="Código del componente" autocomplete="off" list="kitCompDatalist" style="flex:2">
+        <input class="form-input" type="number" id="kitCompCant" placeholder="Cant." min="1" step="1" value="1" style="flex:1;min-width:64px">
+        <button type="button" class="btn btn-line btn-sm" onclick="kitAgregarComponente()">Agregar</button>
+      </div>
+      <datalist id="kitCompDatalist"></datalist>
+      <div id="kitCompList" style="margin-top:8px"></div>
+    </div>
+
     </div><!-- /prodTabGeneral -->
 
     <div class="prod-tab-pane" id="prodTabStock" style="display:none">
@@ -7835,6 +7852,33 @@
     <div style="display:flex;gap:10px;margin-top:14px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cerrar</button>
       <button class="btn-form" id="arqRegistrarBtn" onclick="registrarArqueo()" style="flex:2">Registrar arqueo &#10003;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL NOTA DE CRÉDITO / DÉBITO ═══════════════════ -->
+<div class="modal-overlay" id="modalNotaCD">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow" id="notaEyebrow">Nota</div>
+    <h2 class="modal-title" id="notaTitulo">Nota de crédito</h2>
+    <p class="modal-subtitle">Sobre el comprobante <strong id="notaRef"></strong></p>
+    <div class="form-group">
+      <label class="form-label">Monto</label>
+      <input class="form-input" type="number" id="notaMonto" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Motivo</label>
+      <input class="form-input" type="text" id="notaMotivo" placeholder="Ej: devolución, error de facturación, ajuste..." autocomplete="off">
+    </div>
+    <label id="notaCCWrap" style="display:none;align-items:center;gap:8px;font-size:13px;cursor:pointer;user-select:none;margin-top:4px">
+      <input type="checkbox" id="notaAfectaCC" style="width:16px;height:16px">
+      <span id="notaCCLabel">Ajustar cuenta corriente del cliente</span>
+    </label>
+    <div class="alert error" id="notaAlert"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" id="notaGuardarBtn" onclick="guardarNotaCD()" style="flex:2">Registrar &#10003;</button>
     </div>
   </div>
 </div>
@@ -10379,6 +10423,10 @@ function prodListaVisible(){
 
 // HTML de la celda de stock (con badge rojo si está bajo).
 function stockCellHtml(p){
+  if(p.esKit){
+    var disp = kitDisponible(p);
+    return '<span class="stock-badge" style="background:var(--purple-soft);color:var(--purple)" title="Kit: disponible según sus componentes">Kit'+(disp!=null?(' \u00b7 '+disp):'')+'</span>';
+  }
   if(p.stock == null && !(Number(p.stockMin) > 0)){
     return '<span style="color:var(--text-mute)">-</span>';
   }
@@ -10387,6 +10435,74 @@ function stockCellHtml(p){
     return '<span class="stock-badge low" title="Stock en o por debajo del mínimo ('+(Number(p.stockMin)||0)+')">'+stk+'</span>';
   }
   return '<span class="stock-badge ok">'+stk+'</span>';
+}
+
+// ── Kits / combos (productos compuestos) ──
+var _kitComponentes = [];
+
+// Disponible de un kit = mínimo de (stock componente / cantidad requerida).
+function kitDisponible(p){
+  if(!p || !p.esKit || !Array.isArray(p.kitComponentes) || !p.kitComponentes.length) return null;
+  var min = null;
+  p.kitComponentes.forEach(function(c){
+    var prod = productos.find(function(x){ return x._id === c.productoId; });
+    var stk = prod && prod.stock != null ? Number(prod.stock) : 0;
+    var req = Number(c.cantidad) || 1;
+    var posibles = Math.floor(stk / req);
+    if(min === null || posibles < min) min = posibles;
+  });
+  return min;
+}
+
+function prodToggleKit(){
+  var on = document.getElementById('prodEsKit').checked;
+  document.getElementById('prodKitEditor').style.display = on ? '' : 'none';
+  if(on) kitPoblarDatalist();
+}
+
+function kitPoblarDatalist(){
+  var dl = document.getElementById('kitCompDatalist');
+  if(!dl) return;
+  // Limitar para no saturar el datalist
+  dl.innerHTML = productos.slice(0, 1000).map(function(p){
+    return '<option value="'+escapeQ(p.codigo||'')+'">'+eH((p.codigo||'')+' · '+(p.descripcion||''))+'</option>';
+  }).join('');
+}
+
+function kitAgregarComponente(){
+  var cod = document.getElementById('kitCompCodigo').value.trim();
+  var cant = Number(document.getElementById('kitCompCant').value) || 1;
+  if(!cod){ toast('Ingresá el código del componente', 'error'); return; }
+  var prod = productos.find(function(x){ return (x.codigo||'').toLowerCase() === cod.toLowerCase(); });
+  if(!prod){ toast('No se encontró un producto con ese código', 'error'); return; }
+  if(prod.esKit){ toast('Un kit no puede contener otro kit', 'error'); return; }
+  var existe = _kitComponentes.find(function(c){ return c.productoId === prod._id; });
+  if(existe){ existe.cantidad += cant; }
+  else { _kitComponentes.push({ productoId: prod._id, codigo: prod.codigo||'', descripcion: prod.descripcion||'', cantidad: cant }); }
+  document.getElementById('kitCompCodigo').value = '';
+  document.getElementById('kitCompCant').value = '1';
+  kitRenderComponentes();
+}
+
+function kitQuitarComponente(idx){
+  _kitComponentes.splice(idx, 1);
+  kitRenderComponentes();
+}
+
+function kitRenderComponentes(){
+  var cont = document.getElementById('kitCompList');
+  if(!cont) return;
+  if(_kitComponentes.length === 0){
+    cont.innerHTML = '<div style="font-size:12px;color:var(--text-mute);padding:6px 0">Sin componentes todavía.</div>';
+    return;
+  }
+  cont.innerHTML = _kitComponentes.map(function(c, idx){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)">'+
+      '<span style="flex:1;font-size:12px">'+eH(c.descripcion||c.codigo)+' <span style="color:var(--text-mute);font-family:var(--mono)">('+eH(c.codigo)+')</span></span>'+
+      '<span style="font-family:var(--mono);font-size:12px;font-weight:600">x'+c.cantidad+'</span>'+
+      '<button type="button" class="btn btn-line btn-sm" onclick="kitQuitarComponente('+idx+')" title="Quitar">&times;</button>'+
+    '</div>';
+  }).join('');
 }
 
 // Toggle del filtro "solo stock bajo" (se activa desde la tarjeta de stats).
@@ -10479,6 +10595,10 @@ function openProductModal(){
   document.getElementById('prodCosto').value = '';
   document.getElementById('prodVenta').value = '';
   document.getElementById('prodMayorista').value = '';
+  _kitComponentes = [];
+  document.getElementById('prodEsKit').checked = false;
+  document.getElementById('prodKitEditor').style.display = 'none';
+  kitRenderComponentes();
   document.getElementById('prodStock').value = '';
   document.getElementById('prodStockMin').value = '';
   document.getElementById('prodStockIdeal').value = '';
@@ -10507,6 +10627,12 @@ function editProduct(id){
   document.getElementById('prodCosto').value = p.precioCosto || '';
   document.getElementById('prodVenta').value = p.precioVenta || '';
   document.getElementById('prodMayorista').value = p.precioMayorista || '';
+  _kitComponentes = Array.isArray(p.kitComponentes)
+    ? p.kitComponentes.map(function(c){ return { productoId:c.productoId, codigo:c.codigo||'', descripcion:c.descripcion||'', cantidad:c.cantidad||1 }; })
+    : [];
+  document.getElementById('prodEsKit').checked = !!p.esKit;
+  prodToggleKit();
+  kitRenderComponentes();
   document.getElementById('prodStock').value = (p.stock != null ? p.stock : '');
   _prodStockOriginal = (p.stock != null ? p.stock : 0);
   document.getElementById('prodStockMin').value = (p.stockMin != null ? p.stockMin : '');
@@ -10544,6 +10670,8 @@ async function saveProduct(){
     precioCosto: Number(document.getElementById('prodCosto').value) || 0,
     precioVenta: Number(document.getElementById('prodVenta').value) || 0,
     precioMayorista: Number(document.getElementById('prodMayorista').value) || 0,
+    esKit: document.getElementById('prodEsKit').checked,
+    kitComponentes: document.getElementById('prodEsKit').checked ? _kitComponentes.slice() : [],
     stockMin: Number(document.getElementById('prodStockMin').value) || 0,
     stockIdeal: Number(document.getElementById('prodStockIdeal').value) || 0,
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
@@ -14936,16 +15064,34 @@ async function confirmarVenta(){
       var cacheUpdates = [];
       for(var i=0; i<carritoVenta.length; i++){
         var item = carritoVenta[i];
-        var prodRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(item.producto._id);
-        var stockActual = (item.producto.stock != null) ? item.producto.stock : 0;
-        var stockNuevo = stockActual - item.cantidad;
-        batch.update(prodRef, {
-          stock: firebase.firestore.FieldValue.increment(-item.cantidad),
-          updatedAt: new Date().toISOString()
-        });
-        item.producto.stock = stockNuevo;   // vista local optimista; el servidor es la fuente real
-        item.producto.updatedAt = new Date().toISOString();
-        cacheUpdates.push(item.producto);
+        if(item.producto.esKit && Array.isArray(item.producto.kitComponentes) && item.producto.kitComponentes.length){
+          // Kit/combo: se descuenta el stock de los componentes (no el del kit)
+          item.producto.kitComponentes.forEach(function(comp){
+            var totalComp = (Number(comp.cantidad) || 1) * item.cantidad;
+            var compRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(comp.productoId);
+            batch.update(compRef, {
+              stock: firebase.firestore.FieldValue.increment(-totalComp),
+              updatedAt: new Date().toISOString()
+            });
+            var localComp = productos.find(function(x){ return x._id === comp.productoId; });
+            if(localComp){
+              localComp.stock = (Number(localComp.stock) || 0) - totalComp;
+              localComp.updatedAt = new Date().toISOString();
+              cacheUpdates.push(localComp);
+            }
+          });
+        } else {
+          var prodRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(item.producto._id);
+          var stockActual = (item.producto.stock != null) ? item.producto.stock : 0;
+          var stockNuevo = stockActual - item.cantidad;
+          batch.update(prodRef, {
+            stock: firebase.firestore.FieldValue.increment(-item.cantidad),
+            updatedAt: new Date().toISOString()
+          });
+          item.producto.stock = stockNuevo;   // vista local optimista; el servidor es la fuente real
+          item.producto.updatedAt = new Date().toISOString();
+          cacheUpdates.push(item.producto);
+        }
       }
       try{
         await batch.commit();
@@ -15024,7 +15170,7 @@ async function cargarVentas(){
 function actualizarStatsVentas(){
   var hoy = new Date().toDateString();
   // Los presupuestos no son ventas: se excluyen de todos los totales
-  var ventasReales = ventas.filter(function(v){ return v.modo !== 'presupuesto'; });
+  var ventasReales = ventas.filter(function(v){ return v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; });
   var ventasHoy = ventasReales.filter(function(v){
     return new Date(v.fecha).toDateString() === hoy;
   });
@@ -15147,7 +15293,7 @@ function renderInicio(){
 
   // Ventas de hoy (sin contar presupuestos)
   var hoy = new Date().toDateString();
-  var ventasArr = (typeof ventas !== 'undefined') ? ventas.filter(function(v){ return v.modo !== 'presupuesto'; }) : [];
+  var ventasArr = (typeof ventas !== 'undefined') ? ventas.filter(function(v){ return v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; }) : [];
   var ventasHoy = ventasArr.filter(function(v){ return new Date(v.fecha).toDateString() === hoy; });
   var facturadoHoy = ventasHoy.reduce(function(a,v){ return a+(v.total||0); }, 0);
   dashSetTxt('dashVentasHoy', ventasHoy.length);
@@ -15603,12 +15749,26 @@ function mostrarTicket(v){
   var convertirBtn = (v.modo==='presupuesto')
     ? '<button class="btn-form" style="margin-top:12px;width:100%" onclick="convertirPresupuestoAVenta()">&#128722; Convertir a venta</button>'
     : '';
+  var notasBtns = (v.modo==='factura' || v.modo==='remito')
+    ? '<div style="display:flex;gap:8px;margin-top:8px">'+
+        '<button class="btn btn-line btn-sm" style="flex:1" onclick="crearNotaCD(\'credito\')">&#128178; Nota de crédito</button>'+
+        '<button class="btn btn-line btn-sm" style="flex:1" onclick="crearNotaCD(\'debito\')">&#128181; Nota de débito</button>'+
+      '</div>'
+    : '';
 
   // Etiqueta del modo
   var modoLbl = 'TICKET';
   if(v.modo === 'factura') modoLbl = 'FACTURA';
   else if(v.modo === 'remito') modoLbl = 'REMITO';
   else if(v.modo === 'presupuesto') modoLbl = 'PRESUPUESTO';
+  else if(v.modo === 'nota_credito') modoLbl = 'NOTA DE CRÉDITO';
+  else if(v.modo === 'nota_debito') modoLbl = 'NOTA DE DÉBITO';
+
+  var esNota = (v.modo === 'nota_credito' || v.modo === 'nota_debito');
+  var notaRefHtml = esNota
+    ? (v.refNumero ? '<div class="ticket-print-line"><span class="l">Ref. comprobante:</span><span class="r">'+eH(v.refNumero)+'</span></div>' : '')+
+      (v.motivo ? '<div class="ticket-print-line"><span class="l">Motivo:</span><span class="r">'+eH(v.motivo)+'</span></div>' : '')
+    : '';
 
   document.getElementById('vDetBody').innerHTML =
     '<div class="ticket-print" id="vTicketPrint">'+
@@ -15620,24 +15780,132 @@ function mostrarTicket(v){
       '</div>'+
       clienteHtml+
       entregaHtml+
+      notaRefHtml+
       '<div class="ticket-print-sep"></div>'+
-      itemsHtml+
-      '<div class="ticket-print-sep"></div>'+
-      '<div class="ticket-print-line"><span class="l">Subtotal neto:</span><span class="r">'+fmtPeso(v.neto||0)+'</span></div>'+
-      '<div class="ticket-print-line"><span class="l">IVA ('+v.ivaPct+'%):</span><span class="r">'+fmtPeso(v.ivaMonto||0)+'</span></div>'+
-      (v.descuentoPct>0?'<div class="ticket-print-line"><span class="l">Descuento ('+v.descuentoPct+'%):</span><span class="r">-'+fmtPeso(v.descuentoMonto)+'</span></div>':'')+
-      '<div class="ticket-print-line ticket-print-total"><span class="l">TOTAL:</span><span class="r">'+fmtPeso(v.total)+'</span></div>'+
-      '<div class="ticket-print-sep"></div>'+
-      pagosHtml+
+      (esNota ? '' :
+        itemsHtml+
+        '<div class="ticket-print-sep"></div>'+
+        '<div class="ticket-print-line"><span class="l">Subtotal neto:</span><span class="r">'+fmtPeso(v.neto||0)+'</span></div>'+
+        '<div class="ticket-print-line"><span class="l">IVA ('+v.ivaPct+'%):</span><span class="r">'+fmtPeso(v.ivaMonto||0)+'</span></div>'+
+        (v.descuentoPct>0?'<div class="ticket-print-line"><span class="l">Descuento ('+v.descuentoPct+'%):</span><span class="r">-'+fmtPeso(v.descuentoMonto)+'</span></div>':'')
+      )+
+      '<div class="ticket-print-line ticket-print-total"><span class="l">'+(v.modo==='nota_credito'?'CRÉDITO:':(v.modo==='nota_debito'?'DÉBITO:':'TOTAL:'))+'</span><span class="r">'+fmtPeso(v.total)+'</span></div>'+
+      (esNota ? '' : '<div class="ticket-print-sep"></div>'+pagosHtml)+
       (v.observaciones?'<div class="ticket-print-sep"></div><div style="font-size:11px;color:var(--text-mute)">Notas: '+eH(v.observaciones)+'</div>':'')+
     '</div>'+
-    editarEntregaBtn + convertirBtn;
+    editarEntregaBtn + convertirBtn + notasBtns;
 
   closeModals();
   document.getElementById('modalDetalleVenta').classList.add('show');
 }
 
 // Abre el modal para editar los datos de entrega del comprobante visible.
+// ── Notas de crédito / débito ──
+var _notaTipo = 'credito';
+var _notaOriginal = null;
+
+function crearNotaCD(tipo){
+  var v = _ventaActualVer;
+  if(!v) return;
+  _notaTipo = (tipo === 'debito') ? 'debito' : 'credito';
+  _notaOriginal = v;
+  var esCred = (_notaTipo === 'credito');
+  document.getElementById('notaEyebrow').textContent = esCred ? '\u{1F4B3} Crédito' : '\u{1F9FE} Débito';
+  document.getElementById('notaTitulo').textContent = esCred ? 'Nota de crédito' : 'Nota de débito';
+  document.getElementById('notaRef').textContent = v.numero || '';
+  document.getElementById('notaMonto').value = esCred ? (v.total || '') : '';
+  document.getElementById('notaMotivo').value = '';
+  var cli = (v.cliente && v.cliente.id) ? (clientes.find(function(x){ return x._id === v.cliente.id; }) || null) : null;
+  var ccWrap = document.getElementById('notaCCWrap');
+  var ccChk = document.getElementById('notaAfectaCC');
+  if(cli && cli.tieneCC){
+    ccWrap.style.display = 'flex';
+    document.getElementById('notaCCLabel').textContent = (esCred ? 'Restar de' : 'Sumar a') + ' la cuenta corriente de ' + (cli.razonSocial||'');
+    ccChk.checked = true;
+  } else {
+    ccWrap.style.display = 'none';
+    ccChk.checked = false;
+  }
+  if(typeof hideAlerts === 'function') hideAlerts();
+  closeModals();
+  document.getElementById('modalNotaCD').classList.add('show');
+}
+
+async function guardarNotaCD(){
+  var v = _notaOriginal;
+  if(!v) return;
+  var esCred = (_notaTipo === 'credito');
+  var monto = Number(document.getElementById('notaMonto').value) || 0;
+  var motivo = document.getElementById('notaMotivo').value.trim();
+  if(monto <= 0){ return showAlert('notaAlert','Ingresá un monto mayor a 0'); }
+  var btn = document.getElementById('notaGuardarBtn');
+  btn.disabled = true; btn.textContent = 'Registrando...';
+  var ahora = new Date();
+  var nota = {
+    numero: (esCred ? 'NC-' : 'ND-') + ahora.getTime().toString().slice(-8),
+    modo: esCred ? 'nota_credito' : 'nota_debito',
+    fecha: ahora.toISOString(),
+    refNumero: v.numero || '',
+    refId: v._id || '',
+    motivo: motivo,
+    cliente: v.cliente || null,
+    items: [], pagos: [],
+    total: monto,
+    afectaCC: false,
+    vendedorUid: currentUser ? currentUser.uid : '',
+    vendedorEmail: currentUser ? currentUser.email : '',
+    creadoEn: ahora.toISOString()
+  };
+  try{
+    var ref = await db.collection('empresas').doc(currentEmpresaId).collection('ventas').add(nota);
+    nota._id = ref.id;
+    if(typeof ventas !== 'undefined') ventas.unshift(nota);
+
+    var ccVisible = (document.getElementById('notaCCWrap').style.display !== 'none');
+    var ccChk = document.getElementById('notaAfectaCC');
+    if(ccVisible && ccChk && ccChk.checked && v.cliente && v.cliente.id){
+      var cli = clientes.find(function(x){ return x._id === v.cliente.id; });
+      if(cli){ nota.afectaCC = true; await ajustarCtaCteNota(cli, esCred ? -monto : monto, nota); }
+    }
+    closeModals();
+    if(typeof renderHistorialVentas === 'function') renderHistorialVentas();
+    if(typeof actualizarStatsVentas === 'function') actualizarStatsVentas();
+    toast((esCred?'Nota de crédito ':'Nota de débito ')+nota.numero+' registrada', 'success');
+    mostrarTicket(nota);
+  }catch(err){
+    showAlert('notaAlert','Error: '+(err.message||''));
+    btn.disabled = false; btn.textContent = 'Registrar \u2713';
+  }
+}
+
+// Ajuste de cuenta corriente para una nota (monto con signo: − crédito, + débito).
+async function ajustarCtaCteNota(cliente, montoSigned, nota){
+  var ahora = new Date();
+  var nuevoSaldo = (cliente.saldoCC || 0) + montoSigned;
+  var saldosPorObra = Object.assign({}, cliente.saldosPorObra || {});
+  delete saldosPorObra[''];
+  saldosPorObra[OBRA_GENERAL_KEY] = (saldosPorObra[OBRA_GENERAL_KEY] || 0) + montoSigned;
+  var movData = {
+    tipo: nota.modo,
+    fecha: nota.fecha,
+    monto: montoSigned,
+    ventaId: nota._id,
+    numero: nota.numero,
+    descripcion: (nota.modo==='nota_credito'?'Nota de crédito':'Nota de débito') + (nota.refNumero?(' s/ '+nota.refNumero):''),
+    subtotalesPorObra: (function(){ var o={}; o[OBRA_GENERAL_KEY]=montoSigned; return o; })(),
+    creadoEn: ahora.toISOString()
+  };
+  var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(cliente._id);
+  var movRef = db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(cliente._id).collection('movimientos').doc();
+  var batch = db.batch();
+  batch.set(movRef, movData);
+  batch.update(cliRef, { saldoCC: nuevoSaldo, saldosPorObra: saldosPorObra, ultimoMovimientoCC: ahora.toISOString(), updatedAt: ahora.toISOString() });
+  await batch.commit();
+  cliente.saldoCC = nuevoSaldo;
+  cliente.saldosPorObra = saldosPorObra;
+  if(typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [cliente]); }catch(e){} }
+}
+
 function abrirEditarEntrega(){
   if(!_ventaActualVer) return;
   document.getElementById('edRetira').value = _ventaActualVer.retira || '';
@@ -16271,6 +16539,8 @@ function construirHtmlVentaA4(v){
   var fechaStr = fecha.toLocaleDateString('es-AR');
   var horaStr = fecha.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
   var modoLbl = (v.modo || 'ticket').toUpperCase();
+  if(v.modo === 'nota_credito') modoLbl = 'NOTA DE CRÉDITO';
+  else if(v.modo === 'nota_debito') modoLbl = 'NOTA DE DÉBITO';
   var empresaNombre = currentEmpresa ? currentEmpresa.nombre : 'Mi Empresa';
 
   // Datos fiscales de la empresa (de config)
