@@ -6493,13 +6493,13 @@
               </div>
 
               <div class="lp-dropzone" id="lpDropzone">
-                <input type="file" id="lpFileInput" accept=".xlsx,.xls" style="display:none">
+                <input type="file" id="lpFileInput" accept=".xlsx,.xls,.csv,.pdf" style="display:none">
                 <div class="lp-dropzone-icon">&#128228;</div>
-                <p class="lp-dropzone-title">Arrastrá el Excel aquí o hacé click para elegirlo</p>
-                <p class="lp-dropzone-sub">Formatos: .xlsx, .xls &middot; Se procesa automáticamente</p>
+                <p class="lp-dropzone-title">Arrastrá el archivo aquí o hacé click para elegirlo</p>
+                <p class="lp-dropzone-sub">Formatos: Excel (.xlsx, .xls) &middot; CSV &middot; PDF con texto &middot; Se procesa automáticamente</p>
               </div>
               <div class="lp-help-box" id="lpHelpSimple">
-                <strong>Formato esperado del Excel:</strong>
+                <strong>Formatos aceptados:</strong> Excel (.xlsx/.xls), CSV y PDF con texto. El contenido ideal:
                 <ul>
                   <li>Una columna con el código del proveedor</li>
                   <li>Una columna con la descripción del producto</li>
@@ -6507,7 +6507,7 @@
                   <li>Opcionalmente: columna con IVA específico</li>
                   <li>Opcionalmente: columna con descuento por producto (%)</li>
                 </ul>
-                Vamos a detectar las columnas automáticamente. Si nos equivocamos, te dejamos corregir el mapeo.
+                Detectamos las columnas automáticamente y, si nos equivocamos, te dejamos corregir el mapeo. <em>Nota: los PDF con texto se leen bien; los escaneados (imagen) no tienen texto — en ese caso conviene Excel o CSV.</em>
               </div>
               <div class="lp-help-box" id="lpHelpSabana" style="display:none">
                 <strong>Lista sábana — varios proveedores en un solo Excel:</strong>
@@ -22358,13 +22358,23 @@ async function lpProcesarArchivo(file){
     if(!prov || !prov._configurado){ toast('Proveedor no configurado', 'error'); return; }
   }
 
-  toast('Leyendo Excel...', 'info');
+  var _ext = (file.name.split('.').pop() || '').toLowerCase();
+  toast(_ext === 'pdf' ? 'Leyendo PDF...' : 'Leyendo archivo...', 'info');
 
   try{
-    var data = await lpLeerArchivo(file);
-    var wb = XLSX.read(data, {type: 'array'});
-    var sheet = wb.Sheets[wb.SheetNames[0]];
-    var rowsRaw = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+    var rowsRaw;
+    if(_ext === 'pdf'){
+      rowsRaw = await lpRowsFromPDF(file);
+      if(!rowsRaw || rowsRaw.length === 0){
+        toast('Este PDF no tiene texto legible (¿es escaneado o una imagen?). Convertilo a Excel/CSV.', 'error');
+        return;
+      }
+    } else {
+      var data = await lpLeerArchivo(file);
+      var wb = XLSX.read(data, {type: 'array'});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      rowsRaw = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+    }
 
     // Detectar fila de headers: la fila real tiene VARIAS columnas con nombres
     // de campo. Puntúa cada fila por coincidencias y elige la mejor (las listas
@@ -22553,6 +22563,56 @@ function lpLeerArchivo(file){
     reader.onerror = function(){ reject(reader.error); };
     reader.readAsArrayBuffer(file);
   });
+}
+
+// Carga diferida de pdf.js (solo cuando se sube un PDF).
+function lpEnsurePdfJs(){
+  return new Promise(function(resolve, reject){
+    if(window.pdfjsLib){ resolve(window.pdfjsLib); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = function(){
+      try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }catch(e){}
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = function(){ reject(new Error('No se pudo cargar el lector de PDF')); };
+    document.head.appendChild(s);
+  });
+}
+
+// Convierte un PDF (con texto) en una matriz de filas/columnas, detectando
+// columnas por la posición horizontal del texto. Best-effort: las listas en
+// PDF con texto real salen bien; las escaneadas (imagen) no tienen texto.
+async function lpRowsFromPDF(file){
+  var pdfjsLib = await lpEnsurePdfJs();
+  var buf = await lpLeerArchivo(file);
+  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  var rows = [];
+  for(var pageNum = 1; pageNum <= pdf.numPages; pageNum++){
+    var page = await pdf.getPage(pageNum);
+    var content = await page.getTextContent();
+    // Agrupar fragmentos por línea (coordenada Y, con tolerancia)
+    var lines = {};
+    content.items.forEach(function(it){
+      if(!it.str || !it.str.trim()) return;
+      var y = Math.round(it.transform[5] / 3) * 3; // tolerancia vertical
+      (lines[y] = lines[y] || []).push({ x: it.transform[4], w: it.width || 0, s: it.str });
+    });
+    // De arriba hacia abajo
+    var ys = Object.keys(lines).map(Number).sort(function(a, b){ return b - a; });
+    ys.forEach(function(y){
+      var cells = lines[y].sort(function(a, b){ return a.x - b.x; });
+      var row = [], cur = '', prevEnd = null;
+      cells.forEach(function(c){
+        if(prevEnd !== null && (c.x - prevEnd) > 14){ row.push(cur.trim()); cur = ''; } // salto → nueva columna
+        cur += (cur ? ' ' : '') + c.s;
+        prevEnd = c.x + c.w;
+      });
+      if(cur.trim()) row.push(cur.trim());
+      if(row.length) rows.push(row);
+    });
+  }
+  return rows;
 }
 
 // Detecta la columna de IVA (alícuota), evitando columnas de precio que
