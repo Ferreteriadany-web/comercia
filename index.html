@@ -22448,6 +22448,22 @@ async function lpProcesarArchivo(file){
     if(colDesc >= 0) excl.push(colDesc);
     var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
 
+    // Si una columna OPCIONAL detectada está completamente vacía en los datos,
+    // la ignoramos (ej.: Dux exporta "Porc. Utilidad" sin valores). Así el
+    // margen/IVA/descuento que se aplica es el configurado en el proveedor.
+    function _colTieneDatos(idx){
+      if(idx < 0) return false;
+      for(var k = headerRowIdx + 1; k < rowsRaw.length; k++){
+        var rr = rowsRaw[k]; if(!rr) continue;
+        var v = rr[idx];
+        if(v !== null && v !== undefined && String(v).trim() !== '') return true;
+      }
+      return false;
+    }
+    if(!_colTieneDatos(colMargen)) colMargen = -1;
+    if(!_colTieneDatos(colDescuento)) colDescuento = -1;
+    if(!_colTieneDatos(colIva)) colIva = -1;
+
     // Guardar contexto para el mapeo manual (por si hay que corregir columnas)
     lpImpCtx = {
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
@@ -23296,4 +23312,3 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
-  
