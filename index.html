@@ -6531,6 +6531,7 @@
                   <p class="lp-pane-title" style="margin:0">Vista previa</p>
                   <p class="lp-pane-sub" id="lpPreviewSubtitle"></p>
                 </div>
+                <button class="btn btn-sm btn-light" onclick="lpAbrirMapeoColumnas()" title="Elegí a mano qué columna es el código, el precio, el IVA, el descuento, etc.">&#9881; Revisar columnas</button>
               </div>
 
               <!-- Cotización del dólar (aparece si hay ítems en US$) -->
@@ -22523,7 +22524,18 @@ async function lpProcesarArchivo(file){
     if(colCodigo >= 0) excl.push(colCodigo);
     var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc'], excl);
     if(colDesc >= 0) excl.push(colDesc);
-    var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
+    // Detección del precio/costo:
+    // 1) descartar columnas que son precio de VENTA (PVP, precio de venta, público)
+    // 2) preferir la columna de COSTO / NETO
+    // 3) si no, precio de lista / genérico
+    var ventaIdx = [];
+    headers.forEach(function(h, idx){
+      if(/venta|pvp|p\.v\.p|p[uú]blico|sugerido|minorista|mayorista/.test(h)) ventaIdx.push(idx);
+    });
+    var exclP = excl.concat(ventaIdx);
+    var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'precio de costo', 'costo neto', 'neto', 'costo'], exclP);
+    if(colPrecio < 0) colPrecio = lpDetectarCol(headers, ['precio de lista', 'precio lista', 'precio', 'valor', 'importe'], exclP);
+    if(colPrecio < 0) colPrecio = lpDetectarCol(headers, ['precio neto', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
 
     // Si una columna OPCIONAL detectada está completamente vacía en los datos,
     // la ignoramos (ej.: Dux exporta "Porc. Utilidad" sin valores). Así el
@@ -22630,8 +22642,16 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     if(!codigo || isNaN(precio) || precio <= 0) continue;
     var desc = colDesc >= 0 ? String(r[colDesc] || '').trim() : '';
     var iva = colIva >= 0 ? Number(r[colIva]) : null;
+    // Algunas listas traen el IVA como fracción (0,21) en vez de porcentaje (21).
+    if(iva !== null && !isNaN(iva) && iva > 0 && iva < 1) iva = iva * 100;
     var descProd = null;
-    if(colDescuento >= 0){ var dv = Number(r[colDescuento]); if(!isNaN(dv)) descProd = Math.max(0, Math.min(100, dv)); }
+    if(colDescuento >= 0){
+      var dv = Number(r[colDescuento]);
+      if(!isNaN(dv)){
+        if(dv > 0 && dv < 1) dv = dv * 100;   // descuento como fracción (0,19 → 19%)
+        descProd = Math.max(0, Math.min(100, dv));
+      }
+    }
     var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
       ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
     // Margen por producto desde el archivo (override del tramo del proveedor).
@@ -22641,7 +22661,10 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       var rawMg = r[colMargen];
       if(rawMg !== null && rawMg !== undefined && String(rawMg).trim() !== ''){
         var mgv = Number(String(rawMg).replace('%','').replace(',','.'));
-        if(!isNaN(mgv) && mgv >= 0){ fila.margenCustom = mgv; }
+        if(!isNaN(mgv) && mgv >= 0){
+          if(mgv > 0 && mgv < 1) mgv = mgv * 100;  // margen como fracción (0,40 → 40%)
+          fila.margenCustom = mgv;
+        }
       }
     }
     if(colMoneda >= 0){
