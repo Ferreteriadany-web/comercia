@@ -22824,7 +22824,10 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     // Si no hay columna de descuento pero hay una de "Precio neto", calculamos
     // el % de descuento de cada producto: 1 − (neto / lista). Así el descuento
     // que varía por producto sale solo del archivo.
-    if(descProd === null && colPrecioNeto >= 0){
+    // OJO: si el proveedor YA tiene un descuento configurado, ese manda y NO
+    // derivamos (si no, se duplicarían: el del proveedor × el del archivo).
+    var _provTieneDesc = (prov && Number(prov.descuentoProveedor) > 0);
+    if(descProd === null && colPrecioNeto >= 0 && !_provTieneDesc){
       var netoVal = Number(r[colPrecioNeto]);
       if(!isNaN(netoVal) && netoVal > 0 && precio > 0 && netoVal <= precio){
         var d = (1 - (netoVal / precio)) * 100;
