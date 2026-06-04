@@ -5733,6 +5733,7 @@
             <span class="ped-sync-ind" id="pedSyncIndicator"><span class="ped-sync-dot"></span> Cargando...</span>
           </div>
           <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="pedCargarStockBajo()">&#128230; Reponer stock bajo</button>
             <button class="btn btn-line btn-sm" onclick="limpiarPedido()">&#10005; Limpiar</button>
             <button class="btn btn-primary btn-sm" onclick="exportarPedidoExcel()">&#128190; Exportar Excel</button>
           </div>
@@ -13319,6 +13320,34 @@ function agregarDesdeSearch(){
   } else if(inp.value.trim()){
     showPedDropdown(inp.value);
   }
+}
+
+// Carga a la orden de compra todos los productos en alerta de stock bajo,
+// con la cantidad sugerida para reponer (llevar al stock ideal, o al mínimo).
+function pedCargarStockBajo(){
+  if(typeof productos === 'undefined' || !productos.length){ toast('No hay productos cargados', 'error'); return; }
+  var bajos = productos.filter(function(p){ return esStockBajo(p); });
+  if(bajos.length === 0){ toast('No hay productos en alerta de stock bajo', 'info'); return; }
+  var agregados = 0, yaEstaban = 0;
+  bajos.forEach(function(p){
+    if(pedItems.find(function(x){ return x.producto._id === p._id; })){ yaEstaban++; return; }
+    var stock = Number(p.stock) || 0;
+    var target = (Number(p.stockIdeal) > 0) ? Number(p.stockIdeal) : (Number(p.stockMin) || 0);
+    var cant = Math.max(1, Math.ceil(target - stock));
+    pedItems.push({ producto: p, cantidad: cant });
+    agregados++;
+  });
+  renderPedido();
+  actualizarStatsPedido();
+  guardarPedidoCompartido();
+  var msg;
+  if(agregados > 0){
+    msg = agregados + ' producto' + (agregados!==1?'s':'') + ' en alerta agregado' + (agregados!==1?'s':'') + ' a la orden';
+    if(yaEstaban > 0) msg += ' \u00b7 ' + yaEstaban + ' ya estaba' + (yaEstaban!==1?'n':'');
+  } else {
+    msg = 'Los productos en alerta ya estaban en la orden';
+  }
+  toast(msg, 'success');
 }
 
 function pedAddRow(i, id){
@@ -22512,10 +22541,15 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     if(colDescuento >= 0){ var dv = Number(r[colDescuento]); if(!isNaN(dv)) descProd = Math.max(0, Math.min(100, dv)); }
     var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
       ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
-    // Margen por producto desde el Excel (override del tramo del proveedor)
+    // Margen por producto desde el archivo (override del tramo del proveedor).
+    // OJO: una celda vacía NO es 0% — debe caer al tramo del proveedor,
+    // si no el producto quedaría vendiéndose al costo.
     if(colMargen >= 0){
-      var mgv = Number(r[colMargen]);
-      if(!isNaN(mgv) && mgv >= 0){ fila.margenCustom = mgv; }
+      var rawMg = r[colMargen];
+      if(rawMg !== null && rawMg !== undefined && String(rawMg).trim() !== ''){
+        var mgv = Number(String(rawMg).replace('%','').replace(',','.'));
+        if(!isNaN(mgv) && mgv >= 0){ fila.margenCustom = mgv; }
+      }
     }
     if(colMoneda >= 0){
       var mv = String(r[colMoneda] || '').trim().toLowerCase();
@@ -23262,3 +23296,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+  
