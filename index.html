@@ -6673,6 +6673,11 @@
               <p class="lp-form-help">Si elegís dólares, al importar te vamos a pedir la cotización para convertir a pesos. Podés cambiarla en cada importación.</p>
             </div>
             <div class="lp-form-row">
+              <label>Cotización del dólar (para recalcular)</label>
+              <input type="number" class="search-input" id="lpModalCotizacion" step="0.01" min="0" value="0" placeholder="Ej: 1219" style="max-width:280px">
+              <p class="lp-form-help">El dólar que se usa al tocar &#8220;Recalcular precios&#8221; en este proveedor. Solo aplica a los productos en dólares. Dejalo en 0 si el proveedor es solo en pesos.</p>
+            </div>
+            <div class="lp-form-row">
               <label>Tramos de ganancia por monto</label>
               <p class="lp-form-help">A productos más baratos podés sacarles más ganancia. A más caros, menos. Los tramos se aplican según el costo del producto.</p>
               <div id="lpModalTramos"></div>
@@ -6697,6 +6702,7 @@
           <div class="modal-actions">
             <button class="btn btn-sm btn-light" onclick="lpCerrarModal()">Cancelar</button>
             <button class="btn btn-sm btn-danger" id="lpBtnEliminarProv" onclick="lpEliminarProveedor()" style="display:none;margin-right:auto">Eliminar</button>
+            <button class="btn btn-sm btn-line" onclick="lpGuardarYRecalcular()" title="Guarda la config y recalcula el precio de todos los productos de este proveedor">&#128260; Guardar y recalcular precios</button>
             <button class="btn btn-sm btn-primary" onclick="lpGuardarProveedor()">Guardar</button>
           </div>
         </div>
@@ -21237,14 +21243,13 @@ function lpProvDefault(nombre){
     id: lpSanitizarId(nombre),
     proveedorNombre: nombre,
     descuentoProveedor: 0,
-    ivaDefault: 0,
+    ivaDefault: 21,
     baseGanancia: 'conDescuento',
     moneda: 'ARS',
+    // Base "igual a Dux": 40% de ganancia parejo. El costo de Dux ya es neto
+    // (con el descuento del proveedor adentro), por eso el descuento queda en 0.
     tramos: [
-      { desde: 0, hasta: 500, ganancia: 50 },
-      { desde: 500, hasta: 5000, ganancia: 40 },
-      { desde: 5000, hasta: 50000, ganancia: 35 },
-      { desde: 50000, hasta: null, ganancia: 30 }
+      { desde: 0, hasta: null, ganancia: 40 }
     ],
     _configurado: false,
     _autoCreado: true
@@ -21522,7 +21527,10 @@ function lpRenderProveedorCard(p){
           '<p class="lp-prov-meta">' + eH(fechaTxt) + '</p>' +
         '</div>' +
       '</div>' +
-      '<button class="btn btn-sm" onclick="lpAbrirEditarProveedor(\'' + p.id + '\')">Editar</button>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn btn-sm btn-line" onclick="lpRecalcularProveedor(\'' + p.id + '\')" title="Aplicar la ganancia/descuento/IVA actuales a todos los productos de este proveedor">&#8635; Recalcular precios</button>' +
+        '<button class="btn btn-sm" onclick="lpAbrirEditarProveedor(\'' + p.id + '\')">Editar</button>' +
+      '</div>' +
     '</div>' +
     '<div class="lp-prov-stats">' +
       '<div class="lp-prov-stat">' +
@@ -21574,7 +21582,7 @@ function lpAbrirNuevoProveedor(){
   document.getElementById('lpModalIva').value = '21';
   document.getElementById('lpModalBase').value = 'conDescuento';
   document.getElementById('lpModalMoneda').value = 'ARS';
-  document.getElementById('lpBtnEliminarProv').style.display = 'none';
+  document.getElementById('lpModalCotizacion').value = 0;  document.getElementById('lpBtnEliminarProv').style.display = 'none';
   lpRenderTramos();
   lpRecalcularPreview();
   document.getElementById('lpModalProveedor').classList.add('show');
@@ -21584,13 +21592,10 @@ function lpAbrirEditarProveedor(provId){
   var prov = lpState.proveedores.find(function(p){ return p.id === provId; });
   if(!prov) return;
   lpState.proveedorEditando = provId;
-  // Si no estaba configurado, usar tramos por defecto
+  // Si no estaba configurado, usar la base de Dux: 40% parejo
   if(!prov._configurado){
     lpState.tramosEditando = [
-      { desde: 0, hasta: 500, ganancia: 50 },
-      { desde: 500, hasta: 5000, ganancia: 40 },
-      { desde: 5000, hasta: 50000, ganancia: 35 },
-      { desde: 50000, hasta: null, ganancia: 30 }
+      { desde: 0, hasta: null, ganancia: 40 }
     ];
   } else {
     lpState.tramosEditando = (prov.tramos || []).map(function(t){
@@ -21608,6 +21613,7 @@ function lpAbrirEditarProveedor(provId){
   document.getElementById('lpModalIva').value = String(prov.ivaDefault != null ? prov.ivaDefault : 0);
   document.getElementById('lpModalBase').value = prov.baseGanancia || 'conDescuento';
   document.getElementById('lpModalMoneda').value = prov.moneda || 'ARS';
+  document.getElementById('lpModalCotizacion').value = Number(prov.cotizacion) || 0;
   document.getElementById('lpBtnEliminarProv').style.display = 'inline-block';
   lpRenderTramos();
   lpRecalcularPreview();
@@ -22019,6 +22025,76 @@ function lpRecalcularPreview(){
   document.getElementById('lpCalcBreakdown').innerHTML = html;
 }
 
+// Recalcula el precio de TODOS los productos de un proveedor con su config
+// actual (ganancia/descuento/IVA/cotización), usando el costo neto guardado.
+async function lpRecalcularProveedor(provId){
+  var prov = lpState.proveedores.find(function(p){ return p.id === provId; });
+  if(!prov){ toast('Proveedor no encontrado', 'error'); return; }
+  var nombreProv = prov.proveedorNombre || prov.nombre || '';
+  var todos = (typeof productos !== 'undefined') ? productos.filter(function(p){ return (p.proveedor||'') === nombreProv; }) : [];
+  var conCosto = todos.filter(function(p){ return p.costoNeto != null && Number(p.costoNeto) > 0; });
+  var sinCosto = todos.length - conCosto.length;
+  if(conCosto.length === 0){
+    toast(todos.length > 0
+      ? 'Estos productos se importaron antes de esta función (sin costo base guardado). Reimportá la lista una vez y después el recálculo ya funciona.'
+      : 'Este proveedor no tiene productos cargados.', 'info');
+    return;
+  }
+  var hayUsd = conCosto.some(function(p){ return (p.costoMoneda || prov.moneda) === 'USD'; });
+  if(hayUsd && !(Number(prov.cotizacion) > 0)){
+    toast('Hay productos en dólares. Cargá la cotización del dólar de este proveedor (Editar) antes de recalcular.', 'error');
+    return;
+  }
+  if(!confirm('Recalcular el precio de ' + conCosto.length + ' producto(s) de "' + nombreProv + '" con la ganancia, descuento e IVA actuales?')) return;
+
+  var nowIso = new Date().toISOString();
+  var actualizados = [];
+  try{
+    for(var start = 0; start < conCosto.length; start += 400){
+      var slice = conCosto.slice(start, start + 400);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        var monedaP = p.costoMoneda || prov.moneda || 'ARS';
+        var provCalc = Object.assign({}, prov, {
+          descProducto: Number(p.descuentoProducto) || 0,
+          moneda: monedaP,
+          cotizacion: (monedaP === 'USD') ? (Number(prov.cotizacion) || 0) : 0
+        });
+        if(p.margenProducto != null){
+          provCalc = Object.assign({}, provCalc, { tramos: [{ desde: 0, hasta: null, ganancia: Number(p.margenProducto) || 0 }] });
+        }
+        var calc = lpCalcularPrecio(Number(p.costoNeto), provCalc);
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id);
+        batch.update(ref, {
+          precioVenta: calc.final,
+          precioCosto: Math.round(calc.conDesc),
+          fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        p.precioVenta = calc.final;
+        p.precioCosto = Math.round(calc.conDesc);
+        p.fechaUltimoCambioPrecio = nowIso;
+        actualizados.push(p);
+      });
+      await batch.commit();
+    }
+    try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
+    var msg = '✅ ' + actualizados.length + ' precio(s) recalculado(s)';
+    if(sinCosto > 0) msg += ' · ' + sinCosto + ' sin costo base (reimportá esos)';
+    toast(msg, 'success');
+  }catch(err){
+    console.error(err);
+    toast('Error al recalcular: ' + (err.message || ''), 'error');
+  }
+}
+
+// Guarda la config del proveedor y, acto seguido, recalcula sus precios.
+async function lpGuardarYRecalcular(){
+  var pid = lpState.proveedorEditando;
+  try{ await lpGuardarProveedor(); }catch(e){}
+  if(typeof lpCargarProveedores === 'function'){ try{ await lpCargarProveedores(); }catch(e){} }
+  if(pid) await lpRecalcularProveedor(pid);
+}
+
 async function lpGuardarProveedor(){
   var nombre = document.getElementById('lpModalNombre').value.trim();
   if(!nombre){ toast('Falta el nombre del proveedor', 'error'); return; }
@@ -22038,6 +22114,7 @@ async function lpGuardarProveedor(){
     ivaDefault: (function(){ var v = document.getElementById('lpModalIva').value; var n = Number(v); return (v === '' || isNaN(n)) ? 0 : n; })(),
     baseGanancia: document.getElementById('lpModalBase').value || 'conDescuento',
     moneda: document.getElementById('lpModalMoneda').value || 'ARS',
+    cotizacion: Number(document.getElementById('lpModalCotizacion').value) || 0,
     tramos: tramosOrdenados,
     actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -23139,6 +23216,8 @@ async function lpEjecutarAplicar(filas){
         var dataFs = {
           precioVenta: r.calc.final,
           precioCosto: Math.round(r.calc.conDesc),
+          costoNeto: r.precioNeto,
+          costoMoneda: r._monedaRaw || (r._prov && r._prov.moneda) || 'ARS',
           proveedor: provNombre,
           descuentoProducto: descProd,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
@@ -23148,6 +23227,8 @@ async function lpEjecutarAplicar(filas){
         var dataLocal = {
           precioVenta: r.calc.final,
           precioCosto: Math.round(r.calc.conDesc),
+          costoNeto: r.precioNeto,
+          costoMoneda: r._monedaRaw || (r._prov && r._prov.moneda) || 'ARS',
           proveedor: provNombre,
           descuentoProducto: descProd,
           fechaUltimoCambioPrecio: nowIso
