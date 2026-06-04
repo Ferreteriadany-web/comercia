@@ -3592,6 +3592,9 @@
   .vci-price{font-family:var(--mono);font-size:12px;color:var(--text-soft)}
   .vci-price-input{width:74px;font-family:var(--mono);font-size:12px;color:var(--text);border:1px solid var(--line-2);border-radius:6px;padding:1px 5px;background:var(--bg);text-align:right;margin:0 2px}
   .vci-price-input:focus{outline:none;border-color:var(--accent)}
+  .vci-modo{display:inline-flex;gap:0;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;margin-right:6px}
+  .vci-modo-btn{font-size:10px;padding:2px 7px;background:var(--bg);color:var(--text-mute);border:none;cursor:pointer;white-space:nowrap}
+  .vci-modo-btn.active{background:var(--accent);color:#fff;font-weight:600}
   .vci-subtotal{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--success);letter-spacing:-0.005em}
   .vci-remove{
     background:transparent;
@@ -7332,6 +7335,15 @@
       </div>
       <div class="stock-repo" id="prodStockRepo"></div>
       <div class="prod-foto-hint" style="margin-top:8px">El <strong>mínimo</strong> dispara la alerta (si es 0, este producto no alerta). El <strong>ideal</strong> es el nivel al que te gusta reponer: si lo cargás, te sugerimos cuánto comprar.</div>
+
+      <div class="form-section-title" style="margin-top:16px">Venta por caja / bulto</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Unidades por caja <span style="color:var(--text-mute);font-weight:400">(opcional)</span></label>
+          <input class="form-input" type="number" id="prodUnidadesBulto" placeholder="0" min="0" step="1">
+        </div>
+      </div>
+      <div class="prod-foto-hint">Si lo cargás (ej.: 100), en la venta vas a poder elegir vender <strong>por unidad</strong> o <strong>por caja</strong>. El precio de la caja es el unitario &times; las unidades, y descuenta del stock las unidades de la caja. Dejalo en 0 si este producto solo se vende por unidad.</div>
     </div><!-- /prodTabStock -->
 
     <button class="btn-form" id="btnSaveProduct" onclick="saveProduct()">Guardar producto</button>
@@ -10699,6 +10711,7 @@ function openProductModal(){
   document.getElementById('prodStock').value = '';
   document.getElementById('prodStockMin').value = '';
   document.getElementById('prodStockIdeal').value = '';
+  document.getElementById('prodUnidadesBulto').value = '';
   _prodStockOriginal = null;
   prodFotoReset();
   prodBarcodeRender();
@@ -10734,6 +10747,7 @@ function editProduct(id){
   _prodStockOriginal = (p.stock != null ? p.stock : 0);
   document.getElementById('prodStockMin').value = (p.stockMin != null ? p.stockMin : '');
   document.getElementById('prodStockIdeal').value = (p.stockIdeal != null ? p.stockIdeal : '');
+  document.getElementById('prodUnidadesBulto').value = (p.unidadesPorBulto ? p.unidadesPorBulto : '');
   prodFotoReset();
   if(p.fotoUrl){
     prodFotoMostrar(p.fotoUrl);
@@ -10771,6 +10785,7 @@ async function saveProduct(){
     kitComponentes: document.getElementById('prodEsKit').checked ? _kitComponentes.slice() : [],
     stockMin: Number(document.getElementById('prodStockMin').value) || 0,
     stockIdeal: Number(document.getElementById('prodStockIdeal').value) || 0,
+    unidadesPorBulto: Number(document.getElementById('prodUnidadesBulto').value) || 0,
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
     fotoPath: document.getElementById('prodFotoPath').value || '',
     updatedAt: new Date().toISOString()
@@ -14011,7 +14026,34 @@ function redondearPrecio(n){
 function precioItem(item){
   if(!item) return 0;
   if(item.precioOverride != null && item.precioOverride !== '') return Number(item.precioOverride) || 0;
-  return redondearPrecio(precioDe(item.producto));
+  var base = redondearPrecio(precioDe(item.producto));
+  if(item.modo === 'caja'){
+    var n = Number(item.producto && item.producto.unidadesPorBulto) || 1;
+    return base * n;   // precio de la caja = unitario × unidades por caja
+  }
+  return base;
+}
+
+// Unidades de stock que representa una línea (cajas → unidades)
+function unidadesItem(item){
+  if(!item) return 0;
+  var cant = Number(item.cantidad) || 0;
+  if(item.modo === 'caja'){
+    var n = Number(item.producto && item.producto.unidadesPorBulto) || 1;
+    return cant * n;
+  }
+  return cant;
+}
+
+// Cambia una línea entre vender por unidad o por caja
+function setModoItem(idx, modo){
+  var item = carritoVenta[idx];
+  if(!item) return;
+  item.modo = (modo === 'caja') ? 'caja' : 'unidad';
+  item.precioOverride = null;   // el precio se recalcula según el modo
+  renderCarrito();
+  recalcularVenta();
+  guardarCarritoUsuario();
 }
 
 function setPrecioItem(idx, val){
@@ -14645,6 +14687,15 @@ function renderCarrito(){
 
     // Estado: ¿está en pedido?
     var enPedido = pedItems.find(function(x){ return x.producto._id === p._id; });
+    var ubLinea = Number(p.unidadesPorBulto) || 0;
+    var modoSelHtml = '';
+    if(ubLinea > 1){
+      modoSelHtml = '<div class="vci-modo">'+
+        '<button class="vci-modo-btn'+(item.modo!=='caja'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">Unidad</button>'+
+        '<button class="vci-modo-btn'+(item.modo==='caja'?' active':'')+'" onclick="setModoItem('+i+',\'caja\')">Caja x'+ubLinea+'</button>'+
+      '</div>';
+    }
+    var precioLabelLinea = (item.modo === 'caja') ? ' c/caja' : ' c/u';
     var enPedidoCant = enPedido ? enPedido.cantidad : 0;
     var pedBadge = enPedido
       ? '<span class="vci-ped-badge" title="Ya en pedido">&#128722; En pedido: '+enPedido.cantidad+'</span>'
@@ -14671,7 +14722,8 @@ function renderCarrito(){
         '<button class="vci-qty-btn" onclick="incCarrito('+i+')">+</button>'+
       '</div>'+
       '<div class="vci-row2">'+
-        '<span class="vci-price">$<input class="vci-price-input" type="number" min="0" step="1" value="'+precioItem(item)+'" onfocus="this.select()" onchange="setPrecioItem('+i+',this.value)" title="Precio unitario (editable)"> c/u</span>'+
+        modoSelHtml+
+        '<span class="vci-price">$<input class="vci-price-input" type="number" min="0" step="1" value="'+precioItem(item)+'" onfocus="this.select()" onchange="setPrecioItem('+i+',this.value)" title="Precio (editable)">'+precioLabelLinea+'</span>'+
         '<div style="display:flex;align-items:center;gap:6px">'+
           '<span class="vci-subtotal">'+fmtPeso(subt)+'</span>'+
           '<button class="vci-remove" onclick="quitarDelCarrito('+i+')" title="Quitar">&#128465;</button>'+
@@ -15159,8 +15211,9 @@ async function confirmarVenta(){
     var faltantes = [];
     carritoVenta.forEach(function(item){
       var p = item.producto;
-      if(p && p.stock != null && (p.stock - item.cantidad) < 0 && (p.stock > 0 || Number(p.stockMin) > 0)){
-        faltantes.push('\u00b7 ' + (p.descripcion || p.codigo || 'Producto') + ': hay ' + p.stock + ', vendés ' + item.cantidad);
+      var uds = unidadesItem(item);
+      if(p && p.stock != null && (p.stock - uds) < 0 && (p.stock > 0 || Number(p.stockMin) > 0)){
+        faltantes.push('\u00b7 ' + (p.descripcion || p.codigo || 'Producto') + ': hay ' + p.stock + ', vend\u00e9s ' + uds + (item.modo === 'caja' ? ' (' + item.cantidad + ' caja' + (item.cantidad!==1?'s':'') + ')' : ''));
       }
     });
     if(faltantes.length){
@@ -15195,13 +15248,18 @@ async function confirmarVenta(){
         direccion: clienteVenta.direccion || ''
       } : null,
       items: carritoVenta.map(function(item){
+        var esCaja = (item.modo === 'caja');
+        var ub = Number(item.producto.unidadesPorBulto) || 0;
         return {
           productoId: item.producto._id,
           codigo: item.producto.codigo,
-          descripcion: item.producto.descripcion,
+          descripcion: (item.producto.descripcion || '') + (esCaja ? ' (caja x' + ub + ')' : ''),
           precioUnit: precioItem(item),
           cantidad: item.cantidad,
           subtotal: precioItem(item) * item.cantidad,
+          modo: esCaja ? 'caja' : 'unidad',
+          unidadesPorBulto: esCaja ? ub : 0,
+          unidadesTotales: unidadesItem(item),
           obra: item.obra || ''
         };
       }),
@@ -15232,10 +15290,11 @@ async function confirmarVenta(){
       var cacheUpdates = [];
       for(var i=0; i<carritoVenta.length; i++){
         var item = carritoVenta[i];
+        var uds = unidadesItem(item);   // unidades reales (si es caja, cantidad × unidades por caja)
         if(item.producto.esKit && Array.isArray(item.producto.kitComponentes) && item.producto.kitComponentes.length){
           // Kit/combo: se descuenta el stock de los componentes (no el del kit)
           item.producto.kitComponentes.forEach(function(comp){
-            var totalComp = (Number(comp.cantidad) || 1) * item.cantidad;
+            var totalComp = (Number(comp.cantidad) || 1) * uds;
             var compRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(comp.productoId);
             batch.update(compRef, {
               stock: firebase.firestore.FieldValue.increment(-totalComp),
@@ -15251,9 +15310,9 @@ async function confirmarVenta(){
         } else {
           var prodRef = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(item.producto._id);
           var stockActual = (item.producto.stock != null) ? item.producto.stock : 0;
-          var stockNuevo = stockActual - item.cantidad;
+          var stockNuevo = stockActual - uds;
           batch.update(prodRef, {
-            stock: firebase.firestore.FieldValue.increment(-item.cantidad),
+            stock: firebase.firestore.FieldValue.increment(-uds),
             updatedAt: new Date().toISOString()
           });
           item.producto.stock = stockNuevo;   // vista local optimista; el servidor es la fuente real
@@ -21530,6 +21589,7 @@ function lpRenderProveedorCard(p){
       '</div>' +
       '<div style="display:flex;gap:6px">' +
         '<button class="btn btn-sm btn-line" onclick="lpRecalcularProveedor(\'' + p.id + '\')" title="Aplicar la ganancia/descuento/IVA actuales a todos los productos de este proveedor">&#8635; Recalcular precios</button>' +
+        '<button class="btn btn-sm btn-line" onclick="lpAumentarProveedor(\'' + p.id + '\')" title="Aumentar (o bajar) un % a todos los productos de este proveedor">&#43;% Aumento</button>' +
         '<button class="btn btn-sm" onclick="lpAbrirEditarProveedor(\'' + p.id + '\')">Editar</button>' +
       '</div>' +
     '</div>' +
@@ -22088,6 +22148,54 @@ async function lpRecalcularProveedor(provId){
   }
 }
 
+// Aumenta (o baja) un % a TODOS los productos de un proveedor: costo y venta.
+async function lpAumentarProveedor(provId){
+  var prov = (lpState.proveedores || []).find(function(p){ return p.id === provId; });
+  if(!prov){ toast('Proveedor no encontrado', 'error'); return; }
+  var provNombre = prov.proveedorNombre || prov.nombre || '';
+  var prods = (productos || []).filter(function(p){ return p.proveedor === provNombre; });
+  if(prods.length === 0){ toast('Este proveedor no tiene productos', 'info'); return; }
+  var raw = prompt('¿Qué % de aumento aplicar a TODOS los productos de "' + provNombre + '"?\n\nEj: 15 para +15%. Para bajar, negativo: -10');
+  if(raw === null) return;
+  var pct = Number(String(raw).replace('%', '').replace(',', '.').trim());
+  if(isNaN(pct) || pct === 0){ toast('Ingresá un número válido (ej: 15)', 'error'); return; }
+  if(!confirm('Aplicar ' + (pct > 0 ? '+' : '') + pct + '% a ' + prods.length + ' producto' + (prods.length!==1?'s':'') + ' de "' + provNombre + '"?\n\nSe ajustan costo y precio de venta (el margen se mantiene).')) return;
+
+  var factor = 1 + pct / 100;
+  try{
+    var nowIso = new Date().toISOString();
+    var actualizados = [];
+    var batchSize = 400;
+    for(var start = 0; start < prods.length; start += batchSize){
+      var slice = prods.slice(start, start + batchSize);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        var nuevaVenta = Math.max(0, Math.round((Number(p.precioVenta) || 0) * factor));
+        var nuevoCosto = Math.max(0, Math.round((Number(p.precioCosto) || 0) * factor));
+        var data = {
+          precioVenta: nuevaVenta,
+          precioCosto: nuevoCosto,
+          fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if(p.costoNeto != null) data.costoNeto = (Number(p.costoNeto) || 0) * factor;  // base para recalcular después
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id);
+        batch.set(ref, data, { merge: true });
+        p.precioVenta = nuevaVenta;
+        p.precioCosto = nuevoCosto;
+        if(p.costoNeto != null) p.costoNeto = (Number(p.costoNeto) || 0) * factor;
+        p.fechaUltimoCambioPrecio = nowIso;
+        actualizados.push(p);
+      });
+      await batch.commit();
+    }
+    try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
+    toast('Aplicado ' + (pct > 0 ? '+' : '') + pct + '% a ' + prods.length + ' productos de ' + provNombre, 'success');
+  }catch(err){
+    console.error(err);
+    toast('Error al aplicar el aumento: ' + (err.message || ''), 'error');
+  }
+}
+
 // Guarda la config del proveedor y, acto seguido, recalcula sus precios.
 async function lpGuardarYRecalcular(){
   var pid = lpState.proveedorEditando;
@@ -22514,12 +22622,14 @@ async function lpProcesarArchivo(file){
     // Margen por producto (opcional): "Porc. Utilidad", "Utilidad", "Margen", "Ganancia".
     // Si viene, cada producto usa ESE margen en vez del tramo del proveedor.
     var colMargen = lpDetectarCol(headers, ['porc. utilidad', 'porc utilidad', '% utilidad', 'utilidad', 'margen', 'ganancia', '% ganancia']);
+    var colBulto = lpDetectarCol(headers, ['unidades por caja', 'unidades por bulto', 'unidades x caja', 'unidades/caja', 'u x caja', 'cantidad x pack', 'unidades por pack', 'unidades por']);
     var excl = [];
     if(colDescuento >= 0) excl.push(colDescuento);
     if(colProveedor >= 0) excl.push(colProveedor);
     if(colIva >= 0) excl.push(colIva);
     if(colMoneda >= 0) excl.push(colMoneda);
     if(colMargen >= 0) excl.push(colMargen);
+    if(colBulto >= 0) excl.push(colBulto);
     var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'artículo', 'referencia', 'ref'], excl);
     if(colCodigo >= 0) excl.push(colCodigo);
     var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc'], excl);
@@ -22533,9 +22643,44 @@ async function lpProcesarArchivo(file){
       if(/venta|pvp|p\.v\.p|p[uú]blico|sugerido|minorista|mayorista/.test(h)) ventaIdx.push(idx);
     });
     var exclP = excl.concat(ventaIdx);
-    var colPrecio = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'precio de costo', 'costo neto', 'neto', 'costo'], exclP);
-    if(colPrecio < 0) colPrecio = lpDetectarCol(headers, ['precio de lista', 'precio lista', 'precio', 'valor', 'importe'], exclP);
+    // Detectar por separado la columna de LISTA (bruto) y la de NETO/costo.
+    var colLista = lpDetectarCol(headers, ['precio de lista', 'precio lista', 'lista'], exclP);
+    var colNetoP = lpDetectarCol(headers, ['precio neto', 'precio sin iva', 'precio de costo', 'costo neto', 'neto', 'costo'], exclP);
+    var colPrecio, colPrecioNeto = -1;
+    if(colLista >= 0 && colNetoP >= 0 && colLista !== colNetoP){
+      // Hay LISTA y NETO: usamos el LISTA como base y calculamos el % de
+      // descuento de cada producto a partir del NETO (varía por producto).
+      colPrecio = colLista;
+      colPrecioNeto = colNetoP;
+    } else if(colNetoP >= 0){
+      colPrecio = colNetoP;
+    } else if(colLista >= 0){
+      colPrecio = colLista;
+    } else {
+      colPrecio = lpDetectarCol(headers, ['precio', 'valor', 'importe'], exclP);
+    }
     if(colPrecio < 0) colPrecio = lpDetectarCol(headers, ['precio neto', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
+
+    // Si este proveedor ya tiene un mapeo guardado de una importación anterior,
+    // lo aplicamos por NOMBRE de columna (más robusto que la posición). Solo
+    // pisa la detección cuando la columna guardada existe en este archivo.
+    if(modo === 'simple' && prov && prov.mapeoHeaders){
+      var _mh = prov.mapeoHeaders;
+      var _find = function(field){
+        var hn = _mh[field]; if(!hn) return -2;
+        return headers.indexOf(String(hn).trim().toLowerCase());
+      };
+      var _v;
+      if((_v=_find('codigo'))>=0) colCodigo=_v;
+      if((_v=_find('desc'))>=0) colDesc=_v;
+      if((_v=_find('precio'))>=0) colPrecio=_v;
+      if((_v=_find('iva'))>=0) colIva=_v;
+      if((_v=_find('descuento'))>=0) colDescuento=_v;
+      if((_v=_find('moneda'))>=0) colMoneda=_v;
+      if((_v=_find('margen'))>=0) colMargen=_v;
+      if((_v=_find('bulto'))>=0) colBulto=_v;
+      if((_v=_find('precioNeto'))>=0) colPrecioNeto=_v;
+    }
 
     // Si una columna OPCIONAL detectada está completamente vacía en los datos,
     // la ignoramos (ej.: Dux exporta "Porc. Utilidad" sin valores). Así el
@@ -22552,12 +22697,13 @@ async function lpProcesarArchivo(file){
     if(!_colTieneDatos(colMargen)) colMargen = -1;
     if(!_colTieneDatos(colDescuento)) colDescuento = -1;
     if(!_colTieneDatos(colIva)) colIva = -1;
+    if(!_colTieneDatos(colBulto)) colBulto = -1;
 
     // Guardar contexto para el mapeo manual (por si hay que corregir columnas)
     lpImpCtx = {
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
-      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen }
+      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -22584,6 +22730,8 @@ var LP_CAMPOS_MAP = [
   { k: 'iva',       label: 'IVA (%)' },
   { k: 'descuento', label: 'Descuento por producto (%)' },
   { k: 'margen',    label: 'Margen / Utilidad por producto (%)' },
+  { k: 'bulto',     label: 'Unidades por caja / bulto' },
+  { k: 'precioNeto', label: 'Precio neto (calcula el % de descuento vs el de Lista)' },
   { k: 'proveedor', label: 'Proveedor (solo lista sábana)' },
   { k: 'moneda',    label: 'Moneda' }
 ];
@@ -22629,6 +22777,8 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colIva = (colMap.iva>=0?colMap.iva:-1), colDescuento = (colMap.descuento>=0?colMap.descuento:-1);
   var colProveedor = (colMap.proveedor>=0?colMap.proveedor:-1), colMoneda = (colMap.moneda>=0?colMap.moneda:-1);
   var colMargen = (colMap.margen>=0?colMap.margen:-1);
+  var colBulto = (colMap.bulto>=0?colMap.bulto:-1);
+  var colPrecioNeto = (colMap.precioNeto>=0?colMap.precioNeto:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
   // Si la lista trae su propia columna de moneda, esa manda por fila (no el selector global).
   lpState.tieneColMoneda = (colMoneda >= 0);
@@ -22652,6 +22802,16 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
         descProd = Math.max(0, Math.min(100, dv));
       }
     }
+    // Si no hay columna de descuento pero hay una de "Precio neto", calculamos
+    // el % de descuento de cada producto: 1 − (neto / lista). Así el descuento
+    // que varía por producto sale solo del archivo.
+    if(descProd === null && colPrecioNeto >= 0){
+      var netoVal = Number(r[colPrecioNeto]);
+      if(!isNaN(netoVal) && netoVal > 0 && precio > 0 && netoVal <= precio){
+        var d = (1 - (netoVal / precio)) * 100;
+        descProd = Math.max(0, Math.min(100, Math.round(d * 10) / 10));
+      }
+    }
     var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
       ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
     // Margen por producto desde el archivo (override del tramo del proveedor).
@@ -22671,6 +22831,10 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       var mv = String(r[colMoneda] || '').trim().toLowerCase();
       if(mv){ fila._monedaRaw = /u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv) ? 'USD' : 'ARS'; }
     }
+    if(colBulto >= 0){
+      var ubv = Number(String(r[colBulto]).replace(',', '.'));
+      if(!isNaN(ubv) && ubv > 1) fila.unidadesPorBulto = Math.round(ubv);
+    }
     if(modo === 'sabana'){
       var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
       fila._provNombreRaw = pnombre || null;
@@ -22680,6 +22844,25 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
 
   if(rows.length === 0){ toast('No se encontraron filas válidas con ese mapeo', 'error'); return; }
 
+  // Deduplicar por código: si un código aparece varias veces (compras por cantidad
+  // con varios precios), nos quedamos con el de PRECIO MÁS ALTO.
+  (function(){
+    var best = {}, order = [];
+    rows.forEach(function(r){
+      var k = String(r.codigoProv || '').trim().toLowerCase();
+      if(!k){ order.push(r); return; }   // sin código: se deja como está
+      if(!best[k]){ best[k] = r; order.push(k); }
+      else if((Number(r.precioNeto) || 0) > (Number(best[k].precioNeto) || 0)){ best[k] = r; }
+    });
+    var quitados = rows.length - order.length;
+    if(quitados > 0){
+      rows = order.map(function(o){ return (typeof o === 'string') ? best[o] : o; });
+      lpState._dedupQuitados = quitados;
+    } else {
+      lpState._dedupQuitados = 0;
+    }
+  })();
+
   var provManagers = {};
   if(modo === 'simple' && prov){
     rows.forEach(function(fila){ fila._provId = prov.id; fila._prov = prov; fila._provNombre = prov.proveedorNombre; provManagers[prov.id] = prov; });
@@ -22687,7 +22870,9 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   lpState.importacion = { modo: modo, proveedor: prov, archivo: archivo, rows: rows, provManagers: provManagers, sabanaSinColProv: sabanaSinColProv };
   lpProcesarMatching();
   lpMostrarVistaPrevia();
-  toast(rows.length + ' ítems leídos', 'success');
+  var msgLeidos = rows.length + ' ítems leídos';
+  if(lpState._dedupQuitados > 0) msgLeidos += ' (se unificaron ' + lpState._dedupQuitados + ' repetidos, quedó el de precio más alto)';
+  toast(msgLeidos, 'success');
 
   var hayUsd = lpState.importacion.rows.some(function(r){ return r._moneda === 'USD'; });
   if(hayUsd){
@@ -23201,6 +23386,29 @@ async function lpAplicarSoloNuevos(){
   await lpEjecutarAplicar(nuevos);
 }
 
+// Guarda el mapeo de columnas usado en este proveedor, para que la próxima
+// importación de su lista se mapee sola (por nombre de columna).
+function lpGuardarMapeoProveedor(){
+  try{
+    if(!lpImpCtx || lpImpCtx.modo !== 'simple' || !lpImpCtx.prov || !lpImpCtx.prov.id) return;
+    var prov = lpImpCtx.prov;
+    var headers = lpImpCtx.headers || [];
+    var mh = {};
+    Object.keys(lpImpCtx.map || {}).forEach(function(field){
+      var idx = lpImpCtx.map[field];
+      if(typeof idx === 'number' && idx >= 0 && headers[idx]){
+        mh[field] = String(headers[idx]).trim().toLowerCase();
+      }
+    });
+    prov.mapeoHeaders = mh;
+    if(db && currentEmpresaId){
+      db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(prov.id)
+        .set({ mapeoHeaders: mh, actualizadoEn: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true })
+        .catch(function(e){ console.warn('No se pudo guardar el mapeo del proveedor', e); });
+    }
+  }catch(e){ console.warn(e); }
+}
+
 async function lpEjecutarAplicar(filas){
   var imp = lpState.importacion;
   // Bloquear si hay ítems en dólares sin cotización
@@ -23209,6 +23417,7 @@ async function lpEjecutarAplicar(filas){
     toast('Cargá la cotización del dólar antes de aplicar (hay ítems en US$)', 'error');
     return;
   }
+  lpGuardarMapeoProveedor();   // recordar el mapeo para la próxima importación
   var btn = document.getElementById('lpBtnAplicar');
   var btnNuevos = document.getElementById('lpBtnSoloNuevos');
   btn.disabled = true;
@@ -23246,6 +23455,7 @@ async function lpEjecutarAplicar(filas){
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         if(margenGuardar != null) dataFs.margenProducto = margenGuardar;
+        if(r.unidadesPorBulto) dataFs.unidadesPorBulto = r.unidadesPorBulto;
         // Datos para cache local (con Date string)
         var dataLocal = {
           precioVenta: r.calc.final,
@@ -23257,6 +23467,7 @@ async function lpEjecutarAplicar(filas){
           fechaUltimoCambioPrecio: nowIso
         };
         if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
+        if(r.unidadesPorBulto) dataLocal.unidadesPorBulto = r.unidadesPorBulto;
         var esCrear = (r.estado === 'crear');
         if(esCrear){
           dataFs.codigo = r.codigoProv;
