@@ -2105,6 +2105,30 @@
   }
   .cc-tab.active .cc-tab-count{background:var(--accent);color:#1a1408}
   [data-theme="dark"] .cc-tab.active .cc-tab-count{color:#000}
+  .cc-sabana-toolbar{display:flex;align-items:center;gap:8px;margin:12px 0}
+  .cc-sabana-lbl{font-size:12px;color:var(--text-soft);font-weight:600}
+  .cc-sabana-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-md)}
+  .cc-sabana{width:100%;border-collapse:collapse;font-size:12.5px}
+  .cc-sabana th{background:rgba(128,128,128,.10);text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mute);font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap}
+  .cc-sabana td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .cc-sabana tbody tr:hover{background:rgba(128,128,128,.06)}
+  .cc-sabana .num{text-align:right;font-family:var(--mono);white-space:nowrap}
+  .cc-sabana .haber{color:var(--success)}
+  .cc-sabana-fecha{white-space:nowrap;color:var(--text-soft)}
+  .cc-sabana-comp{white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--text-soft)}
+  .cc-sabana-muted{color:var(--text-mute)}
+  .cc-sabana-obra{height:28px;padding:1px 6px;font-size:12px;border:1px solid var(--line-2);border-radius:6px;background:var(--bg);color:var(--text);max-width:160px}
+  .cc-sabana-obra:focus{outline:none;border-color:var(--accent)}
+  .cc-sabana-pagada{opacity:.62}
+  .cc-sabana-tag{font-size:9px;background:var(--success-soft);color:var(--success);padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px}
+  .cc-sabana tfoot td{padding:9px 10px;border-top:2px solid var(--line);font-weight:700;background:rgba(128,128,128,.10)}
+  .cc-sabana-tot-lbl{text-align:right;color:var(--text-soft)}
+  .cc-act-detalle{max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r-md);padding:4px 0}
+  .cc-act-row{display:flex;justify-content:space-between;gap:10px;padding:5px 12px;font-size:12.5px;border-bottom:1px solid var(--line)}
+  .cc-act-row:last-child{border-bottom:none}
+  .cc-act-desc{color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cc-act-precios{font-family:var(--mono);color:var(--text-soft);white-space:nowrap}
+  .cc-act-mas{padding:6px 12px;font-size:11px;color:var(--text-mute);font-style:italic}
 
   .cc-mov-card{
     padding:10px 14px;
@@ -5957,11 +5981,15 @@
                     <button class="cc-tab" id="ccTabHistorial" onclick="ccSwitchTab('historial')">
                       Historial <span class="cc-tab-count" id="ccCountHistorial">0</span>
                     </button>
+                    <button class="cc-tab" id="ccTabSabana" onclick="ccSwitchTab('sabana')">
+                      Sábana
+                    </button>
                   </div>
 
                   <div id="ccTabContentPendientes"></div>
                   <div id="ccTabContentCobros" style="display:none"></div>
                   <div id="ccTabContentHistorial" style="display:none"></div>
+                  <div id="ccTabContentSabana" style="display:none"></div>
                 </div>
               </div>
             </section>
@@ -7790,6 +7818,32 @@
 
     <div style="display:flex;gap:10px;margin-top:18px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL ACTUALIZAR PRECIOS AL CERRAR ═══════════════════ -->
+<div class="modal-overlay" id="modalActualizarPrecios">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#128176; Actualización de precios</div>
+    <h2 class="modal-title">¿Actualizar al precio de hoy?</h2>
+    <p class="modal-subtitle">La cuenta de <strong id="ccActNombre"></strong> tiene <strong id="ccActNprod">0</strong> producto(s) cuyo precio cambió desde la venta.</p>
+    <div style="display:flex;gap:10px;margin:14px 0">
+      <div style="flex:1;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px">
+        <div style="font-size:10px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.05em">Saldo actual</div>
+        <div style="font-size:16px;font-weight:700;font-family:var(--mono)" id="ccActSaldoActual">$0</div>
+      </div>
+      <div style="flex:1;border:1px solid var(--accent);border-radius:var(--r-md);padding:10px 12px">
+        <div style="font-size:10px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.05em">A precio de hoy</div>
+        <div style="font-size:16px;font-weight:700;font-family:var(--mono)" id="ccActSaldoHoy">$0</div>
+        <div style="font-size:12px;font-weight:700;font-family:var(--mono)" id="ccActDif">+$0</div>
+      </div>
+    </div>
+    <div id="ccActDetalle" class="cc-act-detalle"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-line" onclick="ccActMantener()" style="flex:1">Mantener originales</button>
+      <button class="btn-form" id="ccActBtnAplicar" onclick="ccActAplicar()" style="flex:1">Actualizar al precio de hoy</button>
     </div>
   </div>
 </div>
@@ -17408,6 +17462,8 @@ function ccRenderDetalle(cliente){
     } else if(m.tipo === 'devolucion'){
       totalPagado += (m.monto || 0);
       cobros.push(m);
+    } else if(m.tipo === 'ajuste'){
+      totalComprado += (m.monto || 0);
     }
   });
   // Total comprado HISTÓRICO (incluye pagadas)
@@ -17515,7 +17571,155 @@ function ccRenderDetalle(cliente){
     }
   }
 
+  // Render sábana (lista plana de productos y movimientos por obra y fecha)
+  ccRenderSabana(cliente);
+
   ccSwitchTab(ccTabActual);
+}
+
+// ── Sábana: lista plana de productos y movimientos por obra y fecha ──
+function ccRenderSabana(cliente){
+  var cont = document.getElementById('ccTabContentSabana');
+  if(!cont) return;
+  var obras = (cliente && Array.isArray(cliente.obras)) ? cliente.obras.slice() : [];
+  var filtro = (document.getElementById('ccSabanaObra') || {}).value || '__todas__';
+
+  // Construir filas a nivel producto + movimientos
+  var rows = [];
+  ccMovimientos.forEach(function(m){
+    var f = m.fecha;
+    if(m.tipo === 'venta' || m.tipo === 'venta_pagada'){
+      var pagada = (m.tipo === 'venta_pagada');
+      var items = m.items || [];
+      if(!items.length){
+        rows.push({ fecha:f, obra:'', comp:m.numero||'', detalle:(pagada?'Venta pagada':'Venta'), debe: pagada?0:(m.monto||0), haber:0, afecta:!pagada, pagada:pagada, editable:false });
+      } else {
+        items.forEach(function(it, idx){
+          rows.push({
+            fecha:f, obra: it.obra||'', comp:m.numero||'',
+            detalle: (it.descripcion || it.codigo || '-') + ' \u00b7 ' + (it.cantidad||1) + ' \u00d7 ' + fmtPeso(it.precioUnit||0),
+            debe: pagada ? 0 : (it.subtotal||0), haber:0, afecta:!pagada, pagada:pagada,
+            editable:true, ventaId:m.ventaId, itemIdx:idx
+          });
+        });
+      }
+    } else if(m.tipo === 'pago' || m.tipo === 'cierre' || m.tipo === 'devolucion'){
+      rows.push({ fecha:f, obra:'', comp:m.numero||'', detalle: m.descripcion || (m.tipo==='pago'?'Pago':(m.tipo==='cierre'?'Cierre de cuenta':'Devolución')), debe:0, haber:(m.monto||0), afecta:true, esPago:true, editable:false });
+    } else if(m.tipo === 'nota_credito' || m.tipo === 'nota_debito'){
+      var mn = m.monto || 0;
+      rows.push({ fecha:f, obra:'', comp:m.numero||'', detalle: m.descripcion || (m.tipo==='nota_credito'?'Nota de crédito':'Nota de débito'), debe: mn>0?mn:0, haber: mn<0?(-mn):0, afecta:true, esPago:(mn<0), editable:false });
+    } else if(m.tipo === 'ajuste'){
+      var ma = m.monto || 0;
+      rows.push({ fecha:f, obra:'', comp:'', detalle: m.descripcion || 'Actualización de precios', debe: ma>0?ma:0, haber: ma<0?(-ma):0, afecta:true, esPago:false, editable:false });
+    }
+  });
+  rows.sort(function(a,b){ return new Date(a.fecha) - new Date(b.fecha); });
+
+  // Toolbar de filtro
+  var optsFiltro = '<option value="__todas__">Todas las obras</option><option value="'+OBRA_GENERAL_KEY+'">General (sin obra)</option>';
+  obras.forEach(function(o){ optsFiltro += '<option value="'+eH(o)+'">'+eH(o)+'</option>'; });
+  var html = '<div class="cc-sabana-toolbar"><span class="cc-sabana-lbl">Filtrar por obra:</span>'+
+    '<select id="ccSabanaObra" class="form-input" style="height:32px;padding:2px 8px;font-size:12px;max-width:240px" onchange="ccRenderSabanaRefresh()">'+optsFiltro+'</select></div>';
+
+  function obraMatch(o){
+    if(filtro === '__todas__') return true;
+    if(filtro === OBRA_GENERAL_KEY) return !o || o === OBRA_GENERAL_KEY;
+    return o === filtro;
+  }
+  var verPagos = (filtro === '__todas__');
+  var visibles = rows.filter(function(r){ return r.esPago ? verPagos : obraMatch(r.obra); });
+
+  if(visibles.length === 0){
+    html += '<div class="cc-empty-movs">Sin movimientos para esta obra.</div>';
+    cont.innerHTML = html;
+    var s0 = document.getElementById('ccSabanaObra'); if(s0) s0.value = filtro;
+    return;
+  }
+
+  html += '<div class="cc-sabana-wrap"><table class="cc-sabana"><thead><tr>'+
+    '<th>Fecha</th><th>Obra</th><th>Comprobante</th><th>Detalle</th>'+
+    '<th class="num">Debe</th><th class="num">Haber</th><th class="num">Acumulado</th></tr></thead><tbody>';
+  var acum = 0, totDebe = 0, totHaber = 0;
+  visibles.forEach(function(r){
+    if(r.afecta) acum += (r.debe||0) - (r.haber||0);
+    totDebe += (r.debe||0); totHaber += (r.haber||0);
+    var fechaStr = new Date(r.fecha).toLocaleDateString('es-AR');
+    var obraCell;
+    if(r.editable){
+      var opts = '<option value="">General</option>';
+      obras.forEach(function(o){ opts += '<option value="'+eH(o)+'" '+((r.obra===o)?'selected':'')+'>'+eH(o)+'</option>'; });
+      obraCell = '<select class="cc-sabana-obra" onchange="ccSabanaSetObra(\''+escapeQ(r.ventaId)+'\','+r.itemIdx+',this.value)">'+opts+'</select>';
+    } else {
+      obraCell = r.obra ? eH(r.obra) : '<span class="cc-sabana-muted">&mdash;</span>';
+    }
+    html += '<tr class="'+(r.pagada?'cc-sabana-pagada':'')+'">'+
+      '<td class="cc-sabana-fecha">'+fechaStr+'</td>'+
+      '<td>'+obraCell+'</td>'+
+      '<td class="cc-sabana-comp">'+eH(r.comp||'')+(r.pagada?' <span class="cc-sabana-tag">contado</span>':'')+'</td>'+
+      '<td>'+eH(r.detalle||'')+'</td>'+
+      '<td class="num">'+(r.debe?fmtPeso(r.debe):'')+'</td>'+
+      '<td class="num haber">'+(r.haber?fmtPeso(r.haber):'')+'</td>'+
+      '<td class="num">'+(r.afecta?fmtPeso(acum):'<span class="cc-sabana-muted">&mdash;</span>')+'</td>'+
+    '</tr>';
+  });
+  html += '</tbody><tfoot><tr><td colspan="4" class="cc-sabana-tot-lbl">Totales'+(filtro!=='__todas__'?' (obra filtrada)':'')+'</td>'+
+    '<td class="num">'+fmtPeso(totDebe)+'</td><td class="num haber">'+fmtPeso(totHaber)+'</td>'+
+    '<td class="num"><strong>'+fmtPeso(acum)+'</strong></td></tr></tfoot></table></div>';
+
+  cont.innerHTML = html;
+  var sel = document.getElementById('ccSabanaObra'); if(sel) sel.value = filtro;
+}
+
+function ccRenderSabanaRefresh(){
+  var c = clientes.find(function(x){ return x._id === ccClienteSelId; });
+  if(c) ccRenderSabana(c);
+}
+
+async function ccSabanaSetObra(ventaId, itemIdx, nuevaObra){
+  if(!ventaId || itemIdx == null){ toast('No se puede editar esta línea','error'); return; }
+  var cliente = clientes.find(function(x){ return x._id === ccClienteSelId; });
+  if(!cliente) return;
+  try{
+    var ref = db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(ventaId);
+    var v = (typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === ventaId; }) : null;
+    if(!v){
+      var doc = await ref.get();
+      if(!doc.exists){ toast('No se encontró la venta','error'); return; }
+      v = doc.data(); v._id = doc.id;
+    }
+    if(!v.items || !v.items[itemIdx]){ toast('Ítem inexistente','error'); return; }
+    var obraVieja = v.items[itemIdx].obra || '';
+    if(obraVieja === (nuevaObra||'')) return;
+    var sub = v.items[itemIdx].subtotal || 0;
+    v.items[itemIdx].obra = nuevaObra;
+
+    var spo = {};
+    v.items.forEach(function(it){ var k = it.obra || OBRA_GENERAL_KEY; spo[k] = (spo[k]||0) + (it.subtotal||0); });
+    v.subtotalesPorObra = spo;
+    await ref.update({ items: v.items, subtotalesPorObra: spo, updatedAt: new Date().toISOString() });
+
+    // Ajustar saldosPorObra SOLO si la venta es a cuenta corriente (mantiene el saldo total intacto)
+    var movCC = ccMovimientos.find(function(m){ return m.ventaId === ventaId && m.tipo === 'venta'; });
+    if(movCC){
+      var kV = obraVieja || OBRA_GENERAL_KEY, kN = nuevaObra || OBRA_GENERAL_KEY;
+      var saldos = Object.assign({}, cliente.saldosPorObra || {});
+      saldos[kV] = (saldos[kV] || 0) - sub;
+      if(Math.abs(saldos[kV]) < 0.005) delete saldos[kV];
+      saldos[kN] = (saldos[kN] || 0) + sub;
+      cliente.saldosPorObra = saldos;
+      await db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(cliente._id).update({ saldosPorObra: saldos, updatedAt: new Date().toISOString() });
+      if(typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [cliente]); }catch(e){} }
+      movCC.subtotalesPorObra = spo;
+    }
+    var movAny = ccMovimientos.find(function(m){ return m.ventaId === ventaId; });
+    if(movAny && movAny.items && movAny.items[itemIdx]) movAny.items[itemIdx].obra = nuevaObra;
+
+    toast('Obra actualizada', 'success');
+    ccRenderSabanaRefresh();
+  }catch(err){
+    console.error(err);
+    toast('Error al editar: ' + (err.message||''), 'error');
+  }
 }
 
 function ccSwitchTab(tab){
@@ -17524,11 +17728,15 @@ function ccSwitchTab(tab){
   document.getElementById('ccTabCobros').classList.toggle('active', tab==='cobros');
   var tabHist = document.getElementById('ccTabHistorial');
   if(tabHist) tabHist.classList.toggle('active', tab==='historial');
+  var tabSab = document.getElementById('ccTabSabana');
+  if(tabSab) tabSab.classList.toggle('active', tab==='sabana');
 
   document.getElementById('ccTabContentPendientes').style.display = tab==='pendientes' ? '' : 'none';
   document.getElementById('ccTabContentCobros').style.display = tab==='cobros' ? '' : 'none';
   var contHist = document.getElementById('ccTabContentHistorial');
   if(contHist) contHist.style.display = tab==='historial' ? '' : 'none';
+  var contSab = document.getElementById('ccTabContentSabana');
+  if(contSab) contSab.style.display = tab==='sabana' ? '' : 'none';
 }
 
 function ccVerVenta(ventaId){
@@ -18106,11 +18314,144 @@ async function ccEliminarObra(obra){
 }
 
 // ── Cierre de cuenta con confirmación tipo GitHub ──
+// ── Actualización de precios al cerrar cuenta (opción B: ajuste, no reescribe ventas) ──
+var _ccActPendiente = null;
+
+// Precio actual de un ítem según la lista que usó la venta + redondeo configurado.
+function ccPrecioActualItem(item, listaVenta){
+  var p = (typeof productos !== 'undefined') ? productos.find(function(x){ return x._id === item.productoId; }) : null;
+  if(!p) return null; // producto borrado/no encontrado → no se actualiza
+  var base = (listaVenta === 'mayorista' && Number(p.precioMayorista) > 0) ? Number(p.precioMayorista) : (Number(p.precioVenta) || 0);
+  return redondearPrecio(base);
+}
+
+// Recorre las ventas a cuenta y calcula la diferencia a precio de hoy.
+async function ccCalcularActualizacion(cliente){
+  var res = { diferencia:0, totalActual:(cliente.saldoCC||0), totalHoy:0, nProductos:0, porObra:{}, ventas:[] };
+  var movsVenta = ccMovimientos.filter(function(m){ return m.tipo === 'venta' && m.ventaId; });
+  for(var i=0;i<movsVenta.length;i++){
+    var m = movsVenta[i];
+    var v = (typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === m.ventaId; }) : null;
+    if(!v){
+      try{
+        var doc = await db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(m.ventaId).get();
+        if(doc.exists){ v = doc.data(); v._id = doc.id; }
+      }catch(e){}
+    }
+    if(!v || !v.items) continue;
+    var lista = v.listaPrecio || 'minorista';
+    var cambios = [];
+    v.items.forEach(function(it){
+      var actual = ccPrecioActualItem(it, lista);
+      if(actual == null) return;
+      var viejoUnit = it.precioUnit || 0;
+      if(Math.abs(actual - viejoUnit) < 0.005) return;
+      var cant = it.cantidad || 1;
+      var diff = (actual - viejoUnit) * cant;
+      res.diferencia += diff;
+      res.nProductos++;
+      var k = it.obra || OBRA_GENERAL_KEY;
+      res.porObra[k] = (res.porObra[k] || 0) + diff;
+      cambios.push({ desc: it.descripcion||it.codigo||'-', viejo: viejoUnit, nuevo: actual, cant: cant, diff: diff });
+    });
+    if(cambios.length) res.ventas.push({ numero: v.numero, cambios: cambios });
+  }
+  res.totalHoy = res.totalActual + res.diferencia;
+  return res;
+}
+
+function ccMostrarModalActualizar(act, c){
+  document.getElementById('ccActNombre').textContent = c.razonSocial || c.nombre || 'el cliente';
+  document.getElementById('ccActNprod').textContent = act.nProductos;
+  document.getElementById('ccActSaldoActual').textContent = fmtPeso(act.totalActual);
+  document.getElementById('ccActSaldoHoy').textContent = fmtPeso(act.totalHoy);
+  var dif = act.diferencia;
+  document.getElementById('ccActDif').textContent = (dif>=0?'+':'−') + fmtPeso(Math.abs(dif));
+  document.getElementById('ccActDif').style.color = dif>=0 ? 'var(--danger)' : 'var(--success)';
+  // Detalle de cambios (hasta 12)
+  var det = '';
+  var count = 0;
+  act.ventas.forEach(function(vv){
+    vv.cambios.forEach(function(ch){
+      if(count < 12){
+        det += '<div class="cc-act-row"><span class="cc-act-desc">'+eH(ch.desc)+(ch.cant>1?' ×'+ch.cant:'')+'</span>'+
+          '<span class="cc-act-precios">'+fmtPeso(ch.viejo)+' &rarr; <strong>'+fmtPeso(ch.nuevo)+'</strong></span></div>';
+      }
+      count++;
+    });
+  });
+  if(count > 12) det += '<div class="cc-act-mas">y '+(count-12)+' producto(s) más…</div>';
+  document.getElementById('ccActDetalle').innerHTML = det;
+  closeModals();
+  document.getElementById('modalActualizarPrecios').classList.add('show');
+}
+
+// Continuar el cierre SIN actualizar precios.
+function ccActMantener(){
+  var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
+  closeModals();
+  if(c) _ccAbrirModalCierre(c);
+}
+
+// Aplicar la actualización: registra un único movimiento de ajuste (no toca las ventas).
+async function ccActAplicar(){
+  var act = _ccActPendiente;
+  var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
+  if(!act || !c) return;
+  var btn = document.getElementById('ccActBtnAplicar');
+  btn.disabled = true; btn.textContent = 'Aplicando...';
+  try{
+    var ahora = new Date();
+    var mov = {
+      tipo: 'ajuste',
+      subtipo: 'actualizacion_precios',
+      fecha: ahora.toISOString(),
+      monto: act.diferencia,
+      descripcion: 'Actualización de precios al cierre (' + act.nProductos + ' prod.)',
+      subtotalesPorObra: act.porObra,
+      creadoEn: ahora.toISOString()
+    };
+    var saldos = Object.assign({}, c.saldosPorObra || {});
+    Object.keys(act.porObra).forEach(function(k){ saldos[k] = (saldos[k]||0) + act.porObra[k]; });
+    var nuevoSaldo = (c.saldoCC||0) + act.diferencia;
+    var movRef = db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(c._id).collection('movimientos').doc();
+    var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(c._id);
+    var batch = db.batch();
+    batch.set(movRef, mov);
+    batch.update(cliRef, { saldoCC: nuevoSaldo, saldosPorObra: saldos, ultimoMovimientoCC: ahora.toISOString(), updatedAt: ahora.toISOString() });
+    await batch.commit();
+    mov._id = movRef.id;
+    ccMovimientos.unshift(mov);
+    c.saldoCC = nuevoSaldo; c.saldosPorObra = saldos;
+    if(typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [c]); }catch(e){} }
+    toast('Precios actualizados · ' + (act.diferencia>=0?'+':'−') + fmtPeso(Math.abs(act.diferencia)), 'success');
+    _ccActPendiente = null;
+    ccRenderDetalle(c);
+    closeModals();
+    _ccAbrirModalCierre(c);
+  }catch(err){
+    console.error(err);
+    toast('Error al actualizar: ' + (err.message||''), 'error');
+    btn.disabled = false; btn.textContent = 'Actualizar al precio de hoy';
+  }
+}
+
 function ccCerrarCuenta(){
   if(!ccClienteSelId) return;
   var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
   if(!c) return;
+  // Antes de cerrar: ¿hay productos cuyo precio cambió desde la venta?
+  ccCalcularActualizacion(c).then(function(act){
+    if(act && act.nProductos > 0 && Math.abs(act.diferencia) >= 0.5){
+      _ccActPendiente = act;
+      ccMostrarModalActualizar(act, c);
+    } else {
+      _ccAbrirModalCierre(c);
+    }
+  }).catch(function(e){ console.warn('chequeo actualización', e); _ccAbrirModalCierre(c); });
+}
 
+function _ccAbrirModalCierre(c){
   // Poblar selector de obras
   var sel = document.getElementById('ccCierreScope');
   var html = '<option value="todo">Cuenta completa del cliente (todas las obras)</option>';
