@@ -22661,6 +22661,21 @@ async function lpProcesarArchivo(file){
     }
     if(colPrecio < 0) colPrecio = lpDetectarCol(headers, ['precio neto', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
 
+    // Precio de venta DIRECTO: solo lo auto-detectamos si es el campo específico
+    // de los export de Dux ("Precio De Venta Con Iva"). Para otras listas, el
+    // usuario lo asigna a mano (es opcional y opt-in), porque un PVP suele ser
+    // sugerido y no el precio que el comercio realmente usa.
+    // Preferimos la columna en PESOS ("... Con Iva $"), que es el precio final
+    // real para todos los productos (los de dólar ya vienen convertidos).
+    var colVentaDirecto = -1;
+    for(var _vi = 0; _vi < headers.length; _vi++){
+      var _hh = headers[_vi];
+      if(_hh.indexOf('precio de venta con iva') === 0 && _hh.indexOf('$') >= 0){ colVentaDirecto = _vi; break; }
+    }
+    if(colVentaDirecto < 0){
+      colVentaDirecto = lpDetectarCol(headers, ['precio de venta con iva', 'precio de venta con impuestos', 'precio venta con iva', 'precio de venta c/iva'], excl);
+    }
+
     // Si este proveedor ya tiene un mapeo guardado de una importación anterior,
     // lo aplicamos por NOMBRE de columna (más robusto que la posición). Solo
     // pisa la detección cuando la columna guardada existe en este archivo.
@@ -22680,6 +22695,7 @@ async function lpProcesarArchivo(file){
       if((_v=_find('margen'))>=0) colMargen=_v;
       if((_v=_find('bulto'))>=0) colBulto=_v;
       if((_v=_find('precioNeto'))>=0) colPrecioNeto=_v;
+      if((_v=_find('precioVentaDirecto'))>=0) colVentaDirecto=_v;
     }
 
     // Si una columna OPCIONAL detectada está completamente vacía en los datos,
@@ -22698,12 +22714,13 @@ async function lpProcesarArchivo(file){
     if(!_colTieneDatos(colDescuento)) colDescuento = -1;
     if(!_colTieneDatos(colIva)) colIva = -1;
     if(!_colTieneDatos(colBulto)) colBulto = -1;
+    if(!_colTieneDatos(colVentaDirecto)) colVentaDirecto = -1;
 
     // Guardar contexto para el mapeo manual (por si hay que corregir columnas)
     lpImpCtx = {
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
-      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto }
+      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -22732,6 +22749,7 @@ var LP_CAMPOS_MAP = [
   { k: 'margen',    label: 'Margen / Utilidad por producto (%)' },
   { k: 'bulto',     label: 'Unidades por caja / bulto' },
   { k: 'precioNeto', label: 'Precio neto (calcula el % de descuento vs el de Lista)' },
+  { k: 'precioVentaDirecto', label: 'Precio de venta final (usar tal cual, sin recalcular)' },
   { k: 'proveedor', label: 'Proveedor (solo lista sábana)' },
   { k: 'moneda',    label: 'Moneda' }
 ];
@@ -22779,6 +22797,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colMargen = (colMap.margen>=0?colMap.margen:-1);
   var colBulto = (colMap.bulto>=0?colMap.bulto:-1);
   var colPrecioNeto = (colMap.precioNeto>=0?colMap.precioNeto:-1);
+  var colVentaDirecto = (colMap.precioVentaDirecto>=0?colMap.precioVentaDirecto:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
   // Si la lista trae su propia columna de moneda, esa manda por fila (no el selector global).
   lpState.tieneColMoneda = (colMoneda >= 0);
@@ -22834,6 +22853,13 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     if(colBulto >= 0){
       var ubv = Number(String(r[colBulto]).replace(',', '.'));
       if(!isNaN(ubv) && ubv > 1) fila.unidadesPorBulto = Math.round(ubv);
+    }
+    if(colVentaDirecto >= 0){
+      var vdv = Number(String(r[colVentaDirecto]).replace(/[^0-9,.\-]/g, '').replace('.', '').replace(',', '.'));
+      // soporta tanto "1.250" (miles) como "1250.50": probamos parse directo primero
+      var vdRaw = Number(r[colVentaDirecto]);
+      var vd = (!isNaN(vdRaw) && vdRaw > 0) ? vdRaw : vdv;
+      if(!isNaN(vd) && vd > 0) fila._ventaDirecta = vd;
     }
     if(modo === 'sabana'){
       var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
@@ -23097,7 +23123,17 @@ function lpRecalcularFila(row){
   }
   var calc = lpCalcularPrecio(row.precioNeto, provParaCalc);
   row.calc = calc;
-  row.nuevoPrecio = calc.final;
+  // Si la fila trae un precio de venta DIRECTO (ej.: export de Dux "Con Iva $"),
+  // lo usamos tal cual. OJO: ese precio YA está en pesos (los productos en USD
+  // vienen convertidos en esa columna), por eso NO lo multiplicamos por el dólar.
+  if(row._ventaDirecta != null && Number(row._ventaDirecta) > 0){
+    row.nuevoPrecio = Math.round(Number(row._ventaDirecta));
+    row.calc.final = row.nuevoPrecio;
+    row._directo = true;
+  } else {
+    row.nuevoPrecio = calc.final;
+    row._directo = false;
+  }
   row.cambio = (row.productoActual && row.productoActual.precioVenta > 0) ?
     ((calc.final - row.productoActual.precioVenta) / row.productoActual.precioVenta) * 100 : null;
   if(!row.matched){
