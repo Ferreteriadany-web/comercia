@@ -6444,6 +6444,7 @@
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn btn-sm btn-light" onclick="lpAbrirSincroCatalogo()">&#128229; Sincronizar catálogo</button>
+                <button class="btn btn-sm btn-light" onclick="lpAbrirLimpieza()" title="Deshacer una importación que creó productos o proveedores duplicados">&#129529; Limpiar duplicados</button>
                 <button class="btn btn-sm btn-primary" id="lpBtnConfigTodos" style="display:none" onclick="lpConfigurarTodosAuto()">&#9881; Configurar todos automáticamente</button>
               </div>
             </div>
@@ -22196,7 +22197,163 @@ async function lpAumentarProveedor(provId){
   }
 }
 
-// Guarda la config del proveedor y, acto seguido, recalcula sus precios.
+// ═══════════════════════════════════════════════════════════
+// LIMPIAR DUPLICADOS — deshacer una importación que creó de más
+// ═══════════════════════════════════════════════════════════
+
+// Cuenta productos por proveedor (nombre normalizado) para detectar vacíos.
+function _lpContarProductosPorProv(){
+  var cuenta = {};
+  (productos || []).forEach(function(p){
+    var n = String(p.proveedor || '').trim().toLowerCase();
+    if(!n) return;
+    cuenta[n] = (cuenta[n] || 0) + 1;
+  });
+  return cuenta;
+}
+
+function lpAbrirLimpieza(){
+  var cuenta = _lpContarProductosPorProv();
+  var provs = (lpState.proveedores || []);
+  var vacios = provs.filter(function(p){
+    var n = String(p.proveedorNombre || p.nombre || '').trim().toLowerCase();
+    return p._configurado && (cuenta[n] || 0) === 0;
+  });
+
+  // Productos por antigüedad de creación
+  var ahora = Date.now();
+  var hace1h = 0, hace24h = 0, hace7d = 0, sinFecha = 0, total = (productos || []).length;
+  (productos || []).forEach(function(p){
+    var f = p.fechaCreacion;
+    var t = null;
+    if(f){ try{ t = (typeof f === 'string') ? new Date(f).getTime() : (f.seconds ? f.seconds * 1000 : new Date(f).getTime()); }catch(e){} }
+    if(!t || isNaN(t)){ sinFecha++; return; }
+    var diff = ahora - t;
+    if(diff <= 3600e3) hace1h++;
+    if(diff <= 24*3600e3) hace24h++;
+    if(diff <= 7*24*3600e3) hace7d++;
+  });
+
+  // Valor por defecto del datetime-local: hace 2 horas
+  var def = new Date(ahora - 2*3600e3);
+  function pad(n){ return (n<10?'0':'')+n; }
+  var defStr = def.getFullYear()+'-'+pad(def.getMonth()+1)+'-'+pad(def.getDate())+'T'+pad(def.getHours())+':'+pad(def.getMinutes());
+
+  var vaciosHtml = vacios.length === 0 ? '<span style="color:var(--text-mute)">No hay proveedores sin productos.</span>' :
+    vacios.slice(0, 60).map(function(p){ return eH(p.proveedorNombre || p.nombre); }).join(' · ') + (vacios.length > 60 ? ' …y ' + (vacios.length-60) + ' más' : '');
+
+  var html = '' +
+    '<div class="modal-overlay show" id="lpLimpiezaOverlay" onclick="if(event.target===this)lpCerrarLimpieza()">' +
+    '<div class="modal" style="max-width:640px">' +
+      '<button class="modal-close" onclick="lpCerrarLimpieza()">&times;</button>' +
+      '<div class="modal-eyebrow">&#129529; Recuperación</div>' +
+      '<h2 class="modal-title">Limpiar duplicados de la importación</h2>' +
+      '<p class="modal-subtitle">Sirve para <b>deshacer una importación</b> que creó productos o proveedores de más. <b>No toca</b> los productos que ya tenías (esos solo se actualizaron).</p>' +
+      '<div style="font-size:13px;line-height:1.5">' +
+
+        '<div style="background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin-bottom:14px">' +
+          '<div style="font-weight:600;margin-bottom:6px">1) Proveedores sin productos (' + vacios.length + ')</div>' +
+          '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">' + vaciosHtml + '</div>' +
+          (vacios.length > 0 ?
+            '<button class="btn btn-line btn-sm" onclick="lpBorrarProvVacios()">Borrar los ' + vacios.length + ' proveedores vacíos</button>' : '') +
+        '</div>' +
+
+        '<div style="background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px">' +
+          '<div style="font-weight:600;margin-bottom:6px">2) Productos creados por la importación</div>' +
+          '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">' +
+            'Total de productos: <b>' + total + '</b><br>' +
+            'Creados en la última hora: <b>' + hace1h + '</b> · últimas 24 h: <b>' + hace24h + '</b> · últimos 7 días: <b>' + hace7d + '</b>' +
+          '</div>' +
+          '<div style="font-size:12px;margin-bottom:6px">Borrar los productos <b>creados después de</b>:</div>' +
+          '<input type="datetime-local" id="lpLimpiezaFecha" value="' + defStr + '" style="padding:7px;border:1px solid var(--line);border-radius:8px;font-size:13px;margin-bottom:8px;background:var(--bg);color:var(--text)">' +
+          '<div><button class="btn btn-line btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="lpBorrarProductosDesde()">Borrar productos creados después de esa fecha</button></div>' +
+          '<div style="font-size:11px;color:var(--text-mute);margin-top:8px">Te muestra cuántos son y pide confirmación antes de borrar. La fecha por defecto es 2 horas atrás; ajustala al momento de la importación.</div>' +
+        '</div>' +
+
+      '</div>' +
+    '</div></div>';
+
+  var cont = document.getElementById('lpLimpiezaOverlay');
+  if(cont) cont.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function lpCerrarLimpieza(){
+  var o = document.getElementById('lpLimpiezaOverlay');
+  if(o) o.remove();
+}
+
+async function lpBorrarProvVacios(){
+  var cuenta = _lpContarProductosPorProv();
+  var vacios = (lpState.proveedores || []).filter(function(p){
+    var n = String(p.proveedorNombre || p.nombre || '').trim().toLowerCase();
+    return p._configurado && (cuenta[n] || 0) === 0;
+  });
+  if(vacios.length === 0){ toast('No hay proveedores vacíos', 'info'); return; }
+  if(!confirm('Borrar ' + vacios.length + ' proveedores que no tienen ningún producto?\n\nSolo se borra su configuración; como no tienen productos, no se pierde nada.')) return;
+  try{
+    var bs = 400;
+    for(var i = 0; i < vacios.length; i += bs){
+      var slice = vacios.slice(i, i + bs);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        batch.delete(db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(p.id));
+      });
+      await batch.commit();
+    }
+    // Quitar de memoria
+    var ids = {}; vacios.forEach(function(p){ ids[p.id] = true; });
+    lpState.proveedores = (lpState.proveedores || []).filter(function(p){ return !ids[p.id]; });
+    toast('Borrados ' + vacios.length + ' proveedores vacíos', 'success');
+    lpCerrarLimpieza();
+    if(typeof lpCargarProveedores === 'function') lpCargarProveedores();
+  }catch(err){
+    console.error(err);
+    toast('Error al borrar proveedores: ' + (err.message || ''), 'error');
+  }
+}
+
+async function lpBorrarProductosDesde(){
+  var input = document.getElementById('lpLimpiezaFecha');
+  if(!input || !input.value){ toast('Elegí una fecha', 'error'); return; }
+  var cutoff = new Date(input.value).getTime();
+  if(isNaN(cutoff)){ toast('Fecha inválida', 'error'); return; }
+
+  var aBorrar = (productos || []).filter(function(p){
+    var f = p.fechaCreacion; if(!f) return false;
+    var t = null;
+    try{ t = (typeof f === 'string') ? new Date(f).getTime() : (f.seconds ? f.seconds * 1000 : new Date(f).getTime()); }catch(e){ return false; }
+    return t && !isNaN(t) && t >= cutoff;
+  });
+  if(aBorrar.length === 0){ toast('No hay productos creados después de esa fecha', 'info'); return; }
+  if(!confirm('Se van a BORRAR ' + aBorrar.length + ' productos creados después de ' + input.value + '.\n\nEsto NO se puede deshacer. ¿Seguro?')) return;
+  if(aBorrar.length > 500 && !confirm('Son ' + aBorrar.length + ' productos. Puede tardar varios minutos y consume escrituras de Firestore. ¿Confirmás igual?')) return;
+
+  try{
+    var bs = 400, borrados = 0;
+    for(var i = 0; i < aBorrar.length; i += bs){
+      var slice = aBorrar.slice(i, i + bs);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        batch.delete(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id));
+      });
+      await batch.commit();
+      borrados += slice.length;
+      toast('Borrando ' + borrados + ' / ' + aBorrar.length + '...', 'info');
+    }
+    var ids = {}; aBorrar.forEach(function(p){ ids[p._id] = true; });
+    productos = (productos || []).filter(function(p){ return !ids[p._id]; });
+    try{ await idbBorrarIds(currentEmpresaId, Object.keys(ids)); }catch(e){ console.warn('IDB', e); }
+    toast('Borrados ' + aBorrar.length + ' productos creados por la importación', 'success');
+    lpCerrarLimpieza();
+    if(typeof renderProductos === 'function') renderProductos();
+  }catch(err){
+    console.error(err);
+    toast('Error al borrar productos: ' + (err.message || ''), 'error');
+  }
+}
+
+
 async function lpGuardarYRecalcular(){
   var pid = lpState.proveedorEditando;
   try{ await lpGuardarProveedor(); }catch(e){}
