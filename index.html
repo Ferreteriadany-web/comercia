@@ -5406,6 +5406,30 @@
         </header>
         <div class="main-body">
 
+          <style>
+            .cp-box{border:1px solid var(--line);border-radius:var(--r-md,10px);margin-bottom:16px;overflow:hidden;background:var(--bg)}
+            .cp-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--bg-2);border:none;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;text-align:left}
+            .cp-toggle:hover{background:var(--line)}
+            .cp-arrow{transition:transform .18s ease}
+            .cp-panel{padding:14px 16px;border-top:1px solid var(--line)}
+            .cp-search{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;outline:none;margin-bottom:12px;box-sizing:border-box}
+            .cp-search:focus{border-color:var(--accent)}
+            .cp-table{width:100%;border-collapse:collapse;font-size:13px}
+            .cp-table th{text-align:left;padding:7px 10px;border-bottom:2px solid var(--line);color:var(--text-mute);font-size:11px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;background:var(--bg)}
+            .cp-table td{padding:7px 10px;border-bottom:1px solid var(--line)}
+            .cp-table tbody tr:hover{background:var(--bg-2)}
+          </style>
+          <div class="cp-box">
+            <button class="cp-toggle" type="button" onclick="cpToggle('v')">
+              <span><i class="ti ti-search"></i> Consulta de precios</span>
+              <i class="ti ti-chevron-down cp-arrow" id="cpArrow_v"></i>
+            </button>
+            <div class="cp-panel" id="cpPanel_v" style="display:none">
+              <input type="text" id="cpInput_v" class="cp-search" oninput="cpOnInput('v')" placeholder="Buscá por descripción, código o proveedor..." autocomplete="off">
+              <div id="cpResultados_v"></div>
+            </div>
+          </div>
+
           <!-- TABBAR -->
           <div class="ventas-tabbar">
             <button class="ventas-tabbar-btn active" id="vtbPos" onclick="ventasTabSwitch('pos')">Punto de venta</button>
@@ -5745,6 +5769,17 @@
           </div>
         </header>
         <div class="main-body">
+
+          <div class="cp-box">
+            <button class="cp-toggle" type="button" onclick="cpToggle('c')">
+              <span><i class="ti ti-search"></i> Consulta de precios</span>
+              <i class="ti ti-chevron-down cp-arrow" id="cpArrow_c"></i>
+            </button>
+            <div class="cp-panel" id="cpPanel_c" style="display:none">
+              <input type="text" id="cpInput_c" class="cp-search" oninput="cpOnInput('c')" placeholder="Buscá por descripción, código o proveedor..." autocomplete="off">
+              <div id="cpResultados_c"></div>
+            </div>
+          </div>
 
           <div class="table-card" style="padding:20px;margin-bottom:16px;position:relative;z-index:10;overflow:visible">
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
@@ -24028,6 +24063,68 @@ async function lpCargarHistorial(){
       iaMsgs[iaModo].push({ role:'assistant', content:'No me pude conectar con la IA. Revisá que la Cloud Function esté desplegada y la URL configurada (botón "Configurar"). Detalle: '+(err.message||err) });
     }
     iaCargando=false; iaRender();
+  }
+</script>
+
+<script>
+  // ═══ Consulta de precios (desplegable en Ventas y Compras) ═══
+  var cpTimer = {};
+  function cpToggle(ctx){
+    var panel = document.getElementById('cpPanel_'+ctx);
+    var arrow = document.getElementById('cpArrow_'+ctx);
+    if(!panel) return;
+    var abrir = (panel.style.display === 'none' || !panel.style.display);
+    panel.style.display = abrir ? 'block' : 'none';
+    if(arrow) arrow.style.transform = abrir ? 'rotate(180deg)' : 'rotate(0deg)';
+    if(abrir){
+      var i = document.getElementById('cpInput_'+ctx);
+      if(i){ i.focus(); if(!i.value) cpRender('', 'cpResultados_'+ctx); }
+    }
+  }
+  function cpOnInput(ctx){
+    clearTimeout(cpTimer[ctx]);
+    cpTimer[ctx] = setTimeout(function(){
+      var i = document.getElementById('cpInput_'+ctx);
+      cpRender(i ? i.value : '', 'cpResultados_'+ctx);
+    }, 150);
+  }
+  function cpRender(query, contId){
+    var cont = document.getElementById(contId); if(!cont) return;
+    var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
+    var q = String(query || '').trim();
+    var norm = (typeof iaNorm === 'function') ? iaNorm : function(s){ return String(s||'').toLowerCase(); };
+    var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(Number(n)||0); };
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    if(!q){
+      cont.innerHTML = '<div style="text-align:center;color:var(--text-mute);padding:24px;font-size:13px">Escribí para buscar entre ' + arr.length.toLocaleString('es-AR') + ' productos…</div>';
+      return;
+    }
+    var pals = norm(q).split(/\s+/).filter(function(w){ return w.length >= 2; });
+    if(pals.length === 0) pals = [norm(q)];
+    var res = []; var LIMIT = 80;
+    for(var k = 0; k < arr.length; k++){
+      var p = arr[k];
+      var hay = norm((p.descripcion||p.nombre||'') + ' ' + (p.codigo||'') + ' ' + (p.proveedor||''));
+      var ok = true;
+      for(var j = 0; j < pals.length; j++){ if(hay.indexOf(pals[j]) < 0){ ok = false; break; } }
+      if(ok){ res.push(p); if(res.length >= LIMIT) break; }
+    }
+    if(res.length === 0){
+      cont.innerHTML = '<div style="text-align:center;color:var(--text-mute);padding:24px;font-size:13px">Sin resultados para "' + esc(q) + '"</div>';
+      return;
+    }
+    var rows = res.map(function(p){
+      return '<tr>' +
+        '<td style="font-family:var(--mono,monospace);font-size:12px">' + esc(p.codigo||'') + '</td>' +
+        '<td>' + esc(p.descripcion||p.nombre||'') + '</td>' +
+        '<td style="color:var(--text-mute)">' + esc(p.proveedor||'') + '</td>' +
+        '<td style="text-align:right">' + fmt(p.precioCosto||0) + '</td>' +
+        '<td style="text-align:right;font-weight:600">' + fmt(p.precioVenta||0) + '</td>' +
+        '<td style="text-align:right">' + (p.stock != null ? p.stock : '-') + '</td>' +
+      '</tr>';
+    }).join('');
+    cont.innerHTML = '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">' + res.length + (res.length >= LIMIT ? '+ (refiná para ver más)' : '') + ' resultado' + (res.length !== 1 ? 's' : '') + '</div>' +
+      '<div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="cp-table"><thead><tr><th>Código</th><th>Descripción</th><th>Proveedor</th><th style="text-align:right">Costo</th><th style="text-align:right">Venta</th><th style="text-align:right">Stock</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 </script>
 
