@@ -22270,6 +22270,12 @@ function lpAbrirLimpieza(){
           '<div style="font-size:11px;color:var(--text-mute);margin-top:8px">Te muestra cuántos son y pide confirmación antes de borrar. La fecha por defecto es 2 horas atrás; ajustala al momento de la importación.</div>' +
         '</div>' +
 
+        '<div style="background:rgba(220,53,69,.06);border:1px solid var(--danger);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
+          '<div style="font-weight:600;color:var(--danger);margin-bottom:6px">&#9888; Empezar de cero</div>' +
+          '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">Borra <b>TODOS los productos y TODOS los proveedores</b> para rearmar el catálogo desde una importación limpia. <b>No toca</b> ventas, clientes, cuentas corrientes ni caja. No se puede deshacer.</div>' +
+          '<button class="btn btn-sm" style="background:var(--danger);border-color:var(--danger);color:#fff" onclick="lpBorrarTodoCatalogo()">Borrar todo el catálogo</button>' +
+        '</div>' +
+
       '</div>' +
     '</div></div>';
 
@@ -22353,6 +22359,50 @@ async function lpBorrarProductosDesde(){
   }
 }
 
+// Borra TODOS los documentos de una subcolección de la empresa, paginando.
+async function _lpBorrarColeccion(collName, onProgress){
+  var collRef = db.collection('empresas').doc(currentEmpresaId).collection(collName);
+  var total = 0;
+  while(true){
+    var snap = await collRef.limit(400).get();
+    if(snap.empty) break;
+    var batch = db.batch();
+    snap.docs.forEach(function(d){ batch.delete(d.ref); });
+    await batch.commit();
+    total += snap.size;
+    if(onProgress) onProgress(total);
+    if(snap.size < 400) break;
+  }
+  return total;
+}
+
+// Borra TODO el catálogo (productos + proveedores) para rearmar de cero.
+// No toca ventas, clientes, cuentas corrientes ni caja.
+async function lpBorrarTodoCatalogo(){
+  if(!confirm('Vas a borrar TODOS los productos y TODOS los proveedores para empezar de cero.\n\nNO se tocan ventas, clientes, cuentas corrientes ni caja.\n\n¿Continuar?')) return;
+  var conf = prompt('Esto NO se puede deshacer. Para confirmar, escribí:  BORRAR TODO');
+  if(conf == null) return;
+  if(String(conf).trim().toUpperCase() !== 'BORRAR TODO'){ toast('No se confirmó (texto incorrecto). No se borró nada.', 'info'); return; }
+  try{
+    toast('Borrando productos...', 'info');
+    var nProd = await _lpBorrarColeccion('productos', function(n){
+      try{ toast('Borrando productos... ' + n, 'info'); }catch(e){}
+    });
+    toast('Borrando proveedores...', 'info');
+    var nProv = await _lpBorrarColeccion('listas_proveedores');
+    // Limpiar memoria y caché local
+    productos = [];
+    lpState.proveedores = [];
+    try{ await idbLimpiarEmpresa(currentEmpresaId); }catch(e){ console.warn('IDB', e); }
+    toast('Listo: ' + nProd + ' productos y ' + nProv + ' proveedores borrados. Catálogo vacío.', 'success');
+    lpCerrarLimpieza();
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof lpCargarProveedores === 'function') lpCargarProveedores();
+  }catch(err){
+    console.error(err);
+    toast('Error al borrar el catálogo: ' + (err.message || ''), 'error');
+  }
+}
 
 async function lpGuardarYRecalcular(){
   var pid = lpState.proveedorEditando;
