@@ -5076,6 +5076,9 @@
         <a class="nav-item" data-module="reportes" onclick="navTo('reportes')">
           <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Reportes</span>
         </a>
+        <a class="nav-item" data-module="consultaPrecios" onclick="navTo('consultaPrecios')">
+          <span class="nav-item-icon"><i class="ti ti-search"></i></span><span>Consulta de precios</span>
+        </a>
         <a class="nav-item" data-module="ia" onclick="navTo('ia')">
           <span class="nav-item-icon"><i class="ti ti-robot"></i></span><span>Asistente IA</span>
         </a>
@@ -5405,30 +5408,6 @@
           </div>
         </header>
         <div class="main-body">
-
-          <style>
-            .cp-box{border:1px solid var(--line);border-radius:var(--r-md,10px);margin-bottom:16px;overflow:hidden;background:var(--bg)}
-            .cp-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--bg-2);border:none;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;text-align:left}
-            .cp-toggle:hover{background:var(--line)}
-            .cp-arrow{transition:transform .18s ease}
-            .cp-panel{padding:14px 16px;border-top:1px solid var(--line)}
-            .cp-search{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;outline:none;margin-bottom:12px;box-sizing:border-box}
-            .cp-search:focus{border-color:var(--accent)}
-            .cp-table{width:100%;border-collapse:collapse;font-size:13px}
-            .cp-table th{text-align:left;padding:7px 10px;border-bottom:2px solid var(--line);color:var(--text-mute);font-size:11px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;background:var(--bg)}
-            .cp-table td{padding:7px 10px;border-bottom:1px solid var(--line)}
-            .cp-table tbody tr:hover{background:var(--bg-2)}
-          </style>
-          <div class="cp-box">
-            <button class="cp-toggle" type="button" onclick="cpToggle('v')">
-              <span><i class="ti ti-search"></i> Consulta de precios</span>
-              <i class="ti ti-chevron-down cp-arrow" id="cpArrow_v"></i>
-            </button>
-            <div class="cp-panel" id="cpPanel_v" style="display:none">
-              <input type="text" id="cpInput_v" class="cp-search" oninput="cpOnInput('v')" placeholder="Buscá por descripción, código o proveedor..." autocomplete="off">
-              <div id="cpResultados_v"></div>
-            </div>
-          </div>
 
           <!-- TABBAR -->
           <div class="ventas-tabbar">
@@ -5769,17 +5748,6 @@
           </div>
         </header>
         <div class="main-body">
-
-          <div class="cp-box">
-            <button class="cp-toggle" type="button" onclick="cpToggle('c')">
-              <span><i class="ti ti-search"></i> Consulta de precios</span>
-              <i class="ti ti-chevron-down cp-arrow" id="cpArrow_c"></i>
-            </button>
-            <div class="cp-panel" id="cpPanel_c" style="display:none">
-              <input type="text" id="cpInput_c" class="cp-search" oninput="cpOnInput('c')" placeholder="Buscá por descripción, código o proveedor..." autocomplete="off">
-              <div id="cpResultados_c"></div>
-            </div>
-          </div>
 
           <div class="table-card" style="padding:20px;margin-bottom:16px;position:relative;z-index:10;overflow:visible">
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
@@ -6923,6 +6891,53 @@
       </div>
 
       <!-- ═══ MÓDULO CONFIGURACIÓN ═══ -->
+      <div class="module" id="moduleConsultaPrecios">
+        <header class="main-header">
+          <h1 class="main-title">Consulta de precios</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="cpLimpiarFiltros()">&#10005; Limpiar filtros</button>
+          </div>
+        </header>
+        <div class="main-body">
+          <style>
+            #moduleConsultaPrecios .cp-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end}
+            #moduleConsultaPrecios .cp-field label{display:block;font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+            #moduleConsultaPrecios .cp-field input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;outline:none;box-sizing:border-box}
+            #moduleConsultaPrecios .cp-field input:focus{border-color:var(--accent)}
+            #moduleConsultaPrecios .cp-table{width:100%;border-collapse:collapse;font-size:13px}
+            #moduleConsultaPrecios .cp-table th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--line);color:var(--text-mute);font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;background:var(--bg-2);position:sticky;top:0;z-index:1}
+            #moduleConsultaPrecios .cp-table th.sortable{cursor:pointer;user-select:none}
+            #moduleConsultaPrecios .cp-table th.sortable:hover{color:var(--text)}
+            #moduleConsultaPrecios .cp-table td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+            #moduleConsultaPrecios .cp-table tbody tr:hover{background:var(--bg-2)}
+            #moduleConsultaPrecios .cp-num{text-align:right;white-space:nowrap}
+            #moduleConsultaPrecios .cp-pag{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border-top:1px solid var(--line);flex-wrap:wrap}
+            #moduleConsultaPrecios .cp-pag button{min-width:34px;height:34px;padding:0 10px;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:8px;cursor:pointer;font-size:13px}
+            #moduleConsultaPrecios .cp-pag button:hover:not(:disabled){background:var(--bg-2)}
+            #moduleConsultaPrecios .cp-pag button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+            #moduleConsultaPrecios .cp-pag button:disabled{opacity:.4;cursor:default}
+            #moduleConsultaPrecios .cp-pag select{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:0 8px;margin-left:8px}
+          </style>
+
+          <div class="table-card" style="padding:16px;margin-bottom:16px">
+            <div class="cp-filtros">
+              <div class="cp-field"><label>Código</label><input type="text" id="cpCodigo" oninput="cpFiltrarD()" placeholder="Buscar por código..." autocomplete="off"></div>
+              <div class="cp-field"><label>Producto</label><input type="text" id="cpProducto" oninput="cpFiltrarD()" placeholder="Buscar por descripción..." autocomplete="off"></div>
+              <div class="cp-field"><label>Proveedor</label><input type="text" id="cpProveedor" oninput="cpFiltrarD()" placeholder="Buscar por proveedor..." autocomplete="off"></div>
+            </div>
+          </div>
+
+          <div class="table-card" style="padding:0;overflow:hidden">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+              <span>Listado de productos</span>
+              <span style="font-size:12px;color:var(--text-mute);font-weight:400" id="cpTotal"></span>
+            </div>
+            <div style="overflow-x:auto"><div id="cpTabla"></div></div>
+            <div id="cpPaginacion" class="cp-pag"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="module" id="moduleIa">
         <header class="main-header">
           <h1 class="main-title">Asistente IA</h1>
@@ -8719,6 +8734,7 @@ function navTo(modulo){
   if(modulo==='entradaStock') initEntradaStock();
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
+  if(modulo==='consultaPrecios') initConsultaPrecios();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -24067,65 +24083,126 @@ async function lpCargarHistorial(){
 </script>
 
 <script>
-  // ═══ Consulta de precios (desplegable en Ventas y Compras) ═══
-  var cpTimer = {};
-  function cpToggle(ctx){
-    var panel = document.getElementById('cpPanel_'+ctx);
-    var arrow = document.getElementById('cpArrow_'+ctx);
-    if(!panel) return;
-    var abrir = (panel.style.display === 'none' || !panel.style.display);
-    panel.style.display = abrir ? 'block' : 'none';
-    if(arrow) arrow.style.transform = abrir ? 'rotate(180deg)' : 'rotate(0deg)';
-    if(abrir){
-      var i = document.getElementById('cpInput_'+ctx);
-      if(i){ i.focus(); if(!i.value) cpRender('', 'cpResultados_'+ctx); }
-    }
+  // ═══ Consulta de precios (lista completa, filtros y paginado — estilo Dux) ═══
+  var cpState = { page: 1, pageSize: 50, filtered: [], sortCol: 'codigo', sortDir: 1 };
+  var cpTimer = null;
+  function _cpNorm(s){ return (typeof iaNorm === 'function') ? iaNorm(s) : String(s||'').toLowerCase(); }
+  function _cpVal(id){ var e = document.getElementById(id); return e ? e.value : ''; }
+
+  function initConsultaPrecios(){
+    ['cpCodigo','cpProducto','cpProveedor'].forEach(function(id){ var e = document.getElementById(id); if(e) e.value=''; });
+    cpState.page = 1; cpState.sortCol = 'codigo'; cpState.sortDir = 1;
+    cpFiltrar();
   }
-  function cpOnInput(ctx){
-    clearTimeout(cpTimer[ctx]);
-    cpTimer[ctx] = setTimeout(function(){
-      var i = document.getElementById('cpInput_'+ctx);
-      cpRender(i ? i.value : '', 'cpResultados_'+ctx);
-    }, 150);
-  }
-  function cpRender(query, contId){
-    var cont = document.getElementById(contId); if(!cont) return;
+  function cpLimpiarFiltros(){ initConsultaPrecios(); var c = document.getElementById('cpCodigo'); if(c) c.focus(); }
+  function cpFiltrarD(){ clearTimeout(cpTimer); cpTimer = setTimeout(cpFiltrar, 200); }
+
+  function cpFiltrar(){
     var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
-    var q = String(query || '').trim();
-    var norm = (typeof iaNorm === 'function') ? iaNorm : function(s){ return String(s||'').toLowerCase(); };
+    var fCod = _cpNorm(_cpVal('cpCodigo')).trim();
+    var fProv = _cpNorm(_cpVal('cpProveedor')).trim();
+    var prodPals = _cpNorm(_cpVal('cpProducto')).split(/\s+/).filter(function(w){ return w.length >= 2; });
+    var res = [];
+    for(var i = 0; i < arr.length; i++){
+      var p = arr[i];
+      if(fCod && _cpNorm(p.codigo).indexOf(fCod) < 0) continue;
+      if(fProv && _cpNorm(p.proveedor).indexOf(fProv) < 0) continue;
+      if(prodPals.length){
+        var hay = _cpNorm((p.descripcion||p.nombre||'') + ' ' + (p.codigo||''));
+        var ok = true;
+        for(var j = 0; j < prodPals.length; j++){ if(hay.indexOf(prodPals[j]) < 0){ ok = false; break; } }
+        if(!ok) continue;
+      }
+      res.push(p);
+    }
+    cpState.filtered = res;
+    cpState.page = 1;
+    cpOrdenar();
+  }
+
+  function cpSort(col){
+    if(cpState.sortCol === col) cpState.sortDir = -cpState.sortDir;
+    else { cpState.sortCol = col; cpState.sortDir = 1; }
+    cpOrdenar();
+  }
+  function cpOrdenar(){
+    var col = cpState.sortCol, dir = cpState.sortDir;
+    if(col){
+      cpState.filtered.sort(function(a, b){
+        var va, vb;
+        if(col === 'precioVenta' || col === 'precioCosto' || col === 'stock'){
+          va = Number(a[col]) || 0; vb = Number(b[col]) || 0; return (va - vb) * dir;
+        }
+        va = _cpNorm(a[col] || a.descripcion || ''); vb = _cpNorm(b[col] || b.descripcion || '');
+        return va < vb ? -dir : (va > vb ? dir : 0);
+      });
+    }
+    cpRender();
+  }
+
+  function cpRender(){
+    var cont = document.getElementById('cpTabla'); if(!cont) return;
     var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(Number(n)||0); };
     var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
-    if(!q){
-      cont.innerHTML = '<div style="text-align:center;color:var(--text-mute);padding:24px;font-size:13px">Escribí para buscar entre ' + arr.length.toLocaleString('es-AR') + ' productos…</div>';
+    var arr = cpState.filtered;
+    var total = arr.length;
+    var ps = cpState.pageSize;
+    var pages = Math.max(1, Math.ceil(total / ps));
+    if(cpState.page > pages) cpState.page = pages;
+    var start = (cpState.page - 1) * ps;
+    var slice = arr.slice(start, start + ps);
+
+    var tot = document.getElementById('cpTotal');
+    if(tot) tot.textContent = total.toLocaleString('es-AR') + ' producto' + (total !== 1 ? 's' : '');
+
+    if(total === 0){
+      cont.innerHTML = '<div style="text-align:center;color:var(--text-mute);padding:40px;font-size:14px">No se encontraron productos con esos filtros.</div>';
+      document.getElementById('cpPaginacion').innerHTML = '';
       return;
     }
-    var pals = norm(q).split(/\s+/).filter(function(w){ return w.length >= 2; });
-    if(pals.length === 0) pals = [norm(q)];
-    var res = []; var LIMIT = 80;
-    for(var k = 0; k < arr.length; k++){
-      var p = arr[k];
-      var hay = norm((p.descripcion||p.nombre||'') + ' ' + (p.codigo||'') + ' ' + (p.proveedor||''));
-      var ok = true;
-      for(var j = 0; j < pals.length; j++){ if(hay.indexOf(pals[j]) < 0){ ok = false; break; } }
-      if(ok){ res.push(p); if(res.length >= LIMIT) break; }
-    }
-    if(res.length === 0){
-      cont.innerHTML = '<div style="text-align:center;color:var(--text-mute);padding:24px;font-size:13px">Sin resultados para "' + esc(q) + '"</div>';
-      return;
-    }
-    var rows = res.map(function(p){
+    function arrow(col){ return cpState.sortCol === col ? (cpState.sortDir > 0 ? ' ▲' : ' ▼') : ' ⇅'; }
+    var rows = slice.map(function(p){
       return '<tr>' +
-        '<td style="font-family:var(--mono,monospace);font-size:12px">' + esc(p.codigo||'') + '</td>' +
+        '<td style="font-family:var(--mono,monospace);font-size:12px;white-space:nowrap">' + esc(p.codigo||'') + '</td>' +
         '<td>' + esc(p.descripcion||p.nombre||'') + '</td>' +
+        '<td class="cp-num" style="font-weight:600">' + fmt(p.precioVenta||0) + '</td>' +
+        '<td class="cp-num">' + fmt(p.precioCosto||0) + '</td>' +
+        '<td class="cp-num">' + (p.stock != null ? p.stock : '-') + '</td>' +
         '<td style="color:var(--text-mute)">' + esc(p.proveedor||'') + '</td>' +
-        '<td style="text-align:right">' + fmt(p.precioCosto||0) + '</td>' +
-        '<td style="text-align:right;font-weight:600">' + fmt(p.precioVenta||0) + '</td>' +
-        '<td style="text-align:right">' + (p.stock != null ? p.stock : '-') + '</td>' +
       '</tr>';
     }).join('');
-    cont.innerHTML = '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">' + res.length + (res.length >= LIMIT ? '+ (refiná para ver más)' : '') + ' resultado' + (res.length !== 1 ? 's' : '') + '</div>' +
-      '<div style="overflow-x:auto;max-height:340px;overflow-y:auto"><table class="cp-table"><thead><tr><th>Código</th><th>Descripción</th><th>Proveedor</th><th style="text-align:right">Costo</th><th style="text-align:right">Venta</th><th style="text-align:right">Stock</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    cont.innerHTML = '<table class="cp-table"><thead><tr>' +
+      '<th class="sortable" onclick="cpSort(\'codigo\')">Código' + arrow('codigo') + '</th>' +
+      '<th class="sortable" onclick="cpSort(\'descripcion\')">Producto' + arrow('descripcion') + '</th>' +
+      '<th class="sortable cp-num" onclick="cpSort(\'precioVenta\')">Precio venta' + arrow('precioVenta') + '</th>' +
+      '<th class="sortable cp-num" onclick="cpSort(\'precioCosto\')">Costo de compra' + arrow('precioCosto') + '</th>' +
+      '<th class="sortable cp-num" onclick="cpSort(\'stock\')">Stock' + arrow('stock') + '</th>' +
+      '<th>Proveedor</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+    cpRenderPaginacion(pages, total, start, slice.length);
   }
+
+  function cpRenderPaginacion(pages, total, start, shown){
+    var cont = document.getElementById('cpPaginacion'); if(!cont) return;
+    var pg = cpState.page;
+    var html = '';
+    html += '<button onclick="cpIrPagina(1)"' + (pg<=1?' disabled':'') + '>&laquo;</button>';
+    html += '<button onclick="cpIrPagina(' + (pg-1) + ')"' + (pg<=1?' disabled':'') + '>&lsaquo;</button>';
+    var from = Math.max(1, pg-2), to = Math.min(pages, pg+2);
+    if(from > 1) html += '<span style="color:var(--text-mute)">…</span>';
+    for(var i = from; i <= to; i++){ html += '<button class="' + (i===pg?'active':'') + '" onclick="cpIrPagina(' + i + ')">' + i + '</button>'; }
+    if(to < pages) html += '<span style="color:var(--text-mute)">…</span>';
+    html += '<button onclick="cpIrPagina(' + (pg+1) + ')"' + (pg>=pages?' disabled':'') + '>&rsaquo;</button>';
+    html += '<button onclick="cpIrPagina(' + pages + ')"' + (pg>=pages?' disabled':'') + '>&raquo;</button>';
+    html += '<select onchange="cpCambiarPageSize(this.value)">';
+    [10,25,50,100,200].forEach(function(n){ html += '<option value="' + n + '"' + (n===cpState.pageSize?' selected':'') + '>' + n + ' / pág</option>'; });
+    html += '</select>';
+    html += '<span style="margin-left:10px;font-size:12px;color:var(--text-mute)">' + (start+1) + '–' + (start+shown) + ' de ' + total.toLocaleString('es-AR') + '</span>';
+    cont.innerHTML = html;
+  }
+  function cpIrPagina(n){ cpState.page = n; cpRender(); var m = document.getElementById('cpTabla'); if(m && m.scrollIntoView) m.scrollIntoView({block:'nearest'}); }
+  function cpCambiarPageSize(v){ cpState.pageSize = parseInt(v,10)||50; cpState.page = 1; cpRender(); }
 </script>
 
 </body>
