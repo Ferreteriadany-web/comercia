@@ -5076,6 +5076,9 @@
         <a class="nav-item" data-module="reportes" onclick="navTo('reportes')">
           <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Reportes</span>
         </a>
+        <a class="nav-item" data-module="ia" onclick="navTo('ia')">
+          <span class="nav-item-icon"><i class="ti ti-robot"></i></span><span>Asistente IA</span>
+        </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
             <span class="nav-item-icon"><i class="ti ti-database"></i></span>
@@ -6882,6 +6885,28 @@
       </div>
 
       <!-- ═══ MÓDULO CONFIGURACIÓN ═══ -->
+      <div class="module" id="moduleIa">
+        <header class="main-header">
+          <h1 class="main-title">Asistente IA</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="iaConfig()">&#9881; Configurar</button>
+          </div>
+        </header>
+        <div style="padding:20px;max-width:760px;margin:0 auto;width:100%">
+          <div class="ia-modes" id="iaModes">
+            <button class="ia-mode active" data-mode="consultas" onclick="iaSetModo('consultas')">&#128270; Consultas</button>
+            <button class="ia-mode" data-mode="comparador" onclick="iaSetModo('comparador')">&#9878; Comparar precios</button>
+            <button class="ia-mode" data-mode="soporte" onclick="iaSetModo('soporte')">&#128736; Soporte del sistema</button>
+          </div>
+          <div class="ia-modo-desc" id="iaModoDesc"></div>
+          <div class="ia-chat" id="iaChat"></div>
+          <div class="ia-inputbar">
+            <input type="text" id="iaInput" placeholder="Escribí tu consulta..." onkeydown="if(event.key==='Enter')iaEnviar()" autocomplete="off">
+            <button onclick="iaEnviar()">Enviar</button>
+          </div>
+        </div>
+      </div>
+
       <div class="module" id="moduleConfiguracion">
         <header class="main-header">
           <h1 class="main-title">Configuración</h1>
@@ -8655,6 +8680,7 @@ function navTo(modulo){
   if(modulo==='empleados') initEmpleados();
   if(modulo==='entradaStock') initEntradaStock();
   if(modulo==='reportes') initReportes();
+  if(modulo==='ia') initIA();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -23869,6 +23895,101 @@ async function lpCargarHistorial(){
   }
 }
 
+</script>
+
+<!-- ═══════════════ ASISTENTE IA ═══════════════ -->
+<style>
+  .ia-fab{position:fixed;bottom:20px;right:20px;z-index:90;width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:24px;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+  .ia-modes{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ia-mode{padding:8px 14px;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:20px;cursor:pointer;font-size:13px;font-weight:600}
+  .ia-mode.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .ia-modo-desc{font-size:12px;color:var(--text-mute);margin-bottom:12px;line-height:1.4}
+  .ia-chat{border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg-2);height:48vh;min-height:300px;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;font-size:13px;line-height:1.5}
+  .ia-msg{max-width:80%;padding:10px 13px;border-radius:12px;white-space:pre-wrap;word-break:break-word}
+  .ia-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:3px}
+  .ia-msg.bot{align-self:flex-start;background:var(--bg);border:1px solid var(--line);color:var(--text);border-bottom-left-radius:3px}
+  .ia-empty{color:var(--text-mute);font-size:13px;text-align:center;margin:auto;padding:0 24px;line-height:1.5}
+  .ia-inputbar{display:flex;gap:8px;margin-top:12px}
+  .ia-inputbar input{flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:24px;background:var(--bg);color:var(--text);font-size:14px;outline:none}
+  .ia-inputbar button{background:var(--accent);color:#fff;border:none;border-radius:24px;padding:0 20px;cursor:pointer;font-size:14px;font-weight:600}
+</style>
+<button class="ia-fab" onclick="navTo('ia')" title="Asistente IA">&#129302;</button>
+<script>
+  var iaModo = 'consultas';
+  var iaMsgs = { consultas: [], comparador: [], soporte: [] };
+  var iaCargando = false;
+  function iaEndpoint(){ try{ return localStorage.getItem('comercia_asistente_endpoint') || ''; }catch(e){ return ''; } }
+  function initIA(){ iaSetModo(iaModo); }
+  function iaConfig(){
+    var url = prompt('Pegá la URL de tu Cloud Function de IA\n(la obtenés al desplegar la función en Firebase):', iaEndpoint());
+    if(url == null) return;
+    try{ localStorage.setItem('comercia_asistente_endpoint', String(url).trim()); }catch(e){}
+    if(typeof toast === 'function') toast('Conexión con la IA guardada', 'success');
+    iaRender();
+  }
+  var IA_PLACEHOLDER = { consultas:'¿Qué adhesivo uso para plástico?', comparador:'¿Dónde compro más barato cola vinílica?', soporte:'¿Cómo importo una lista de precios?' };
+  var IA_DESC = {
+    consultas:'Consultas generales de ferretería: qué producto o material conviene, herramientas, cómo aplicar algo. La IA puede buscar en la web.',
+    comparador:'Buscá un producto en TU catálogo y te digo en qué proveedor conviene comprarlo (compara los costos que tenés cargados).',
+    soporte:'Dudas sobre cómo usar Comercia: cargar listas, ventas, reponer stock, cuentas corrientes, etc.'
+  };
+  function iaSetModo(m){
+    iaModo = m;
+    document.querySelectorAll('#iaModes .ia-mode').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-mode')===m); });
+    var d = document.getElementById('iaModoDesc'); if(d) d.textContent = IA_DESC[m] || '';
+    var inp = document.getElementById('iaInput'); if(inp) inp.placeholder = IA_PLACEHOLDER[m] || 'Escribí tu consulta...';
+    iaRender();
+  }
+  function iaRender(){
+    var cont = document.getElementById('iaChat'); if(!cont) return;
+    var msgs = iaMsgs[iaModo] || [];
+    if(msgs.length === 0){
+      var hint = iaEndpoint() ? 'Escribí tu consulta abajo 👇' : '⚙ Primero configurá la conexión con la IA (botón "Configurar").';
+      cont.innerHTML = '<div class="ia-empty">' + hint + '</div>'; return;
+    }
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    cont.innerHTML = msgs.map(function(mm){
+      return '<div class="ia-msg ' + (mm.role==='user'?'user':'bot') + '">' + esc(mm.content) + '</div>';
+    }).join('') + (iaCargando ? '<div class="ia-msg bot" style="opacity:.6">escribiendo…</div>' : '');
+    cont.scrollTop = cont.scrollHeight;
+  }
+  function iaNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function iaBuscarCandidatos(texto){
+    var pals = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3; });
+    if(pals.length===0) pals = [iaNorm(texto)];
+    var res = [];
+    var arr = productos || [];
+    for(var i=0;i<arr.length;i++){
+      var p = arr[i];
+      var hay = iaNorm((p.descripcion||p.nombre||'')+' '+(p.codigo||'')+' '+(p.proveedor||''));
+      if(pals.every(function(w){ return hay.indexOf(w)>=0; })){ res.push(p); if(res.length>=60) break; }
+    }
+    return res;
+  }
+  async function iaEnviar(){
+    var input = document.getElementById('iaInput'); if(!input) return;
+    var txt = input.value.trim(); if(!txt || iaCargando) return;
+    var endpoint = iaEndpoint(); if(!endpoint){ iaConfig(); return; }
+    input.value='';
+    iaMsgs[iaModo].push({ role:'user', content:txt });
+    iaCargando = true; iaRender();
+    var payload = { messages: iaMsgs[iaModo], mode: iaModo };
+    if(iaModo==='comparador'){
+      payload.context = iaBuscarCandidatos(txt).map(function(p){
+        return { codigo:p.codigo||'', desc:(p.descripcion||p.nombre||''), proveedor:p.proveedor||'', costo:Number(p.precioCosto||p.costoNeto||0), venta:Number(p.precioVenta||0) };
+      });
+    }
+    try{
+      var resp = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      if(!resp.ok) throw new Error('HTTP '+resp.status);
+      var data = await resp.json();
+      var reply = data.reply || data.text || 'Sin respuesta.';
+      iaMsgs[iaModo].push({ role:'assistant', content:reply });
+    }catch(err){
+      iaMsgs[iaModo].push({ role:'assistant', content:'No me pude conectar con la IA. Revisá que la Cloud Function esté desplegada y la URL configurada (botón "Configurar"). Detalle: '+(err.message||err) });
+    }
+    iaCargando=false; iaRender();
+  }
 </script>
 
 </body>
