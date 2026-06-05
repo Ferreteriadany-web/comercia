@@ -6614,6 +6614,9 @@
 
               <!-- Actions -->
               <div class="lp-preview-actions">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-mute);margin-right:auto;cursor:pointer" title="Si está tildado, solo se actualizan precios de productos que ya tenés en el catálogo. Los que no estén, se listan en un aviso al final (no se crean).">
+                  <input type="checkbox" id="lpSoloActualizar"> Solo actualizar precios (no crear nuevos)
+                </label>
                 <button class="btn btn-sm btn-light" onclick="lpCancelarImport()">Cancelar</button>
                 <button class="btn btn-sm" onclick="lpAplicarSoloNuevos()" id="lpBtnSoloNuevos">Solo nuevos (0)</button>
                 <button class="btn btn-sm btn-primary" onclick="lpAplicarTodo()" id="lpBtnAplicar">Aplicar seleccionados (0)</button>
@@ -21914,7 +21917,7 @@ async function lpAplicarCatalogo(){
       var batch = db.batch();
       slice.forEach(function(m){
         var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(m.docId);
-        batch.update(ref, { proveedor: m.proveedor, moneda: m.moneda });
+        batch.set(ref, { proveedor: m.proveedor, moneda: m.moneda }, { merge: true });
         var prodLocal = productos.find(function(p){ return p._id === m.docId; });
         if(prodLocal) localUpdates.push(Object.assign({}, prodLocal, { proveedor: m.proveedor, moneda: m.moneda }));
       });
@@ -23698,6 +23701,8 @@ async function lpEjecutarAplicar(filas){
 
   var batchSize = 400; // Firestore: max 500 por batch
   var porProv = {};    // provId -> { nombre, prov, actualizados, creados }
+  var soloActualizar = !!(document.getElementById('lpSoloActualizar') && document.getElementById('lpSoloActualizar').checked);
+  var noEnCatalogo = [];   // productos de la lista que no están cargados (cuando soloActualizar)
 
   function bump(provId, provNombre, provObj, esCrear){
     if(!porProv[provId]) porProv[provId] = { nombre: provNombre, prov: provObj, actualizados: 0, creados: 0 };
@@ -23712,6 +23717,12 @@ async function lpEjecutarAplicar(filas){
       var nowIso = new Date().toISOString();
 
       slice.forEach(function(r){
+        // Modo "solo actualizar precios": si el producto no existe en el catálogo,
+        // NO lo creamos; lo juntamos para avisar al final.
+        if(soloActualizar && r.estado === 'crear'){
+          noEnCatalogo.push({ codigo: r.codigoProv, desc: r.descripcion || '' });
+          return;
+        }
         var provNombre = r._provNombre || (imp.proveedor && imp.proveedor.proveedorNombre) || '';
         var provId = r._provId || (imp.proveedor && imp.proveedor.id) || lpSanitizarId(provNombre);
         var descProd = Number(r.descProducto) || 0;
@@ -23814,13 +23825,15 @@ async function lpEjecutarAplicar(filas){
     await histBatch.commit();
 
     var provTxt = (imp.modo === 'sabana') ? (' en ' + Object.keys(porProv).length + ' proveedores') : '';
-    toast('✅ Aplicado: ' + totalActualizados + ' actualizados, ' + totalCreados + ' nuevos' + provTxt, 'success');
+    var omitTxt = noEnCatalogo.length ? (' · ' + noEnCatalogo.length + ' no estaban en el catálogo') : '';
+    toast('✅ Aplicado: ' + totalActualizados + ' actualizados, ' + totalCreados + ' nuevos' + provTxt + omitTxt, 'success');
     lpState.importacion = null;
     lpVolverAPaso1();
     document.getElementById('lpFileInput').value = '';
     // Refrescar productos
     try{ productos = await idbGetTodos(currentEmpresaId); }catch(e){}
     lpCambiarTab('historial');
+    if(noEnCatalogo.length) lpMostrarNoEnCatalogo(noEnCatalogo);
   }catch(err){
     console.error(err);
     toast('Error al aplicar: ' + err.message, 'error');
@@ -23829,6 +23842,32 @@ async function lpEjecutarAplicar(filas){
     btnNuevos.disabled = false;
     lpActualizarStats();
   }
+}
+
+// Aviso: productos de la lista que NO están en el catálogo (modo "solo actualizar").
+function lpMostrarNoEnCatalogo(lista){
+  var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+  var filas = lista.slice(0, 300).map(function(x){
+    return '<div style="padding:4px 0;border-bottom:1px solid var(--line)"><b>' + esc(x.codigo) + '</b> — ' + esc(x.desc || '') + '</div>';
+  }).join('');
+  var extra = lista.length > 300 ? ('<div style="margin-top:6px;color:var(--text-mute)">…y ' + (lista.length - 300) + ' más</div>') : '';
+  var textoPlano = lista.map(function(x){ return x.codigo + '\t' + (x.desc || ''); }).join('\n');
+  window._lpNoCatTexto = textoPlano;
+  var html = '' +
+    '<div class="modal-overlay show" id="lpNoCatOverlay" onclick="if(event.target===this)document.getElementById(\'lpNoCatOverlay\').remove()">' +
+    '<div class="modal" style="max-width:560px">' +
+      '<button class="modal-close" onclick="document.getElementById(\'lpNoCatOverlay\').remove()">&times;</button>' +
+      '<div class="modal-eyebrow">&#9888; Aviso</div>' +
+      '<h2 class="modal-title">' + lista.length + ' productos no están en tu catálogo</h2>' +
+      '<p class="modal-subtitle">Estos productos de la lista <b>no se actualizaron</b> porque todavía no los tenés cargados. Si los querés, agregalos importando con el check <i>"Solo actualizar precios"</i> apagado.</p>' +
+      '<div style="max-height:300px;overflow-y:auto;font-size:12px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;background:var(--bg-2)">' + filas + extra + '</div>' +
+      '<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">' +
+        '<button class="btn btn-line btn-sm" onclick="navigator.clipboard && navigator.clipboard.writeText(window._lpNoCatTexto||\'\'); if(typeof toast===\'function\')toast(\'Lista copiada\',\'success\');">Copiar lista</button>' +
+        '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'lpNoCatOverlay\').remove()">Entendido</button>' +
+      '</div>' +
+    '</div></div>';
+  var prev = document.getElementById('lpNoCatOverlay'); if(prev) prev.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function lpSanitizarIdProducto(codigo){
