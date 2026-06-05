@@ -5055,6 +5055,9 @@
         <a class="nav-item active" data-module="ventas" onclick="navTo('ventas')">
           <span class="nav-item-icon"><i class="ti ti-cash-register"></i></span><span>Ventas</span>
         </a>
+        <a class="nav-item" data-module="consultaPrecios" onclick="navTo('consultaPrecios')">
+          <span class="nav-item-icon"><i class="ti ti-search"></i></span><span>Consulta de precios</span>
+        </a>
         <a class="nav-item" data-module="presupuestos" onclick="navTo('presupuestos')">
           <span class="nav-item-icon"><i class="ti ti-file-text"></i></span><span>Presupuestos</span>
         </a>
@@ -5075,9 +5078,6 @@
         </a>
         <a class="nav-item" data-module="reportes" onclick="navTo('reportes')">
           <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Reportes</span>
-        </a>
-        <a class="nav-item" data-module="consultaPrecios" onclick="navTo('consultaPrecios')">
-          <span class="nav-item-icon"><i class="ti ti-search"></i></span><span>Consulta de precios</span>
         </a>
         <a class="nav-item" data-module="ia" onclick="navTo('ia')">
           <span class="nav-item-icon"><i class="ti ti-robot"></i></span><span>Asistente IA</span>
@@ -6917,13 +6917,17 @@
             #moduleConsultaPrecios .cp-pag button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
             #moduleConsultaPrecios .cp-pag button:disabled{opacity:.4;cursor:default}
             #moduleConsultaPrecios .cp-pag select{height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);padding:0 8px;margin-left:8px}
+            #moduleConsultaPrecios .cp-acc{display:flex;gap:6px;justify-content:center}
+            #moduleConsultaPrecios .cp-acc button{width:32px;height:32px;border:1px solid var(--line);background:var(--bg);border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:15px;color:var(--text)}
+            #moduleConsultaPrecios .cp-acc .cp-bv:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+            #moduleConsultaPrecios .cp-acc .cp-bc:hover{background:#7c5cff;color:#fff;border-color:#7c5cff}
           </style>
 
           <div class="table-card" style="padding:16px;margin-bottom:16px">
             <div class="cp-filtros">
               <div class="cp-field"><label>Código</label><input type="text" id="cpCodigo" oninput="cpFiltrarD()" placeholder="Buscar por código..." autocomplete="off"></div>
               <div class="cp-field"><label>Producto</label><input type="text" id="cpProducto" oninput="cpFiltrarD()" placeholder="Buscar por descripción..." autocomplete="off"></div>
-              <div class="cp-field"><label>Proveedor</label><input type="text" id="cpProveedor" oninput="cpFiltrarD()" placeholder="Buscar por proveedor..." autocomplete="off"></div>
+              <div class="cp-field"><label>Proveedor</label><input type="text" id="cpProveedor" list="cpProveedoresList" oninput="cpFiltrarD()" placeholder="Buscar por proveedor..." autocomplete="off"><datalist id="cpProveedoresList"></datalist></div>
             </div>
           </div>
 
@@ -24088,11 +24092,35 @@ async function lpCargarHistorial(){
   var cpTimer = null;
   function _cpNorm(s){ return (typeof iaNorm === 'function') ? iaNorm(s) : String(s||'').toLowerCase(); }
   function _cpVal(id){ var e = document.getElementById(id); return e ? e.value : ''; }
+  function _cpJsStr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  function cpAddVenta(id){
+    if(typeof agregarAlCarrito !== 'function'){ if(typeof toast==='function') toast('Función de venta no disponible','error'); return; }
+    var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
+    var p = arr.find(function(x){ return x._id === id; });
+    if(!p){ return; }
+    if(!p.precioVenta){ if(typeof toast==='function') toast('Este producto no tiene precio de venta','error'); return; }
+    agregarAlCarrito(id);
+    if(typeof toast==='function') toast('🛒 ' + ((p.descripcion||'Producto').substring(0,30)) + ' → carrito de venta','success');
+  }
+  function cpAddPedido(id){
+    if(typeof agregarProductoPedido !== 'function'){ if(typeof toast==='function') toast('Función de pedido no disponible','error'); return; }
+    try { agregarProductoPedido(id, 1); } catch(e){ if(typeof toast==='function') toast('No se pudo agregar a la orden de compra','error'); }
+  }
 
   function initConsultaPrecios(){
     ['cpCodigo','cpProducto','cpProveedor'].forEach(function(id){ var e = document.getElementById(id); if(e) e.value=''; });
     cpState.page = 1; cpState.sortCol = 'codigo'; cpState.sortDir = 1;
+    cpLlenarProveedores();
     cpFiltrar();
+  }
+  function cpLlenarProveedores(){
+    var dl = document.getElementById('cpProveedoresList'); if(!dl) return;
+    var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
+    var set = {};
+    for(var i = 0; i < arr.length; i++){ var pv = (arr[i].proveedor||'').trim(); if(pv) set[pv] = 1; }
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    var names = Object.keys(set).sort(function(a, b){ return a.localeCompare(b, 'es'); });
+    dl.innerHTML = names.map(function(n){ return '<option value="' + esc(n) + '"></option>'; }).join('');
   }
   function cpLimpiarFiltros(){ initConsultaPrecios(); var c = document.getElementById('cpCodigo'); if(c) c.focus(); }
   function cpFiltrarD(){ clearTimeout(cpTimer); cpTimer = setTimeout(cpFiltrar, 200); }
@@ -24169,6 +24197,10 @@ async function lpCargarHistorial(){
         '<td class="cp-num">' + fmt(p.precioCosto||0) + '</td>' +
         '<td class="cp-num">' + (p.stock != null ? p.stock : '-') + '</td>' +
         '<td style="color:var(--text-mute)">' + esc(p.proveedor||'') + '</td>' +
+        '<td><div class="cp-acc">' +
+          '<button class="cp-bv" title="Agregar al carrito de venta" onclick="cpAddVenta(\'' + _cpJsStr(p._id) + '\')"><i class="ti ti-shopping-cart"></i></button>' +
+          '<button class="cp-bc" title="Agregar a la orden de compra" onclick="cpAddPedido(\'' + _cpJsStr(p._id) + '\')"><i class="ti ti-package"></i></button>' +
+        '</div></td>' +
       '</tr>';
     }).join('');
     cont.innerHTML = '<table class="cp-table"><thead><tr>' +
@@ -24178,6 +24210,7 @@ async function lpCargarHistorial(){
       '<th class="sortable cp-num" onclick="cpSort(\'precioCosto\')">Costo de compra' + arrow('precioCosto') + '</th>' +
       '<th class="sortable cp-num" onclick="cpSort(\'stock\')">Stock' + arrow('stock') + '</th>' +
       '<th>Proveedor</th>' +
+      '<th style="text-align:center;white-space:nowrap">Agregar</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>';
 
     cpRenderPaginacion(pages, total, start, slice.length);
