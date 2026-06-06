@@ -6469,6 +6469,7 @@
         <header class="main-header">
           <h1 class="main-title">Listas de Proveedores</h1>
           <div class="main-actions">
+            <button class="btn btn-sm btn-light" onclick="document.getElementById('lpModalGuia').classList.add('show')" title="Guía paso a paso para cargar productos">&#128218; Cómo cargar productos</button>
             <button class="btn btn-sm" onclick="lpAbrirNuevoProveedor()">&#43; Nuevo proveedor</button>
           </div>
         </header>
@@ -6511,6 +6512,11 @@
           <!-- TAB 2: Importar -->
           <div class="lp-pane" id="lpPaneImportar">
             <div id="lpImportarPaso1">
+              <div style="display:flex;align-items:center;gap:10px;background:var(--accent-soft,var(--bg-2));border:1px solid var(--line);border-radius:var(--r-md,10px);padding:10px 14px;margin-bottom:14px;flex-wrap:wrap">
+                <span style="font-size:18px">&#128218;</span>
+                <span style="font-size:13px;color:var(--text)">¿Primera vez cargando productos? Mirá la guía paso a paso.</span>
+                <button class="btn btn-sm btn-light" style="margin-left:auto" onclick="document.getElementById('lpModalGuia').classList.add('show')">Ver guía</button>
+              </div>
               <div class="lp-pane-header">
                 <div>
                   <p class="lp-pane-title">Importar nueva lista</p>
@@ -6690,6 +6696,53 @@
       </div>
 
       <!-- MODAL: Editar proveedor -->
+      <!-- ═══ MODAL: GUÍA DE CARGA DE PRODUCTOS ═══ -->
+      <div class="modal-overlay" id="lpModalGuia">
+        <div class="modal" style="max-width:720px">
+          <div class="modal-header">
+            <h3 class="modal-title">&#128218; Cómo cargar tus productos</h3>
+            <button class="modal-close" onclick="document.getElementById('lpModalGuia').classList.remove('show')">&times;</button>
+          </div>
+          <div class="modal-body" style="line-height:1.6">
+            <p style="color:var(--text-mute);margin-top:0">Tus productos viven en el <b>catálogo</b>. Los cargás desde <b>Listas de Proveedores &rarr; Importar lista</b>, a partir de un Excel, CSV o PDF (o el export de tu sistema anterior).</p>
+
+            <div style="display:flex;gap:12px;margin:16px 0"><div style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--mono)">1</div><div><b>Elegí cómo importar</b><br><span style="color:var(--text-mute)"><b>Un proveedor</b>: un Excel de un solo proveedor. &nbsp;<b>Lista sábana (todos)</b>: un Excel con varios proveedores juntos (ej. el export completo de tu sistema).</span></div></div>
+
+            <div style="display:flex;gap:12px;margin:16px 0"><div style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--mono)">2</div><div><b>Configurá el proveedor (si hace falta)</b><br><span style="color:var(--text-mute)">Moneda (pesos o dólares; si es dólares, la cotización). Descuento del proveedor y margen de ganancia. Si tu Excel ya trae el <b>precio de venta final</b>, podés usarlo directo sin calcular nada.</span></div></div>
+
+            <div style="display:flex;gap:12px;margin:16px 0"><div style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--mono)">3</div><div><b>Subí el archivo</b><br><span style="color:var(--text-mute)">Excel, CSV o PDF con texto. Columnas mínimas: <b>código</b>, <b>descripción</b> y <b>precio</b>. Los PDF escaneados (foto) no sirven: usá Excel o CSV.</span></div></div>
+
+            <div style="display:flex;gap:12px;margin:16px 0"><div style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--mono)">4</div><div><b>Revisá la vista previa</b><br><span style="color:var(--text-mute)">El sistema detecta las columnas solo. Si se equivoca, tocá <b>"Revisar columnas"</b> y corregís. Vas a ver qué productos son <b>nuevos</b> y cuáles se van a <b>actualizar</b>.</span></div></div>
+
+            <div style="display:flex;gap:12px;margin:16px 0"><div style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--mono)">5</div><div><b>Elegí el modo según la situación</b><br><span style="color:var(--text-mute)"><b>Primera carga:</b> dejá <u>destildado</u> "Solo actualizar precios" &rarr; crea los productos.<br><b>Actualización mensual:</b> <u>tildá</u> "Solo actualizar precios (no crear nuevos)" &rarr; solo cambia precios de los que ya tenés, no duplica nada, y te lista los que no estaban en el catálogo.</span></div></div>
+
+            <div style="display:flex;gap:12px;margin:16px 0"><div style="flex:none;width:26px;height:26px;border-radius:50%;background:var(--success,#16a34a);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--mono)">6</div><div><b>Aplicá</b><br><span style="color:var(--text-mute)">Tocá <b>"Aplicar seleccionados"</b> y listo. Los productos quedan en tu catálogo.</span></div></div>
+
+            <div style="background:var(--bg-soft,var(--bg-2));border:1px solid var(--line);border-radius:var(--r-md,10px);padding:14px 16px;margin-top:18px">
+              <p style="margin:0 0 6px;font-weight:700">&#9888;&#65039; Para no tener problemas</p>
+              <ul style="margin:0;padding-left:20px;color:var(--text-mute)">
+                <li>La <b>primera vez</b>, probá con un proveedor chico antes de cargar todo.</li>
+                <li>Después de importar, <b>revisá 5 productos a mano</b> (precio y proveedor) antes de confiar en toda la lista.</li>
+                <li>Para la <b>actualización mensual</b>, usá siempre "Solo actualizar precios" para no duplicar.</li>
+                <li>Si una carga salió mal, usá <b>"Limpiar duplicados"</b> o <b>"Empezar de cero"</b> para deshacerla.</li>
+              </ul>
+            </div>
+
+            <div style="background:var(--bg-soft,var(--bg-2));border:1px solid var(--line);border-radius:var(--r-md,10px);padding:14px 16px;margin-top:12px">
+              <p style="margin:0 0 6px;font-weight:700">&#128295; Herramientas útiles</p>
+              <ul style="margin:0;padding-left:20px;color:var(--text-mute)">
+                <li><b>Sincronizar catálogo</b>: asigna proveedor y moneda a tus productos sin tocar los precios.</li>
+                <li><b>Limpiar duplicados</b>: borra proveedores vacíos o deshace una importación reciente.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-footer" style="display:flex;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line)">
+            <button class="btn btn-primary" onclick="document.getElementById('lpModalGuia').classList.remove('show')">Entendido</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MODAL: CONFIGURAR PROVEEDOR ═══ -->
       <div class="modal-overlay" id="lpModalProveedor">
         <div class="modal" style="max-width:640px">
           <div class="modal-header">
