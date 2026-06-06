@@ -6044,6 +6044,37 @@
 
           <!-- POR PROVEEDOR Y PRODUCTO -->
           <div id="repPaneProv" class="rep-pane" style="display:none">
+            <style>
+              #repPaneProv .rpv-meta{font-size:13px;color:var(--text-mute);margin:2px 0 16px}
+              #repPaneProv .rpv-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+              #repPaneProv .rpv-kpi{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg,16px);padding:16px 18px;overflow:hidden}
+              #repPaneProv .rpv-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+              #repPaneProv .rpv-kpi.k2::before{background:var(--success,#16a34a)}
+              #repPaneProv .rpv-kpi.k3::before{background:var(--orange,#ea7a17)}
+              #repPaneProv .rpv-kpi-label{font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+              #repPaneProv .rpv-kpi-val{font-size:28px;font-weight:700;color:var(--text);font-family:var(--mono);line-height:1}
+              #repPaneProv .rpv-prov{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-lg,16px);box-shadow:var(--shadow-sm,0 1px 2px rgba(0,0,0,.05));overflow:hidden;margin-bottom:18px}
+              #repPaneProv .rpv-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:14px 18px;background:var(--bg-soft,var(--bg-2));border-bottom:1px solid var(--line)}
+              #repPaneProv .rpv-head-l{display:flex;align-items:center;gap:12px;min-width:0}
+              #repPaneProv .rpv-idx{flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-text,#fff);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+              #repPaneProv .rpv-name{font-size:15px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+              #repPaneProv .rpv-chips{display:flex;gap:8px;flex-wrap:wrap}
+              #repPaneProv .rpv-chip{font-size:12px;color:var(--text-soft,var(--text-mute));background:var(--paper-2,var(--bg));border:1px solid var(--line);border-radius:999px;padding:4px 11px;white-space:nowrap}
+              #repPaneProv .rpv-chip b{color:var(--text);font-family:var(--mono);font-weight:700}
+              #repPaneProv .rpv-table{width:100%;border-collapse:collapse;font-size:13px}
+              #repPaneProv .rpv-table th{text-align:left;padding:9px 14px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-mute);border-bottom:1px solid var(--line);font-weight:600}
+              #repPaneProv .rpv-table td{padding:9px 14px;border-bottom:1px solid var(--line-2,var(--line))}
+              #repPaneProv .rpv-table tr:nth-child(even) td{background:var(--bg-soft,rgba(0,0,0,.015))}
+              #repPaneProv .rpv-table tbody tr:hover td{background:var(--accent-soft,var(--bg-2))}
+              #repPaneProv .rpv-rk{color:var(--text-mute);font-family:var(--mono);font-size:12px;width:34px}
+              #repPaneProv .rpv-cod{font-family:var(--mono);font-size:12px;color:var(--text-soft,var(--text-mute));white-space:nowrap}
+              #repPaneProv .rpv-num{text-align:right;font-family:var(--mono);white-space:nowrap}
+              #repPaneProv .rpv-qty{text-align:right;white-space:nowrap}
+              #repPaneProv .rpv-qty-n{font-weight:700;font-family:var(--mono);color:var(--text)}
+              #repPaneProv .rpv-bar{height:5px;border-radius:3px;background:var(--accent);opacity:.85;margin-top:5px;margin-left:auto}
+              #repPaneProv .rpv-foot td{padding:11px 14px;border-top:2px solid var(--border-strong,var(--line));font-weight:700;background:var(--paper)}
+              @media print{ #repPaneProv .rpv-prov{break-inside:avoid;box-shadow:none} }
+            </style>
             <div class="rep-controls">
               <label>Desde</label>
               <input type="date" id="repProvDesde" class="search-input" style="max-width:170px">
@@ -6705,6 +6736,14 @@
               <label>Cotización del dólar (para recalcular)</label>
               <input type="number" class="search-input" id="lpModalCotizacion" step="0.01" min="0" value="0" placeholder="Ej: 1219" style="max-width:280px">
               <p class="lp-form-help">El dólar que se usa al tocar &#8220;Recalcular precios&#8221; en este proveedor. Solo aplica a los productos en dólares. Dejalo en 0 si el proveedor es solo en pesos.</p>
+            </div>
+            <div class="lp-form-row">
+              <label>Productos con cantidad en la descripción (ej. "x10", "(10 UNI)")</label>
+              <select class="search-input" id="lpModalBultoModo" style="max-width:380px">
+                <option value="off">Normal &mdash; mostrar el precio tal cual</option>
+                <option value="bulto">El precio es del PACK &rarr; mostrar tambi&eacute;n el precio por unidad</option>
+              </select>
+              <p class="lp-form-help">Solo para Consulta de precios. Por defecto queda en <b>Normal</b> (no convierte). Activ&aacute; <b>"del PACK"</b> solo en los proveedores donde el precio cargado es el del pack entero (ej. "(10 UNI)") y quer&eacute;s ver tambi&eacute;n cu&aacute;nto sale la unidad.</p>
             </div>
             <div class="lp-form-row">
               <label>Tramos de ganancia por monto</label>
@@ -9866,27 +9905,51 @@ async function repCargarPorProveedor(){
 
     var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(n||0); };
     var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    function fDMA(iso){ var p = String(iso).split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : iso; }
     var provs = Object.keys(porProv).sort(function(a,b){ return porProv[b].importe - porProv[a].importe; });
 
-    var html = '<div class="rep-cards" style="margin-bottom:16px">' +
-      '<div class="rep-card"><div class="rep-card-label">Proveedores</div><div class="rep-card-valor">' + provs.length + '</div></div>' +
-      '<div class="rep-card"><div class="rep-card-label">Unidades vendidas</div><div class="rep-card-valor">' + totUnid.toLocaleString('es-AR') + '</div></div>' +
-      '<div class="rep-card"><div class="rep-card-label">Importe total</div><div class="rep-card-valor">' + fmt(totImp) + '</div></div>' +
+    var html = '<div class="rpv-meta">Ventas por proveedor &middot; ' + fDMA(d) + ' al ' + fDMA(h) + '</div>';
+
+    html += '<div class="rpv-kpis">' +
+      '<div class="rpv-kpi"><div class="rpv-kpi-label">Proveedores</div><div class="rpv-kpi-val">' + provs.length + '</div></div>' +
+      '<div class="rpv-kpi k2"><div class="rpv-kpi-label">Unidades vendidas</div><div class="rpv-kpi-val">' + totUnid.toLocaleString('es-AR') + '</div></div>' +
+      '<div class="rpv-kpi k3"><div class="rpv-kpi-label">Importe total</div><div class="rpv-kpi-val">' + fmt(totImp) + '</div></div>' +
       '</div>';
 
-    provs.forEach(function(prov){
+    provs.forEach(function(prov, idx){
       var data = porProv[prov];
       var keys = Object.keys(data.prods).sort(function(a,b){ return data.prods[b].cant - data.prods[a].cant; });
-      html += '<div class="rep-seccion">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
-          '<h3 style="margin:0;font-size:15px">' + esc(prov) + '</h3>' +
-          '<span style="font-size:13px;color:var(--text-mute)">' + keys.length + ' producto' + (keys.length!==1?'s':'') + ' · ' + data.unidades.toLocaleString('es-AR') + ' u. · ' + fmt(data.importe) + '</span>' +
+      var maxCant = 0;
+      keys.forEach(function(k){ if(data.prods[k].cant > maxCant) maxCant = data.prods[k].cant; });
+      html += '<div class="rpv-prov">' +
+        '<div class="rpv-head">' +
+          '<div class="rpv-head-l"><div class="rpv-idx">' + (idx+1) + '</div><div class="rpv-name">' + esc(prov) + '</div></div>' +
+          '<div class="rpv-chips">' +
+            '<span class="rpv-chip"><b>' + keys.length + '</b> producto' + (keys.length!==1?'s':'') + '</span>' +
+            '<span class="rpv-chip"><b>' + data.unidades.toLocaleString('es-AR') + '</b> u. vendidas</span>' +
+            '<span class="rpv-chip"><b>' + fmt(data.importe) + '</b></span>' +
+          '</div>' +
         '</div>' +
-        '<table class="rep-tabla"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:right">Cant. vendida</th><th style="text-align:right">Importe</th></tr></thead><tbody>';
-      keys.forEach(function(k){
+        '<table class="rpv-table"><thead><tr>' +
+          '<th class="rpv-rk">#</th><th>Código</th><th>Producto</th>' +
+          '<th style="text-align:right">Cant. vendida</th><th style="text-align:right">Importe</th>' +
+        '</tr></thead><tbody>';
+      keys.forEach(function(k, i){
         var pr = data.prods[k];
-        html += '<tr><td style="font-family:var(--mono,monospace);font-size:12px">' + esc(pr.codigo) + '</td><td>' + esc(pr.desc) + '</td><td style="text-align:right;font-weight:600">' + pr.cant.toLocaleString('es-AR') + '</td><td style="text-align:right">' + fmt(pr.importe) + '</td></tr>';
+        var pct = maxCant > 0 ? Math.max(8, Math.round(pr.cant / maxCant * 100)) : 0;
+        html += '<tr>' +
+          '<td class="rpv-rk">' + (i+1) + '</td>' +
+          '<td class="rpv-cod">' + esc(pr.codigo) + '</td>' +
+          '<td>' + esc(pr.desc) + '</td>' +
+          '<td class="rpv-qty"><span class="rpv-qty-n">' + pr.cant.toLocaleString('es-AR') + '</span><div class="rpv-bar" style="width:' + pct + '%"></div></td>' +
+          '<td class="rpv-num">' + fmt(pr.importe) + '</td>' +
+        '</tr>';
       });
+      html += '<tr class="rpv-foot">' +
+        '<td colspan="3" style="text-align:right">Total ' + esc(prov) + '</td>' +
+        '<td class="rpv-num">' + data.unidades.toLocaleString('es-AR') + '</td>' +
+        '<td class="rpv-num">' + fmt(data.importe) + '</td>' +
+      '</tr>';
       html += '</tbody></table></div>';
     });
 
@@ -21873,6 +21936,7 @@ function lpAbrirEditarProveedor(provId){
   document.getElementById('lpModalBase').value = prov.baseGanancia || 'conDescuento';
   document.getElementById('lpModalMoneda').value = prov.moneda || 'ARS';
   document.getElementById('lpModalCotizacion').value = Number(prov.cotizacion) || 0;
+  var _bm = document.getElementById('lpModalBultoModo'); if(_bm) _bm.value = prov.bultoModo || 'off';
   document.getElementById('lpBtnEliminarProv').style.display = 'inline-block';
   lpRenderTramos();
   lpRecalcularPreview();
@@ -22628,6 +22692,7 @@ async function lpGuardarProveedor(){
     baseGanancia: document.getElementById('lpModalBase').value || 'conDescuento',
     moneda: document.getElementById('lpModalMoneda').value || 'ARS',
     cotizacion: Number(document.getElementById('lpModalCotizacion').value) || 0,
+    bultoModo: (document.getElementById('lpModalBultoModo') ? document.getElementById('lpModalBultoModo').value : 'off') || 'off',
     tramos: tramosOrdenados,
     actualizadoEn: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -24206,6 +24271,33 @@ async function lpCargarHistorial(){
   function _cpNorm(s){ return (typeof iaNorm === 'function') ? iaNorm(s) : String(s||'').toLowerCase(); }
   function _cpVal(id){ var e = document.getElementById(id); return e ? e.value : ''; }
   function _cpJsStr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+  // Detecta unidades por bulto desde unidadesPorBulto o desde la descripción ("(10 UNI)", "x 10", "pack x 6"...)
+  function cpUnidadesBulto(p){
+    var n = Number(p && p.unidadesPorBulto) || 0;
+    if(n > 1) return n;
+    return cpParseBulto(p ? (p.descripcion || p.nombre || '') : '');
+  }
+  function cpParseBulto(desc){
+    var s = ' ' + String(desc||'').toLowerCase() + ' ';
+    var m = s.match(/\(\s*(\d{1,4})\s*(?:uni|unid|unidades|u)\b/);
+    if(m) return parseInt(m[1],10);
+    m = s.match(/(?:x|por)\s*(\d{1,4})\s*(?:uni|unid|unidades|u)\b/);
+    if(m) return parseInt(m[1],10);
+    m = s.match(/\b(?:pack|blister|caja|set|bolsa|sobre|tira|juego)\s*(?:x|de|por)?\s*(\d{1,4})\b/);
+    if(m) return parseInt(m[1],10);
+    // "x N" suelto, evitando medidas (x40mm, x2", x10kg, etc.)
+    m = s.match(/\bx\s*(\d{1,4})\b(?!\s*(?:mm|cm|mts?|m\b|"|pulg|pulgadas?|kg|grs?|g\b|lts?|l\b|cc|cm3|w|v|a\b|hp|rpm|psi))/);
+    if(m) return parseInt(m[1],10);
+    return 1;
+  }
+  function cpFmtUnit(n){ return '$' + (Number(n)||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  // Modo de bulto configurado por proveedor: 'bulto' (dividir), 'unidad' (multiplicar) u 'off'
+  function cpModoProveedor(provName){
+    if(typeof lpState === 'undefined' || !lpState.proveedores) return 'off';
+    var n = _cpNorm(provName);
+    var f = lpState.proveedores.find(function(p){ return _cpNorm(p.proveedorNombre) === n; });
+    return (f && f.bultoModo) ? f.bultoModo : 'off';
+  }
   function cpAddVenta(id){
     if(typeof agregarAlCarrito !== 'function'){ if(typeof toast==='function') toast('Función de venta no disponible','error'); return; }
     var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
@@ -24224,6 +24316,13 @@ async function lpCargarHistorial(){
     ['cpCodigo','cpProducto','cpProveedor'].forEach(function(id){ var e = document.getElementById(id); if(e) e.value=''; });
     cpState.page = 1; cpState.sortCol = 'codigo'; cpState.sortDir = 1;
     cpLlenarProveedores();
+    // Asegurar config de proveedores (modo bulto por proveedor) y refrescar al terminar
+    try {
+      if(typeof lpCargarProveedores === 'function' && (typeof lpState === 'undefined' || !lpState.proveedores || !lpState.proveedores.length)){
+        var _r = lpCargarProveedores();
+        if(_r && typeof _r.then === 'function'){ _r.then(function(){ cpRender(); }).catch(function(){}); }
+      }
+    } catch(e){}
     cpFiltrar();
   }
   function cpLlenarProveedores(){
@@ -24303,11 +24402,23 @@ async function lpCargarHistorial(){
     }
     function arrow(col){ return cpState.sortCol === col ? (cpState.sortDir > 0 ? ' ▲' : ' ▼') : ' ⇅'; }
     var rows = slice.map(function(p){
+      var nb = cpUnidadesBulto(p);
+      var modo = (nb > 1) ? cpModoProveedor(p.proveedor) : 'off';
+      var ventaCell, costoCell;
+      if(nb > 1 && modo === 'bulto'){
+        ventaCell = '<div style="font-weight:600">' + fmt(p.precioVenta||0) + ' <span style="font-size:10px;color:var(--text-mute);background:var(--bg-2);padding:1px 6px;border-radius:6px;font-weight:700;vertical-align:middle">x' + nb + '</span></div>' +
+                    '<div style="font-size:11px;color:var(--text-mute);margin-top:2px">' + cpFmtUnit((p.precioVenta||0)/nb) + ' c/u</div>';
+        costoCell = '<div>' + fmt(p.precioCosto||0) + '</div>' +
+                    '<div style="font-size:11px;color:var(--text-mute);margin-top:2px">' + cpFmtUnit((p.precioCosto||0)/nb) + ' c/u</div>';
+      } else {
+        ventaCell = '<span style="font-weight:600">' + fmt(p.precioVenta||0) + '</span>';
+        costoCell = fmt(p.precioCosto||0);
+      }
       return '<tr>' +
         '<td style="font-family:var(--mono,monospace);font-size:12px;white-space:nowrap">' + esc(p.codigo||'') + '</td>' +
         '<td>' + esc(p.descripcion||p.nombre||'') + '</td>' +
-        '<td class="cp-num" style="font-weight:600">' + fmt(p.precioVenta||0) + '</td>' +
-        '<td class="cp-num">' + fmt(p.precioCosto||0) + '</td>' +
+        '<td class="cp-num">' + ventaCell + '</td>' +
+        '<td class="cp-num">' + costoCell + '</td>' +
         '<td class="cp-num">' + (p.stock != null ? p.stock : '-') + '</td>' +
         '<td style="color:var(--text-mute)">' + esc(p.proveedor||'') + '</td>' +
         '<td><div class="cp-acc">' +
