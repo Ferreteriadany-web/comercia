@@ -6019,6 +6019,7 @@
           <div class="rep-tabs">
             <button class="rep-tab active" id="repTabCaja" onclick="repCambiarTab('caja')">Caja diaria</button>
             <button class="rep-tab" id="repTabFact" onclick="repCambiarTab('facturacion')">Facturación mensual</button>
+            <button class="rep-tab" id="repTabProv" onclick="repCambiarTab('proveedor')">Por proveedor</button>
           </div>
 
           <!-- CAJA DIARIA -->
@@ -6039,6 +6040,20 @@
               <button class="btn btn-sm btn-light" onclick="repFactMesActual()">Este mes</button>
             </div>
             <div id="repFactContenido"><div class="rep-empty">Elegí un mes.</div></div>
+          </div>
+
+          <!-- POR PROVEEDOR Y PRODUCTO -->
+          <div id="repPaneProv" class="rep-pane" style="display:none">
+            <div class="rep-controls">
+              <label>Desde</label>
+              <input type="date" id="repProvDesde" class="search-input" style="max-width:170px">
+              <label>Hasta</label>
+              <input type="date" id="repProvHasta" class="search-input" style="max-width:170px">
+              <button class="btn btn-sm btn-primary" onclick="repCargarPorProveedor()">Generar</button>
+              <button class="btn btn-sm btn-light" onclick="repProvEsteMes()">Este mes</button>
+              <button class="btn btn-sm btn-light" onclick="repExportarProveedorExcel()">&#128229; Excel</button>
+            </div>
+            <div id="repProvContenido"><div class="rep-empty">Elegí un rango de fechas y tocá Generar.</div></div>
           </div>
         </div>
       </div>
@@ -9778,8 +9793,10 @@ function initReportes(){
 function repCambiarTab(tab){
   document.getElementById('repTabCaja').classList.toggle('active', tab === 'caja');
   document.getElementById('repTabFact').classList.toggle('active', tab === 'facturacion');
+  var tp = document.getElementById('repTabProv'); if(tp) tp.classList.toggle('active', tab === 'proveedor');
   document.getElementById('repPaneCaja').style.display = (tab === 'caja') ? 'block' : 'none';
   document.getElementById('repPaneFact').style.display = (tab === 'facturacion') ? 'block' : 'none';
+  var pp = document.getElementById('repPaneProv'); if(pp) pp.style.display = (tab === 'proveedor') ? 'block' : 'none';
   if(tab === 'facturacion' && !document.getElementById('repFactContenido').dataset.cargado){
     repCargarFacturacion();
   }
@@ -9798,6 +9815,102 @@ function repFactMesActual(){
   var n = new Date();
   document.getElementById('repMesFact').value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0');
   repCargarFacturacion();
+}
+
+// ─── INFORME POR PROVEEDOR Y PRODUCTO ───
+var _repProvData = null;
+function repProvEsteMes(){
+  var n = new Date();
+  var ini = new Date(n.getFullYear(), n.getMonth(), 1);
+  document.getElementById('repProvDesde').value = repFechaLocalISO(ini);
+  document.getElementById('repProvHasta').value = repFechaLocalISO(n);
+  repCargarPorProveedor();
+}
+async function repCargarPorProveedor(){
+  var cont = document.getElementById('repProvContenido');
+  var d = document.getElementById('repProvDesde').value;
+  var h = document.getElementById('repProvHasta').value;
+  if(!d || !h){ cont.innerHTML = '<div class="rep-empty">Elegí desde y hasta.</div>'; return; }
+  if(d > h){ cont.innerHTML = '<div class="rep-empty">La fecha "Desde" es posterior a "Hasta".</div>'; return; }
+  cont.innerHTML = '<div class="rep-empty">Cargando...</div>';
+  try{
+    var ventas = await repTraerVentas(d + 'T00:00:00.000', h + 'T23:59:59.999');
+    if(!ventas.length){ cont.innerHTML = '<div class="rep-empty">No hubo ventas en ese rango.</div>'; _repProvData = null; return; }
+
+    var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
+    var provPorId = {}, provPorCod = {};
+    for(var i = 0; i < arr.length; i++){
+      var pp = arr[i];
+      if(pp._id) provPorId[pp._id] = pp.proveedor || '';
+      if(pp.codigo) provPorCod[pp.codigo] = pp.proveedor || '';
+    }
+
+    var porProv = {}, totUnid = 0, totImp = 0;
+    ventas.forEach(function(v){
+      (v.items || []).forEach(function(it){
+        var prov = provPorId[it.productoId] || provPorCod[it.codigo] || 'Sin proveedor';
+        var cant = Number(it.cantidad) || 0;
+        var imp = Number(it.subtotal) || 0;
+        if(!porProv[prov]) porProv[prov] = { unidades:0, importe:0, prods:{} };
+        var key = it.codigo || it.productoId || it.descripcion || '?';
+        if(!porProv[prov].prods[key]) porProv[prov].prods[key] = { codigo:it.codigo||'', desc:it.descripcion||'', cant:0, importe:0 };
+        porProv[prov].prods[key].cant += cant;
+        porProv[prov].prods[key].importe += imp;
+        porProv[prov].unidades += cant;
+        porProv[prov].importe += imp;
+        totUnid += cant; totImp += imp;
+      });
+    });
+
+    _repProvData = { porProv:porProv, desde:d, hasta:h, totUnid:totUnid, totImp:totImp };
+
+    var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(n||0); };
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    var provs = Object.keys(porProv).sort(function(a,b){ return porProv[b].importe - porProv[a].importe; });
+
+    var html = '<div class="rep-cards" style="margin-bottom:16px">' +
+      '<div class="rep-card"><div class="rep-card-label">Proveedores</div><div class="rep-card-valor">' + provs.length + '</div></div>' +
+      '<div class="rep-card"><div class="rep-card-label">Unidades vendidas</div><div class="rep-card-valor">' + totUnid.toLocaleString('es-AR') + '</div></div>' +
+      '<div class="rep-card"><div class="rep-card-label">Importe total</div><div class="rep-card-valor">' + fmt(totImp) + '</div></div>' +
+      '</div>';
+
+    provs.forEach(function(prov){
+      var data = porProv[prov];
+      var keys = Object.keys(data.prods).sort(function(a,b){ return data.prods[b].cant - data.prods[a].cant; });
+      html += '<div class="rep-seccion">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
+          '<h3 style="margin:0;font-size:15px">' + esc(prov) + '</h3>' +
+          '<span style="font-size:13px;color:var(--text-mute)">' + keys.length + ' producto' + (keys.length!==1?'s':'') + ' · ' + data.unidades.toLocaleString('es-AR') + ' u. · ' + fmt(data.importe) + '</span>' +
+        '</div>' +
+        '<table class="rep-tabla"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:right">Cant. vendida</th><th style="text-align:right">Importe</th></tr></thead><tbody>';
+      keys.forEach(function(k){
+        var pr = data.prods[k];
+        html += '<tr><td style="font-family:var(--mono,monospace);font-size:12px">' + esc(pr.codigo) + '</td><td>' + esc(pr.desc) + '</td><td style="text-align:right;font-weight:600">' + pr.cant.toLocaleString('es-AR') + '</td><td style="text-align:right">' + fmt(pr.importe) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    });
+
+    cont.innerHTML = html;
+  } catch(err){
+    cont.innerHTML = '<div class="rep-empty">Error al generar el informe: ' + (err.message || err) + '</div>';
+  }
+}
+function repExportarProveedorExcel(){
+  if(!_repProvData){ if(typeof toast==='function') toast('Generá el informe primero', 'error'); return; }
+  if(typeof XLSX === 'undefined'){ if(typeof toast==='function') toast('No se pudo cargar el exportador', 'error'); return; }
+  var rows = [['Proveedor','Código','Producto','Cantidad vendida','Importe']];
+  var porProv = _repProvData.porProv;
+  Object.keys(porProv).sort(function(a,b){ return porProv[b].importe - porProv[a].importe; }).forEach(function(prov){
+    var data = porProv[prov];
+    Object.keys(data.prods).sort(function(a,b){ return data.prods[b].cant - data.prods[a].cant; }).forEach(function(k){
+      var pr = data.prods[k];
+      rows.push([prov, pr.codigo, pr.desc, pr.cant, Math.round(pr.importe)]);
+    });
+  });
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventas x proveedor');
+  XLSX.writeFile(wb, 'ventas-por-proveedor_' + _repProvData.desde + '_a_' + _repProvData.hasta + '.xlsx');
 }
 
 // Trae las ventas de un rango de fechas (ISO strings)
