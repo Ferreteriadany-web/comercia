@@ -24324,6 +24324,12 @@ async function lpCargarHistorial(){
   .ia-msg{max-width:80%;padding:10px 13px;border-radius:12px;white-space:pre-wrap;word-break:break-word}
   .ia-msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:3px}
   .ia-msg.bot{align-self:flex-start;background:var(--bg);border:1px solid var(--line);color:var(--text);border-bottom-left-radius:3px}
+  .ia-msg.ia-msg-wide{max-width:95%;white-space:normal}
+  .ia-cuadro{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px}
+  .ia-cuadro th{text-align:left;padding:6px 9px;border-bottom:2px solid var(--line);color:var(--text-mute);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  .ia-cuadro td{padding:6px 9px;border-bottom:1px solid var(--line-2,var(--line));vertical-align:top}
+  .ia-cuadro tr.ia-best td{background:var(--success-soft,rgba(22,163,74,.10))}
+  .ia-cuadro tr.ia-best td:first-child{font-weight:600}
   .ia-empty{color:var(--text-mute);font-size:13px;text-align:center;margin:auto;padding:0 24px;line-height:1.5}
   .ia-inputbar{display:flex;gap:8px;margin-top:12px}
   .ia-inputbar input{flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:24px;background:var(--bg);color:var(--text);font-size:14px;outline:none}
@@ -24346,7 +24352,7 @@ async function lpCargarHistorial(){
   var IA_PLACEHOLDER = { consultas:'¿Qué adhesivo uso para plástico?', comparador:'¿Dónde compro más barato cola vinílica?', soporte:'¿Cómo importo una lista de precios?' };
   var IA_DESC = {
     consultas:'Consultas generales de ferretería: qué producto o material conviene, herramientas, cómo aplicar algo. La IA puede buscar en la web.',
-    comparador:'Buscá un producto en TU catálogo y te digo en qué proveedor conviene comprarlo (compara los costos que tenés cargados).',
+    comparador:'Preguntá por un producto (o varios) y te armo un cuadro: en qué proveedor conviene comprarlo y a qué precio venderlo, según TU catálogo.',
     soporte:'Dudas sobre cómo usar Comercia: cargar listas, ventas, reponer stock, cuentas corrientes, etc.'
   };
   function iaSetModo(m){
@@ -24365,20 +24371,64 @@ async function lpCargarHistorial(){
     }
     var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
     cont.innerHTML = msgs.map(function(mm){
+      if(mm.role === 'assistant' && mm.data && (mm.data.recomendados || mm.data.resumen)){
+        return '<div class="ia-msg bot ia-msg-wide">' + iaRenderCuadro(mm.data) + '</div>';
+      }
       return '<div class="ia-msg ' + (mm.role==='user'?'user':'bot') + '">' + esc(mm.content) + '</div>';
     }).join('') + (iaCargando ? '<div class="ia-msg bot" style="opacity:.6">escribiendo…</div>' : '');
     cont.scrollTop = cont.scrollHeight;
   }
   function iaNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  function iaRenderCuadro(d){
+    var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(Number(n)||0); };
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    var html = '';
+    if(d.resumen) html += '<div style="margin-bottom:10px">' + esc(d.resumen) + '</div>';
+    var recs = (d.recomendados || []);
+    if(recs.length){
+      html += '<div style="overflow-x:auto"><table class="ia-cuadro"><thead><tr>' +
+        '<th>Producto</th><th>Proveedor</th><th style="text-align:right">Costo</th><th style="text-align:right">Venta sug.</th><th>Por qué</th>' +
+        '</tr></thead><tbody>';
+      recs.forEach(function(r){
+        html += '<tr' + (r.mejor ? ' class="ia-best"' : '') + '>' +
+          '<td>' + (r.mejor ? '&#9989; ' : '') + esc(r.producto||'') + '</td>' +
+          '<td>' + esc(r.proveedor||'') + '</td>' +
+          '<td style="text-align:right;font-family:var(--mono,monospace)">' + fmt(r.costo||0) + '</td>' +
+          '<td style="text-align:right;font-family:var(--mono,monospace);font-weight:600">' + (r.venta ? fmt(r.venta) : '-') + '</td>' +
+          '<td style="font-size:12px;color:var(--text-mute)">' + esc(r.motivo||'') + '</td>' +
+        '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    var alts = (d.alternativas || []);
+    if(alts.length){
+      html += '<div style="font-size:11px;color:var(--text-mute);margin-top:8px">Otras opciones: ' +
+        alts.map(function(a){ return esc(a.producto||'') + ' (' + esc(a.proveedor||'') + ', ' + fmt(a.costo||0) + ')'; }).join(' · ') + '</div>';
+    }
+    if(d.nota) html += '<div style="margin-top:8px;font-size:12px;color:var(--warning,#b45309);background:var(--warning-soft,rgba(180,83,9,.08));border-radius:8px;padding:6px 10px">&#9888;&#65039; ' + esc(d.nota) + '</div>';
+    return html;
+  }
+  var IA_STOP = {'que':1,'cual':1,'cuales':1,'donde':1,'como':1,'cuanto':1,'cuanta':1,'cuantos':1,'cuantas':1,'mas':1,'menos':1,'barato':1,'barata':1,'baratos':1,'baratas':1,'caro':1,'cara':1,'mejor':1,'peor':1,'precio':1,'precios':1,'compro':1,'comprar':1,'compra':1,'conviene':1,'para':1,'por':1,'con':1,'del':1,'los':1,'las':1,'una':1,'uno':1,'unos':1,'unas':1,'tengo':1,'tenes':1,'tiene':1,'hay':1,'sale':1,'cuesta':1,'recomendas':1,'recomienda':1,'recomendar':1,'recomendame':1,'dame':1,'quiero':1,'necesito':1,'busco':1,'buscar':1,'son':1,'esta':1,'estan':1,'cada':1,'sobre':1,'entre':1,'algun':1,'alguna':1,'cual':1,'me':1,'las':1,'proveedor':1,'proveedores':1};
   function iaBuscarCandidatos(texto){
-    var pals = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3; });
-    if(pals.length===0) pals = [iaNorm(texto)];
-    var res = [];
     var arr = productos || [];
-    for(var i=0;i<arr.length;i++){
+    var todas = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3 && !IA_STOP[w]; });
+    if(todas.length===0) todas = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3; });
+    if(todas.length===0) return [];
+    var res = [];
+    // 1) Estricto: el producto contiene TODAS las palabras significativas
+    for(var i=0;i<arr.length && res.length<60;i++){
       var p = arr[i];
       var hay = iaNorm((p.descripcion||p.nombre||'')+' '+(p.codigo||'')+' '+(p.proveedor||''));
-      if(pals.every(function(w){ return hay.indexOf(w)>=0; })){ res.push(p); if(res.length>=60) break; }
+      if(todas.every(function(w){ return hay.indexOf(w)>=0; })) res.push(p);
+    }
+    // 2) Laxo: si no hubo match, traigo los que contengan al menos una palabra fuerte (las más largas primero)
+    if(res.length===0){
+      var fuertes = todas.slice().sort(function(a,b){ return b.length-a.length; });
+      for(var j=0;j<arr.length && res.length<60;j++){
+        var q = arr[j];
+        var hay2 = iaNorm((q.descripcion||q.nombre||'')+' '+(q.proveedor||''));
+        if(fuertes.some(function(w){ return hay2.indexOf(w)>=0; })) res.push(q);
+      }
     }
     return res;
   }
@@ -24399,8 +24449,12 @@ async function lpCargarHistorial(){
       var resp = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
       if(!resp.ok) throw new Error('HTTP '+resp.status);
       var data = await resp.json();
-      var reply = data.reply || data.text || 'Sin respuesta.';
-      iaMsgs[iaModo].push({ role:'assistant', content:reply });
+      if(iaModo==='comparador' && data.comparacion && (data.comparacion.recomendados || data.comparacion.resumen)){
+        iaMsgs[iaModo].push({ role:'assistant', content: data.comparacion.resumen || 'Comparación lista.', data: data.comparacion });
+      } else {
+        var reply = data.reply || data.text || 'Sin respuesta.';
+        iaMsgs[iaModo].push({ role:'assistant', content: reply });
+      }
     }catch(err){
       iaMsgs[iaModo].push({ role:'assistant', content:'No me pude conectar con la IA. Revisá que la Cloud Function esté desplegada y la URL configurada (botón "Configurar"). Detalle: '+(err.message||err) });
     }
