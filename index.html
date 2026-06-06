@@ -7083,6 +7083,18 @@
         <div class="main-body">
           <div class="alert error" id="configAlert"></div>
 
+          <style>
+            #moduleConfiguracion .cfg-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px}
+            #moduleConfiguracion .cfg-tab{padding:9px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-mute);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:-1px}
+            #moduleConfiguracion .cfg-tab:hover{color:var(--text)}
+            #moduleConfiguracion .cfg-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+          </style>
+          <div class="cfg-tabs">
+            <button class="cfg-tab active" id="cfgTabEmpresa" onclick="cfgTab('empresa')">Empresa</button>
+            <button class="cfg-tab" id="cfgTabPref" onclick="cfgTab('pref')">Preferencias</button>
+          </div>
+
+          <div class="cfg-pane" id="cfgPaneEmpresa">
           <!-- Sección: Identidad visual -->
           <div class="table-card" style="padding:24px;margin-bottom:16px">
             <h3 style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text);letter-spacing:-0.01em">Identidad visual</h3>
@@ -7201,6 +7213,9 @@
             </div>
           </div>
 
+          </div><!-- /cfgPaneEmpresa -->
+
+          <div class="cfg-pane" id="cfgPanePref" style="display:none">
           <!-- Sección: Redondeo de precios -->
           <div class="table-card" style="padding:24px;margin-top:16px">
             <h3 style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text);letter-spacing:-0.01em">Redondeo de precios</h3>
@@ -7223,11 +7238,13 @@
                 <select class="form-input" id="empresaRedondeoModo" onchange="actualizarPreviewRedondeo()">
                   <option value="cercano">Al más cercano</option>
                   <option value="arriba">Siempre hacia arriba</option>
+                  <option value="abajo">Siempre hacia abajo</option>
                 </select>
               </div>
             </div>
             <div style="font-size:12px;color:var(--text-soft);margin-top:4px;font-family:var(--mono)" id="redondeoPreview">Ejemplo: $5.472 &rarr; $5.472</div>
           </div>
+          </div><!-- /cfgPanePref -->
 
         </div>
       </div>
@@ -14334,6 +14351,7 @@ function redondearPrecio(n){
   if(!step || step <= 0) return n;              // sin redondeo → precio exacto
   var modo = (currentEmpresa && currentEmpresa.redondeoModo) || 'cercano';
   if(modo === 'arriba') return Math.ceil(n / step) * step;
+  if(modo === 'abajo') return Math.floor(n / step) * step;
   return Math.round(n / step) * step;
 }
 
@@ -20770,9 +20788,20 @@ function actualizarPreviewRedondeo(){
   var res;
   if(step <= 0) res = ejemplo;
   else if(modo === 'arriba') res = Math.ceil(ejemplo/step)*step;
+  else if(modo === 'abajo') res = Math.floor(ejemplo/step)*step;
   else res = Math.round(ejemplo/step)*step;
   var el = document.getElementById('redondeoPreview');
   if(el) el.innerHTML = 'Ejemplo: ' + fmtPeso(ejemplo) + ' &rarr; <strong style="color:var(--text)">' + fmtPeso(res) + '</strong>';
+}
+
+// Pestañas de la pantalla de Configuración
+function cfgTab(tab){
+  var te = document.getElementById('cfgTabEmpresa'), tp = document.getElementById('cfgTabPref');
+  var pe = document.getElementById('cfgPaneEmpresa'), pp = document.getElementById('cfgPanePref');
+  if(te) te.classList.toggle('active', tab === 'empresa');
+  if(tp) tp.classList.toggle('active', tab === 'pref');
+  if(pe) pe.style.display = (tab === 'empresa') ? 'block' : 'none';
+  if(pp) pp.style.display = (tab === 'pref') ? 'block' : 'none';
 }
 
 function setColorEmpresa(color){  document.getElementById('empresaColor').value = color;
