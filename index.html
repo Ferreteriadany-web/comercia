@@ -6744,6 +6744,8 @@
                 <option value="bulto">El precio es del PACK &rarr; mostrar tambi&eacute;n el precio por unidad</option>
               </select>
               <p class="lp-form-help">Solo para Consulta de precios. Por defecto queda en <b>Normal</b> (no convierte). Activ&aacute; <b>"del PACK"</b> solo en los proveedores donde el precio cargado es el del pack entero (ej. "(10 UNI)") y quer&eacute;s ver tambi&eacute;n cu&aacute;nto sale la unidad.</p>
+              <button class="btn btn-sm btn-light" style="margin-top:8px" onclick="lpConvertirPackUnitario()">&#8645; Convertir productos ya cargados a precio por unidad</button>
+              <p class="lp-form-help" style="margin-top:6px">Pasa los productos de este proveedor de precio de PACK a precio por UNIDAD (precio &divide; cantidad) y activa la venta por Unidad/Caja. Se aplica una sola vez; en las pr&oacute;ximas importaciones se hace autom&aacute;tico si el proveedor est&aacute; en "del PACK".</p>
             </div>
             <div class="lp-form-row">
               <label>Tramos de ganancia por monto</label>
@@ -22458,6 +22460,65 @@ async function lpAumentarProveedor(provId){
   }
 }
 
+// Convierte los productos "del PACK" de un proveedor a precio por unidad (precio ÷ cantidad detectada)
+// y les setea unidadesPorBulto, para poder vender por Unidad o por Caja.
+async function lpConvertirPackUnitario(provId){
+  provId = provId || (typeof lpState !== 'undefined' && lpState.proveedorEditando);
+  var prov = (lpState.proveedores || []).find(function(p){ return p.id === provId; });
+  var provNombre = prov ? (prov.proveedorNombre || prov.nombre || '') :
+    (document.getElementById('lpModalNombre') ? document.getElementById('lpModalNombre').value.trim() : '');
+  if(!provNombre){ toast('Guardá el proveedor primero', 'error'); return; }
+  if(typeof cpParseBulto !== 'function'){ toast('No disponible', 'error'); return; }
+  var norm = function(s){ return (typeof iaNorm === 'function') ? iaNorm(s) : String(s||'').toLowerCase(); };
+  var nN = norm(provNombre);
+  var aConvertir = [];
+  (productos || []).forEach(function(p){
+    if(norm(p.proveedor) !== nN) return;
+    var nb = cpParseBulto(p.descripcion || p.nombre || '');
+    if(nb > 1 && !p.bultoConv) aConvertir.push({ p: p, nb: nb });
+  });
+  if(aConvertir.length === 0){ toast('No hay productos con cantidad por convertir en "' + provNombre + '" (o ya están convertidos)', 'info'); return; }
+  if(!confirm('Vas a convertir ' + aConvertir.length + ' producto' + (aConvertir.length!==1?'s':'') + ' de "' + provNombre + '" de precio de PACK a precio por UNIDAD (precio ÷ cantidad), y se activa la venta por Unidad/Caja.\n\nEjemplo: una CAJA X 12 a $58.734 pasa a $4.895 c/u.\n\n¿Continuar?')) return;
+  var redondea = (typeof redondearPrecio === 'function') ? redondearPrecio : function(n){ return Math.round(n); };
+  try{
+    var nowIso = new Date().toISOString();
+    var actualizados = [];
+    var batchSize = 400;
+    for(var start = 0; start < aConvertir.length; start += batchSize){
+      var slice = aConvertir.slice(start, start + batchSize);
+      var batch = db.batch();
+      slice.forEach(function(it){
+        var p = it.p, nb = it.nb;
+        var nuevaVenta = Math.max(0, redondea((Number(p.precioVenta) || 0) / nb));
+        var nuevoCosto = Math.max(0, Math.round((Number(p.precioCosto) || 0) / nb));
+        var data = {
+          precioVenta: nuevaVenta,
+          precioCosto: nuevoCosto,
+          unidadesPorBulto: nb,
+          bultoConv: true,
+          fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if(p.costoNeto != null) data.costoNeto = (Number(p.costoNeto) || 0) / nb;
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id);
+        batch.set(ref, data, { merge: true });
+        p.precioVenta = nuevaVenta;
+        p.precioCosto = nuevoCosto;
+        p.unidadesPorBulto = nb;
+        p.bultoConv = true;
+        if(p.costoNeto != null) p.costoNeto = (Number(p.costoNeto) || 0) / nb;
+        p.fechaUltimoCambioPrecio = nowIso;
+        actualizados.push(p);
+      });
+      await batch.commit();
+    }
+    try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
+    toast('Listo: ' + aConvertir.length + ' productos de ' + provNombre + ' pasados a precio unitario (con Unidad/Caja)', 'success');
+  }catch(err){
+    console.error(err);
+    toast('Error al convertir: ' + (err.message || ''), 'error');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 // LIMPIAR DUPLICADOS — deshacer una importación que creó de más
 // ═══════════════════════════════════════════════════════════
@@ -23960,30 +24021,42 @@ async function lpEjecutarAplicar(filas){
         var provId = r._provId || (imp.proveedor && imp.proveedor.id) || lpSanitizarId(provNombre);
         var descProd = Number(r.descProducto) || 0;
         var margenGuardar = (r.margenCustom != null) ? Number(r.margenCustom) : (r.calc && r.calc.margen != null ? r.calc.margen : null);
+        // "del PACK": si el proveedor está marcado así y la descripción indica cantidad (ej. CAJA X 12),
+        // el precio cargado es el de la caja → lo pasamos a unitario y guardamos unidadesPorBulto.
+        var _pVenta = r.calc.final, _pCosto = Math.round(r.calc.conDesc), _cNeto = r.precioNeto, _ub = r.unidadesPorBulto || 0;
+        if(r._prov && r._prov.bultoModo === 'bulto' && typeof cpParseBulto === 'function'){
+          var _nb = cpParseBulto(r.descripcion || '');
+          if(_nb > 1){
+            _pVenta = (typeof redondearPrecio === 'function') ? redondearPrecio((Number(r.calc.final)||0) / _nb) : Math.round((Number(r.calc.final)||0) / _nb);
+            _pCosto = Math.round((Number(r.calc.conDesc)||0) / _nb);
+            _cNeto = (Number(r.precioNeto)||0) / _nb;
+            _ub = _nb;
+          }
+        }
         // Datos para Firestore (con serverTimestamp)
         var dataFs = {
-          precioVenta: r.calc.final,
-          precioCosto: Math.round(r.calc.conDesc),
-          costoNeto: r.precioNeto,
+          precioVenta: _pVenta,
+          precioCosto: _pCosto,
+          costoNeto: _cNeto,
           costoMoneda: r._monedaRaw || (r._prov && r._prov.moneda) || 'ARS',
           proveedor: provNombre,
           descuentoProducto: descProd,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         if(margenGuardar != null) dataFs.margenProducto = margenGuardar;
-        if(r.unidadesPorBulto) dataFs.unidadesPorBulto = r.unidadesPorBulto;
+        if(_ub) dataFs.unidadesPorBulto = _ub;
         // Datos para cache local (con Date string)
         var dataLocal = {
-          precioVenta: r.calc.final,
-          precioCosto: Math.round(r.calc.conDesc),
-          costoNeto: r.precioNeto,
+          precioVenta: _pVenta,
+          precioCosto: _pCosto,
+          costoNeto: _cNeto,
           costoMoneda: r._monedaRaw || (r._prov && r._prov.moneda) || 'ARS',
           proveedor: provNombre,
           descuentoProducto: descProd,
           fechaUltimoCambioPrecio: nowIso
         };
         if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
-        if(r.unidadesPorBulto) dataLocal.unidadesPorBulto = r.unidadesPorBulto;
+        if(_ub) dataLocal.unidadesPorBulto = _ub;
         var esCrear = (r.estado === 'crear');
         if(esCrear){
           dataFs.codigo = r.codigoProv;
@@ -24402,10 +24475,17 @@ async function lpCargarHistorial(){
     }
     function arrow(col){ return cpState.sortCol === col ? (cpState.sortDir > 0 ? ' ▲' : ' ▼') : ' ⇅'; }
     var rows = slice.map(function(p){
-      var nb = cpUnidadesBulto(p);
-      var modo = (nb > 1) ? cpModoProveedor(p.proveedor) : 'off';
+      var ubConv = Number(p.unidadesPorBulto) || 0;   // si >1, ya está convertido (precioVenta es unitario)
       var ventaCell, costoCell;
-      if(nb > 1 && modo === 'bulto'){
+      if(ubConv > 1){
+        // Ya convertido: precioVenta es UNITARIO; la caja = unitario × unidades
+        ventaCell = '<div style="font-weight:600">' + fmt(p.precioVenta||0) + ' <span style="font-size:10px;color:var(--text-mute);background:var(--bg-2);padding:1px 6px;border-radius:6px;font-weight:700;vertical-align:middle">c/u</span></div>' +
+                    '<div style="font-size:11px;color:var(--text-mute);margin-top:2px">caja x' + ubConv + ': ' + fmt((p.precioVenta||0)*ubConv) + '</div>';
+        costoCell = '<div>' + fmt(p.precioCosto||0) + '</div>' +
+                    '<div style="font-size:11px;color:var(--text-mute);margin-top:2px">caja: ' + fmt((p.precioCosto||0)*ubConv) + '</div>';
+      } else if(cpModoProveedor(p.proveedor) === 'bulto' && (function(){ var n = cpParseBulto(p.descripcion||p.nombre||''); return n > 1 ? (p._nbTmp = n) : 0; })()){
+        // Proveedor "del PACK" todavía SIN convertir: precioVenta es el de la CAJA → unitario = caja ÷ N
+        var nb = p._nbTmp;
         ventaCell = '<div style="font-weight:600">' + fmt(p.precioVenta||0) + ' <span style="font-size:10px;color:var(--text-mute);background:var(--bg-2);padding:1px 6px;border-radius:6px;font-weight:700;vertical-align:middle">x' + nb + '</span></div>' +
                     '<div style="font-size:11px;color:var(--text-mute);margin-top:2px">' + cpFmtUnit((p.precioVenta||0)/nb) + ' c/u</div>';
         costoCell = '<div>' + fmt(p.precioCosto||0) + '</div>' +
