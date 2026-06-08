@@ -8498,38 +8498,10 @@ async function registrarConInvitacion(){
     var cred = await auth.createUserWithEmailAndPassword(email, password);
     createdUid = cred.user.uid;
 
-    // 2) Ahora sí, validar el código (ya autenticado)
-    var codDoc = await db.collection('invitaciones_codigos').doc(codigo).get();
-    if(!codDoc.exists){ throw new Error('El código no existe o ya fue usado.'); }
-    var codData = codDoc.data();
-    if(codData.estado !== 'pendiente'){ throw new Error('Esta invitación ya fue usada.'); }
-    if(codData.venceEn && new Date(codData.venceEn) < new Date()){ throw new Error('La invitación venció. Pedile al admin que genere una nueva.'); }
-    if(codData.email && codData.email.toLowerCase() !== email){ throw new Error('El email no coincide con el de la invitación.'); }
-
-    var empresaId = codData.empresaId;
-
-    // 3) Leer la invitación completa (rol y permisos)
-    var invSnap = await db.collection('empresas').doc(empresaId).collection('invitaciones').where('codigo','==',codigo).limit(1).get();
-    if(invSnap.empty){ throw new Error('No se encontró la invitación.'); }
-    var invDoc = invSnap.docs[0];
-    var inv = invDoc.data();
-
-    // 4) Crear su registro en usuarios_global vinculado a la empresa
-    await db.collection('usuarios_global').doc(createdUid).set({
-      email: email,
-      nombre: nombre,
-      empresaId: empresaId,
-      rol: inv.rol || 'empleado',
-      permisos: inv.permisos || [],
-      creadoEn: new Date().toISOString(),
-      invitadoPor: inv.empresaNombre || ''
-    });
-
-    // 5) Marcar la invitación como usada
-    try{
-      await db.collection('empresas').doc(empresaId).collection('invitaciones').doc(invDoc.id).update({ estado: 'usada', usadaEn: new Date().toISOString(), usadaPorUid: createdUid });
-      await db.collection('invitaciones_codigos').doc(codigo).update({ estado: 'usada' });
-    }catch(e){ console.warn('No se pudo marcar invitación usada', e); }
+    // 2-5) Validar el código y vincular el usuario, todo en el backend
+    var aceptar = functions.httpsCallable('aceptarInvitacion');
+    await aceptar({ codigo: codigo, name: nombre });
+    await cred.user.getIdToken(true); // refresca el token para traer los claims (empresaId/rol)
 
     try{ await cred.user.sendEmailVerification(); }catch(e){}
 
@@ -8613,41 +8585,12 @@ async function register(){
     var cred = await auth.createUserWithEmailAndPassword(email, password);
     createdUid = cred.user.uid;
 
-    var empresaId = generarEmpresaId(business);
-    var trialEnd  = new Date();
-    trialEnd.setDate(trialEnd.getDate()+14);
-
     try{
-      await db.collection('empresas').doc(empresaId).set({
-        nombre: business,
-        rubro: rubro,
-        ownerUid: createdUid,
-        ownerEmail: email,
-        ownerName: name,
-        phone: phone,
-        estado: 'prueba',
-        plan: 'basico',
-        maxUsuarios: 3,
-        pruebaHasta: trialEnd.toISOString(),
-        creadoEn: new Date().toISOString()
-      });
+      var registrar = functions.httpsCallable('registrarEmpresa');
+      await registrar({ business: business, rubro: rubro, name: name, phone: phone });
+      await cred.user.getIdToken(true); // refresca el token para traer los claims (empresaId/rol)
     }catch(err){
-      console.error('Falló crear empresa, limpiando:', err);
-      try{ await cred.user.delete(); }catch(e){}
-      throw new Error('No se pudo crear la empresa. Por favor reintentá.');
-    }
-
-    try{
-      await db.collection('usuarios_global').doc(createdUid).set({
-        email: email,
-        nombre: name,
-        empresaId: empresaId,
-        rol: 'admin',
-        creadoEn: new Date().toISOString()
-      });
-    }catch(err){
-      console.error('Falló crear usuario_global, limpiando:', err);
-      try{ await db.collection('empresas').doc(empresaId).delete(); }catch(e){}
+      console.error('Falló el registro, limpiando:', err);
       try{ await cred.user.delete(); }catch(e){}
       throw new Error('No se pudo completar el registro. Por favor reintentá.');
     }
