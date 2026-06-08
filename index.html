@@ -24370,16 +24370,16 @@ async function lpCargarHistorial(){
       cont.innerHTML = '<div class="ia-empty">' + hint + '</div>'; return;
     }
     var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
-    cont.innerHTML = msgs.map(function(mm){
+    cont.innerHTML = msgs.map(function(mm, idx){
       if(mm.role === 'assistant' && mm.data && (mm.data.recomendados || mm.data.resumen)){
-        return '<div class="ia-msg bot ia-msg-wide">' + iaRenderCuadro(mm.data) + '</div>';
+        return '<div class="ia-msg bot ia-msg-wide">' + iaRenderCuadro(mm.data, idx) + '</div>';
       }
       return '<div class="ia-msg ' + (mm.role==='user'?'user':'bot') + '">' + esc(mm.content) + '</div>';
     }).join('') + (iaCargando ? '<div class="ia-msg bot" style="opacity:.6">escribiendo…</div>' : '');
     cont.scrollTop = cont.scrollHeight;
   }
   function iaNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
-  function iaRenderCuadro(d){
+  function iaRenderCuadro(d, idx){
     var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(Number(n)||0); };
     var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
     var html = '';
@@ -24406,28 +24406,86 @@ async function lpCargarHistorial(){
         alts.map(function(a){ return esc(a.producto||'') + ' (' + esc(a.proveedor||'') + ', ' + fmt(a.costo||0) + ')'; }).join(' · ') + '</div>';
     }
     if(d.nota) html += '<div style="margin-top:8px;font-size:12px;color:var(--warning,#b45309);background:var(--warning-soft,rgba(180,83,9,.08));border-radius:8px;padding:6px 10px">&#9888;&#65039; ' + esc(d.nota) + '</div>';
+    // Botón "Pasar a presupuesto" si hay recomendados con código mapeable
+    var conCodigo = recs.filter(function(r){ return r.codigo; }).length;
+    if(conCodigo > 0 && idx != null && typeof agregarAlCarrito === 'function'){
+      html += '<div style="margin-top:12px"><button class="btn btn-sm btn-primary" onclick="iaPasarAPresupuesto(' + idx + ')">&#128203; Pasar a presupuesto</button></div>';
+    }
     return html;
+  }
+  function iaPasarAPresupuesto(idx){
+    var msg = (iaMsgs[iaModo] || [])[idx];
+    var d = msg && msg.data;
+    if(!d || !d.recomendados){ return; }
+    if(typeof agregarAlCarrito !== 'function'){ if(typeof toast==='function') toast('No disponible', 'error'); return; }
+    var arr = productos || [];
+    var agregados = 0, faltan = [];
+    d.recomendados.forEach(function(r){
+      if(!r.codigo){ faltan.push(r.producto || ''); return; }
+      var cod = String(r.codigo).trim();
+      var p = arr.find(function(x){ return String(x.codigo||'').trim() === cod; });
+      if(!p){ p = arr.find(function(x){ return iaNorm(x.codigo) === iaNorm(cod); }); }
+      if(p && p._id){ agregarAlCarrito(p._id); agregados++; }
+      else faltan.push(r.producto || cod);
+    });
+    if(agregados > 0){
+      if(typeof nuevoPresupuesto === 'function') nuevoPresupuesto();
+      else if(typeof navTo === 'function') navTo('ventas');
+      if(typeof toast === 'function') toast('Se cargaron ' + agregados + ' producto' + (agregados!==1?'s':'') + ' al presupuesto' + (faltan.length ? ' · ' + faltan.length + ' no estaban en el catálogo' : ''), 'success');
+    } else {
+      if(typeof toast === 'function') toast('No pude encontrar esos productos en tu catálogo (¿se importaron?)', 'error');
+    }
   }
   var IA_STOP = {'que':1,'cual':1,'cuales':1,'donde':1,'como':1,'cuanto':1,'cuanta':1,'cuantos':1,'cuantas':1,'mas':1,'menos':1,'barato':1,'barata':1,'baratos':1,'baratas':1,'caro':1,'cara':1,'mejor':1,'peor':1,'precio':1,'precios':1,'compro':1,'comprar':1,'compra':1,'conviene':1,'para':1,'por':1,'con':1,'del':1,'los':1,'las':1,'una':1,'uno':1,'unos':1,'unas':1,'tengo':1,'tenes':1,'tiene':1,'hay':1,'sale':1,'cuesta':1,'recomendas':1,'recomienda':1,'recomendar':1,'recomendame':1,'dame':1,'quiero':1,'necesito':1,'busco':1,'buscar':1,'son':1,'esta':1,'estan':1,'cada':1,'sobre':1,'entre':1,'algun':1,'alguna':1,'cual':1,'me':1,'las':1,'proveedor':1,'proveedores':1};
   function iaBuscarCandidatos(texto){
     var arr = productos || [];
-    var todas = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3 && !IA_STOP[w]; });
-    if(todas.length===0) todas = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3; });
-    if(todas.length===0) return [];
-    var res = [];
-    // 1) Estricto: el producto contiene TODAS las palabras significativas
-    for(var i=0;i<arr.length && res.length<60;i++){
-      var p = arr[i];
-      var hay = iaNorm((p.descripcion||p.nombre||'')+' '+(p.codigo||'')+' '+(p.proveedor||''));
-      if(todas.every(function(w){ return hay.indexOf(w)>=0; })) res.push(p);
+    var words = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3 && !IA_STOP[w]; });
+    if(words.length===0) words = iaNorm(texto).split(/\s+/).filter(function(w){ return w.length>=3; });
+    if(words.length===0) return [];
+
+    // Nombres de proveedor normalizados (para detectar si el usuario nombró una marca/proveedor)
+    var provNames = {};
+    for(var a=0;a<arr.length;a++){ if(arr[a].proveedor) provNames[iaNorm(arr[a].proveedor)] = 1; }
+    var provList = Object.keys(provNames);
+
+    var provWords = [], termWords = [];
+    words.forEach(function(w){
+      var esProv = (w.length >= 4) && provList.some(function(pn){ return pn.indexOf(w) >= 0; });
+      if(esProv) provWords.push(w); else termWords.push(w);
+    });
+
+    function provMatch(p){
+      if(provWords.length === 0) return true;
+      var pn = iaNorm((p.proveedor||'') + ' ' + (p.codigo||''));
+      return provWords.some(function(w){ return pn.indexOf(w) >= 0; });
     }
-    // 2) Laxo: si no hubo match, traigo los que contengan al menos una palabra fuerte (las más largas primero)
-    if(res.length===0){
-      var fuertes = todas.slice().sort(function(a,b){ return b.length-a.length; });
-      for(var j=0;j<arr.length && res.length<60;j++){
-        var q = arr[j];
-        var hay2 = iaNorm((q.descripcion||q.nombre||'')+' '+(q.proveedor||''));
-        if(fuertes.some(function(w){ return hay2.indexOf(w)>=0; })) res.push(q);
+
+    var res = [];
+    if(termWords.length){
+      // 1) proveedor (si hay) + TODOS los términos
+      for(var i=0;i<arr.length && res.length<60;i++){
+        var p = arr[i];
+        if(!provMatch(p)) continue;
+        var hay = iaNorm((p.descripcion||p.nombre||'')+' '+(p.codigo||''));
+        if(termWords.every(function(w){ return hay.indexOf(w)>=0; })) res.push(p);
+      }
+      // 2) relajar a "alguna palabra" (las más largas primero)
+      if(res.length===0){
+        var fuertes = termWords.slice().sort(function(a,b){ return b.length-a.length; });
+        for(var j=0;j<arr.length && res.length<60;j++){
+          var q = arr[j];
+          if(!provMatch(q)) continue;
+          var hay2 = iaNorm((q.descripcion||q.nombre||'')+' '+(q.codigo||''));
+          if(fuertes.some(function(w){ return hay2.indexOf(w)>=0; })) res.push(q);
+        }
+      }
+    }
+    // 3) Si nombró una marca y los términos no alcanzaron, completar con una muestra de ese proveedor
+    //    (ej. "combo día del padre con productos Bremen": las palabras creativas no filtran, la marca sí)
+    if(provWords.length && res.length < 10){
+      for(var k=0;k<arr.length && res.length<60;k++){
+        var pp = arr[k];
+        if(provMatch(pp) && res.indexOf(pp) < 0) res.push(pp);
       }
     }
     return res;
