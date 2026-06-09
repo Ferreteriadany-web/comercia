@@ -10850,7 +10850,7 @@ function kitPoblarDatalist(){
   if(!dl) return;
   // Limitar para no saturar el datalist
   dl.innerHTML = productos.slice(0, 1000).map(function(p){
-    return '<option value="'+escapeQ(p.codigo||'')+'">'+eH((p.codigo||'')+' · '+(p.descripcion||''))+'</option>';
+    return '<option value="'+eH(p.codigo||'')+'">'+eH((p.codigo||'')+' · '+(p.descripcion||''))+'</option>';
   }).join('');
 }
 
@@ -10962,7 +10962,7 @@ function prodStockStatusUpdate(){
 }
 
 function eH(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-function escapeQ(s){ return String(s).replace(/'/g, "\\'"); }
+function escapeQ(s){ return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 function fmtPeso(n){ if(!n||n===0) return '-'; return '$'+Math.round(Number(n)).toLocaleString('es-AR'); }
 
 // ═══════════════════════════════════════════════════════
@@ -18365,7 +18365,7 @@ function ccAbrirDevolucion(){
   var obras = (c.saldosPorObra && Object.keys(c.saldosPorObra).filter(function(o){ return o && o !== OBRA_GENERAL_KEY; })) || [];
   if(obras.length > 0){
     selObra.innerHTML = '<option value="">Sin asignar a obra (deuda general)</option>' +
-      obras.map(function(o){ return '<option value="'+escapeQ(o)+'">'+eH(o)+' · '+fmtPeso(c.saldosPorObra[o]||0)+'</option>'; }).join('');
+      obras.map(function(o){ return '<option value="'+eH(o)+'">'+eH(o)+' · '+fmtPeso(c.saldosPorObra[o]||0)+'</option>'; }).join('');
     grupoObra.style.display = '';
   } else {
     grupoObra.style.display = 'none';
