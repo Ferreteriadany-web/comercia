@@ -17439,6 +17439,20 @@ function determinarTipoDocCliente(cliente, totalVenta){
 }
 
 /**
+ * Mapea la condición fiscal del cliente al código que exige ARCA (CondicionIVAReceptorId).
+ *   1 = Responsable Inscripto | 6 = Monotributo | 4 = Exento | 5 = Consumidor Final
+ */
+function condicionIvaReceptor(catFiscal){
+  switch(String(catFiscal || '').toUpperCase()){
+    case 'RI': return 1;          // IVA Responsable Inscripto
+    case 'MONOTRIBUTO': return 6; // Responsable Monotributo
+    case 'EXENTO': return 4;      // IVA Sujeto Exento
+    case 'CF':
+    default: return 5;            // Consumidor Final
+  }
+}
+
+/**
  * Convierte una fecha JS a formato yyyyMMdd que requiere AFIP.
  */
 function fechaAfip(date){
@@ -17526,6 +17540,7 @@ async function facturarEnAfip(){
     concepto: 1,  // 1 = productos
     docTipo: doc.docTipo,
     docNro: doc.docNro,
+    condicionIVAReceptorId: condicionIvaReceptor(v.cliente ? v.cliente.catFiscal : ''),
     fechaCbte: fechaAfip(v.fecha || new Date()),
     impTotal: Number((v.total || 0).toFixed(2)),
     impTotConc: 0,  // no gravado
