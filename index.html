@@ -5076,6 +5076,9 @@
         <a class="nav-item" data-module="listasProveedores" onclick="navTo('listasProveedores')">
           <span class="nav-item-icon"><i class="ti ti-file-invoice"></i></span><span>Listas Proveedores</span>
         </a>
+        <a class="nav-item" data-module="pagosProveedores" onclick="navTo('pagosProveedores')">
+          <span class="nav-item-icon"><i class="ti ti-calendar"></i></span><span>Pagos a Proveedores</span>
+        </a>
         <a class="nav-item" data-module="reportes" onclick="navTo('reportes')">
           <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Reportes</span>
         </a>
@@ -6191,6 +6194,7 @@
       <div class="module" id="moduleIntWoocommerce"><div id="intWoocommerceBody"></div></div>
       <div class="module" id="moduleIntFulljaus"><div id="intFulljausBody"></div></div>
       <div class="module" id="moduleIntEmpretienda"><div id="intEmpretiendaBody"></div></div>
+      <div class="module" id="modulePagosProveedores"><div id="pagosProveedoresBody"></div></div>
 
       <!-- ═══ MÓDULO AFIP — facturación electrónica ═══ -->
       <div class="module" id="moduleAfip">
@@ -8780,6 +8784,242 @@ function toast(msg, tipo){
   _toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 3200);
 }
 
+// ════════════════════════════════════════════════════════════
+// PAGOS A PROVEEDORES — e-cheques, vencimientos y boletas
+// ════════════════════════════════════════════════════════════
+var pagosState = { items: [], cargado: false, calMes: null, calAnio: null };
+var PAGOS_TIPOS = { echeque: 'E-cheque', transferencia: 'Transferencia', efectivo: 'Efectivo', otro: 'Otro' };
+var PG_INPUT = 'width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;font-size:14px;';
+
+function initPagosProveedores(){
+  if(pagosState.calMes === null){ var h = new Date(); pagosState.calMes = h.getMonth(); pagosState.calAnio = h.getFullYear(); }
+  pagosRender();
+  if(!pagosState.cargado){ pagosCargar().then(pagosRender); }
+}
+
+async function pagosCargar(){
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').get();
+    pagosState.items = snap.docs.map(function(d){ var o = d.data(); o._id = d.id; return o; });
+    pagosState.cargado = true;
+  }catch(e){ console.error('pagosCargar', e); toast('No se pudieron cargar los pagos', 'error'); }
+}
+
+function pagosHoyStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function pagosEstadoDe(p){
+  if(p.estado === 'pagado') return 'pagado';
+  if(!p.fechaVencimiento) return 'pendiente';
+  var hoy = pagosHoyStr();
+  if(p.fechaVencimiento < hoy) return 'vencido';
+  if(p.fechaVencimiento === hoy) return 'hoy';
+  return 'pendiente';
+}
+
+function pagosFmtMonto(n){ n = Number(n) || 0; return '$' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 }); }
+
+function pagosFmtFecha(s){ if(!s) return '—'; var p = String(s).split('-'); return p.length===3 ? p[2]+'/'+p[1] : s; }
+
+function pagosRender(){
+  var cont = document.getElementById('pagosProveedoresBody');
+  if(!cont) return;
+  if(!pagosState.cargado){ cont.innerHTML = '<div style="padding:40px;text-align:center;color:#888;">Cargando pagos…</div>'; return; }
+
+  var hoy = pagosHoyStr();
+  var pendientes = pagosState.items.filter(function(p){ return p.estado !== 'pagado'; });
+  var vencidos = pendientes.filter(function(p){ return p.fechaVencimiento && p.fechaVencimiento < hoy; });
+  var hoyVencen = pendientes.filter(function(p){ return p.fechaVencimiento === hoy; });
+  var en7 = new Date(); en7.setDate(en7.getDate()+7);
+  var en7str = en7.getFullYear()+'-'+String(en7.getMonth()+1).padStart(2,'0')+'-'+String(en7.getDate()).padStart(2,'0');
+  var estaSemana = pendientes.filter(function(p){ return p.fechaVencimiento && p.fechaVencimiento >= hoy && p.fechaVencimiento <= en7str; });
+  var totalSemana = estaSemana.reduce(function(a,p){ return a + (Number(p.monto)||0); }, 0);
+  var totalVencidos = vencidos.reduce(function(a,p){ return a + (Number(p.monto)||0); }, 0);
+
+  var alerta = '';
+  if(hoyVencen.length || vencidos.length){
+    var partes = [];
+    if(hoyVencen.length) partes.push(hoyVencen.length + ' vence' + (hoyVencen.length>1?'n':'') + ' hoy');
+    if(vencidos.length) partes.push(vencidos.length + ' vencido' + (vencidos.length>1?'s':''));
+    alerta = '<div style="display:flex;align-items:center;gap:10px;background:#fdecec;color:#a32d2d;padding:12px 16px;border-radius:10px;margin-bottom:16px;"><i class="ti ti-bell"></i><span>Tenés ' + partes.join(' y ') + '.</span></div>';
+  }
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">'
+    + '<h2 style="margin:0;">Pagos a proveedores</h2>'
+    + '<button class="btn btn-sm btn-primary" onclick="pagosAbrirModal()"><i class="ti ti-plus"></i> Cargar pago</button></div>'
+    + alerta
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">'
+    + pagosCard('Vencen esta semana', pagosFmtMonto(totalSemana), estaSemana.length + ' pago(s)', '')
+    + pagosCard('Vencidos', pagosFmtMonto(totalVencidos), vencidos.length + ' pago(s)', vencidos.length ? '#a32d2d' : '')
+    + pagosCard('Pendientes', String(pendientes.length), 'en total', '')
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;">'
+    + '<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:16px;">' + pagosRenderCalendario() + '</div>'
+    + '<div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:16px;"><div style="font-weight:600;margin-bottom:12px;">Próximos pagos</div>' + pagosRenderLista() + '</div>'
+    + '</div>';
+  cont.innerHTML = html;
+}
+
+function pagosCard(label, valor, sub, color){
+  return '<div style="background:#f5f5f3;border-radius:8px;padding:14px;">'
+    + '<div style="font-size:13px;color:#777;">' + eH(label) + '</div>'
+    + '<div style="font-size:24px;font-weight:600;margin-top:4px;' + (color?'color:'+color+';':'') + '">' + eH(String(valor)) + '</div>'
+    + (sub ? '<div style="font-size:12px;color:#999;">' + eH(sub) + '</div>' : '') + '</div>';
+}
+
+function pagosRenderCalendario(){
+  var mes = pagosState.calMes, anio = pagosState.calAnio;
+  var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var diaSemana = (new Date(anio, mes, 1).getDay() + 6) % 7;
+  var diasMes = new Date(anio, mes+1, 0).getDate();
+  var hoy = pagosHoyStr();
+  var porDia = {};
+  pagosState.items.forEach(function(p){
+    if(p.estado === 'pagado' || !p.fechaVencimiento) return;
+    var parts = p.fechaVencimiento.split('-');
+    if(Number(parts[0]) !== anio || Number(parts[1]) !== mes+1) return;
+    var d = Number(parts[2]);
+    var est = pagosEstadoDe(p);
+    var marca = (est === 'pendiente') ? 'prox' : 'urg';
+    if(porDia[d] !== 'urg') porDia[d] = marca;
+  });
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+    + '<button class="btn btn-sm btn-light" onclick="pagosCambiarMes(-1)"><i class="ti ti-chevron-left"></i></button>'
+    + '<span style="font-weight:600;">' + meses[mes] + ' ' + anio + '</span>'
+    + '<button class="btn btn-sm btn-light" onclick="pagosCambiarMes(1)"><i class="ti ti-chevron-right"></i></button></div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;font-size:11px;color:#999;margin-bottom:4px;"><div>L</div><div>M</div><div>M</div><div>J</div><div>V</div><div>S</div><div>D</div></div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;">';
+  for(var i=0;i<diaSemana;i++) html += '<div></div>';
+  for(var d=1; d<=diasMes; d++){
+    var fechaStr = anio + '-' + String(mes+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var esHoy = (fechaStr === hoy);
+    var marca = porDia[d];
+    var dot = marca ? '<span style="display:block;width:5px;height:5px;border-radius:50%;margin:2px auto 0;background:'+(marca==='urg'?'#a32d2d':'#ba7517')+';"></span>' : '<span style="display:block;height:7px;"></span>';
+    html += '<div style="padding:5px 0;border-radius:6px;'+(esHoy?'background:#e6f1fb;':'')+'"><div style="font-size:12px;'+(esHoy?'color:#185fa5;font-weight:600;':'')+'">'+d+'</div>'+dot+'</div>';
+  }
+  html += '</div>';
+  html += '<div style="display:flex;gap:14px;margin-top:10px;font-size:11px;color:#777;"><span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#a32d2d;vertical-align:middle;margin-right:4px;"></span>vence hoy / vencido</span><span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ba7517;vertical-align:middle;margin-right:4px;"></span>próximo</span></div>';
+  return html;
+}
+
+function pagosCambiarMes(delta){
+  pagosState.calMes += delta;
+  if(pagosState.calMes < 0){ pagosState.calMes = 11; pagosState.calAnio--; }
+  if(pagosState.calMes > 11){ pagosState.calMes = 0; pagosState.calAnio++; }
+  pagosRender();
+}
+
+function pagosRenderLista(){
+  var items = pagosState.items.filter(function(p){ return p.estado !== 'pagado'; });
+  items.sort(function(a,b){ return (a.fechaVencimiento||'').localeCompare(b.fechaVencimiento||''); });
+  if(!items.length) return '<div style="color:#999;padding:16px 0;text-align:center;">No hay pagos pendientes. Tocá "Cargar pago" para empezar.</div>';
+  var badge = { vencido:['Vencido','#fdecec','#a32d2d'], hoy:['Vence hoy','#faeeda','#854f0b'], pendiente:['Pendiente','#f1efe8','#5f5e5a'] };
+  return items.map(function(p){
+    var est = pagosEstadoDe(p);
+    var b = badge[est] || badge.pendiente;
+    var icon = p.tipo==='echeque'?'ti-businessplan':(p.tipo==='transferencia'?'ti-arrows-transfer-down':(p.tipo==='efectivo'?'ti-cash':'ti-file-invoice'));
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #eee;">'
+      + '<i class="ti '+icon+'" style="font-size:20px;color:#888;"></i>'
+      + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="pagosAbrirModal(\''+eH(p._id)+'\')">'
+      + '<div style="font-weight:600;">'+eH(p.proveedor||'(sin proveedor)')+'</div>'
+      + '<div style="font-size:12px;color:#999;">'+eH(PAGOS_TIPOS[p.tipo]||'Pago')+(p.fechaBoleta?' · boleta '+pagosFmtFecha(p.fechaBoleta):'')+'</div></div>'
+      + '<div style="text-align:right;"><div style="font-weight:600;">'+pagosFmtMonto(p.monto)+'</div>'
+      + '<div style="font-size:12px;color:#777;">'+(p.fechaVencimiento?'vence '+pagosFmtFecha(p.fechaVencimiento):'—')+'</div></div>'
+      + '<span style="font-size:11px;padding:3px 8px;border-radius:8px;background:'+b[1]+';color:'+b[2]+';white-space:nowrap;">'+b[0]+'</span>'
+      + '<button class="btn btn-sm btn-light" title="Marcar como pagado" onclick="pagosMarcarPagado(\''+eH(p._id)+'\')"><i class="ti ti-check"></i></button>'
+      + '</div>';
+  }).join('');
+}
+
+function pagosCampo(label, control){
+  return '<div style="margin-bottom:10px;"><label style="display:block;font-size:13px;color:#666;margin-bottom:4px;">'+eH(label)+'</label>'+control+'</div>';
+}
+
+function pagosAbrirModal(id){
+  var p = id ? pagosState.items.find(function(x){ return x._id === id; }) : null;
+  var v = p || {};
+  var wrap = document.getElementById('pagosModalWrap');
+  if(!wrap){ wrap = document.createElement('div'); wrap.id = 'pagosModalWrap'; document.body.appendChild(wrap); }
+  var tipoOpts = ['echeque','transferencia','efectivo','otro'].map(function(t){ return '<option value="'+t+'"'+(v.tipo===t?' selected':'')+'>'+PAGOS_TIPOS[t]+'</option>'; }).join('');
+  wrap.innerHTML = '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:99999;padding:16px;" onclick="if(event.target===this)pagosCerrarModal()">'
+    + '<div style="background:#fff;border-radius:12px;padding:20px;width:100%;max-width:420px;max-height:90vh;overflow:auto;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><h3 style="margin:0;">'+(p?'Editar pago':'Cargar pago')+'</h3>'
+    + '<button class="btn btn-sm btn-light" onclick="pagosCerrarModal()"><i class="ti ti-x"></i></button></div>'
+    + '<input type="hidden" id="pgId" value="'+eH(v._id||'')+'">'
+    + pagosCampo('Proveedor', '<input id="pgProv" style="'+PG_INPUT+'" value="'+eH(v.proveedor||'')+'" placeholder="Nombre del proveedor">')
+    + pagosCampo('Tipo', '<select id="pgTipo" style="'+PG_INPUT+'">'+tipoOpts+'</select>')
+    + pagosCampo('Monto', '<input id="pgMonto" type="number" inputmode="numeric" style="'+PG_INPUT+'" value="'+(v.monto||'')+'" placeholder="0">')
+    + pagosCampo('Vence el', '<input id="pgVto" type="date" style="'+PG_INPUT+'" value="'+eH(v.fechaVencimiento||'')+'">')
+    + pagosCampo('Boleta recibida el (opcional)', '<input id="pgBoleta" type="date" style="'+PG_INPUT+'" value="'+eH(v.fechaBoleta||'')+'">')
+    + pagosCampo('N° cheque / comprobante (opcional)', '<input id="pgNro" style="'+PG_INPUT+'" value="'+eH(v.numeroComprobante||'')+'">')
+    + pagosCampo('Notas (opcional)', '<input id="pgNotas" style="'+PG_INPUT+'" value="'+eH(v.notas||'')+'">')
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
+    + (p?'<button class="btn btn-sm btn-danger" style="margin-right:auto;" onclick="pagosBorrar(\''+eH(v._id)+'\')">Borrar</button>':'')
+    + '<button class="btn btn-sm btn-light" onclick="pagosCerrarModal()">Cancelar</button>'
+    + '<button class="btn btn-sm btn-primary" onclick="pagosGuardar()">Guardar</button></div>'
+    + '</div></div>';
+}
+
+function pagosCerrarModal(){ var wrap = document.getElementById('pagosModalWrap'); if(wrap) wrap.innerHTML = ''; }
+
+async function pagosGuardar(){
+  var id = document.getElementById('pgId').value;
+  var data = {
+    proveedor: document.getElementById('pgProv').value.trim(),
+    tipo: document.getElementById('pgTipo').value,
+    monto: Number(document.getElementById('pgMonto').value) || 0,
+    fechaVencimiento: document.getElementById('pgVto').value,
+    fechaBoleta: document.getElementById('pgBoleta').value || '',
+    numeroComprobante: document.getElementById('pgNro').value.trim(),
+    notas: document.getElementById('pgNotas').value.trim()
+  };
+  if(!data.proveedor){ toast('Poné el nombre del proveedor', 'error'); return; }
+  if(!data.fechaVencimiento){ toast('Poné la fecha de vencimiento', 'error'); return; }
+  if(data.monto <= 0){ toast('Poné un monto válido', 'error'); return; }
+  try{
+    var col = db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores');
+    if(id){
+      await col.doc(id).update(data);
+      var idx = pagosState.items.findIndex(function(x){ return x._id===id; });
+      if(idx>=0) pagosState.items[idx] = Object.assign(pagosState.items[idx], data);
+    }else{
+      data.estado = 'pendiente';
+      data.creadoEn = new Date().toISOString();
+      var ref = await col.add(data);
+      data._id = ref.id;
+      pagosState.items.push(data);
+    }
+    pagosCerrarModal();
+    pagosRender();
+    toast('Pago guardado', 'success');
+  }catch(e){ console.error('pagosGuardar', e); toast('No se pudo guardar el pago', 'error'); }
+}
+
+async function pagosMarcarPagado(id){
+  try{
+    var nowIso = new Date().toISOString();
+    await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).update({ estado:'pagado', pagadoEn:nowIso });
+    var p = pagosState.items.find(function(x){ return x._id===id; });
+    if(p){ p.estado='pagado'; p.pagadoEn=nowIso; }
+    pagosRender();
+    toast('Marcado como pagado', 'success');
+  }catch(e){ console.error('pagosMarcarPagado', e); toast('No se pudo actualizar', 'error'); }
+}
+
+async function pagosBorrar(id){
+  if(!confirm('¿Borrar este pago? Esta acción no se puede deshacer.')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).delete();
+    pagosState.items = pagosState.items.filter(function(x){ return x._id!==id; });
+    pagosCerrarModal();
+    pagosRender();
+    toast('Pago borrado', 'success');
+  }catch(e){ console.error('pagosBorrar', e); toast('No se pudo borrar', 'error'); }
+}
+
+
 function navTo(modulo){
   // Control de acceso: si el usuario no tiene permiso para este módulo, bloquear
   if(!puedeAcceder(modulo)){
@@ -8793,6 +9033,7 @@ function navTo(modulo){
   if(target) target.classList.add('active');
   if(modulo==='pedidos') initPedidos();
   if(modulo==='listasProveedores') initListasProveedores();
+  if(modulo==='pagosProveedores') initPagosProveedores();
   if(modulo==='clientes') initClientes();
   if(modulo==='inicio') initInicio();
   if(modulo==='ventas') initVentas();
