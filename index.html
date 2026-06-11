@@ -22421,7 +22421,16 @@ async function lpRecalcularProveedor(provId){
     toast('Hay productos en dólares. Cargá la cotización del dólar de este proveedor (Editar) antes de recalcular.', 'error');
     return;
   }
-  if(!confirm('Recalcular el precio de ' + conCosto.length + ' producto(s) de "' + nombreProv + '" con la ganancia, descuento e IVA actuales?')) return;
+  // Aviso anti-confusión: si el proveedor está en dólares pero los productos quedaron
+  // guardados en pesos, la cotización NO se les aplica (suele pasar cuando la lista se
+  // importó ya convertida a pesos).
+  var usdAplicados = conCosto.filter(function(p){ return (p.costoMoneda || prov.moneda) === 'USD'; }).length;
+  var provQuiereUsd = (prov.moneda === 'USD') && (Number(prov.cotizacion) > 0);
+  if(provQuiereUsd && usdAplicados === 0){
+    if(!confirm('⚠️ Atención: este proveedor está configurado en DÓLARES, pero sus ' + conCosto.length + ' producto(s) están guardados en PESOS.\n\nLa cotización del dólar NO se les va a aplicar, así que los precios no van a cambiar por el dólar. Esto pasa cuando la lista se importó ya convertida a pesos.\n\nPara que el dólar funcione, reimportá la lista del proveedor en dólares (sin convertirla a mano).\n\n¿Recalcular igual de todos modos?')) return;
+  } else {
+    if(!confirm('Recalcular el precio de ' + conCosto.length + ' producto(s) de "' + nombreProv + '" con la ganancia, descuento e IVA actuales?')) return;
+  }
 
   var nowIso = new Date().toISOString();
   var actualizados = [];
@@ -22456,6 +22465,7 @@ async function lpRecalcularProveedor(provId){
     try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
     var msg = '✅ ' + actualizados.length + ' precio(s) recalculado(s)';
     if(sinCosto > 0) msg += ' · ' + sinCosto + ' sin costo base (reimportá esos)';
+    if(provQuiereUsd && usdAplicados < conCosto.length){ msg += ' · ⚠️ ' + (conCosto.length - usdAplicados) + ' en pesos (no se les aplicó el dólar)'; }
     toast(msg, 'success');
   }catch(err){
     console.error(err);
