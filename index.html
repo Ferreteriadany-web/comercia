@@ -6825,8 +6825,7 @@
           <div class="modal-actions">
             <button class="btn btn-sm btn-light" onclick="lpCerrarModal()">Cancelar</button>
             <button class="btn btn-sm btn-danger" id="lpBtnEliminarProv" onclick="lpEliminarProveedor()" style="display:none;margin-right:auto">Eliminar</button>
-            <button class="btn btn-sm btn-line" onclick="lpGuardarYRecalcular()" title="Guarda la config y recalcula el precio de todos los productos de este proveedor">&#128260; Guardar y recalcular precios</button>
-            <button class="btn btn-sm btn-primary" onclick="lpGuardarProveedor()">Guardar</button>
+            <button class="btn btn-sm btn-primary" onclick="lpGuardarYRecalcular()" title="Guarda la config y recalcula el precio de todos los productos de este proveedor">&#128260; Guardar y recalcular precios</button>
           </div>
         </div>
       </div>
@@ -11406,7 +11405,7 @@ function prodBarcodeGenerar(){
     if(codProd && codProd.length <= 20 && /^[A-Za-z0-9\-_]+$/.test(codProd)){
       codigo = codProd.toUpperCase();
     } else {
-      codigo = 'CMR' + Date.now().toString().slice(-9);
+      codigo = nroInterno('CMR');
     }
   }
   document.getElementById('prodCodBarra').value = codigo;
@@ -15506,7 +15505,7 @@ async function confirmarVenta(){
 
   try{
     var ahora = new Date();
-    var nroTicket = (modoVenta === 'presupuesto' ? 'P-' : 'V-') + ahora.getTime().toString().slice(-8);
+    var nroTicket = nroInterno(modoVenta === 'presupuesto' ? 'P-' : 'V-');
 
     var ventaData = {
       numero: nroTicket,
@@ -16346,7 +16345,7 @@ async function guardarNotaCD(){
   btn.disabled = true; btn.textContent = 'Registrando...';
   var ahora = new Date();
   var nota = {
-    numero: (esCred ? 'NC-' : 'ND-') + ahora.getTime().toString().slice(-8),
+    numero: nroInterno(esCred ? 'NC-' : 'ND-'),
     modo: esCred ? 'nota_credito' : 'nota_debito',
     fecha: ahora.toISOString(),
     refNumero: v.numero || '',
@@ -17450,6 +17449,18 @@ function condicionIvaReceptor(catFiscal){
     case 'CF':
     default: return 5;            // Consumidor Final
   }
+}
+
+/**
+ * Genera un número interno de referencia (ticket, presupuesto, nota, código de producto).
+ * NO es fiscal: el número fiscal lo otorga AFIP. Esto sirve solo para identificar internamente.
+ * Combina el reloj con un sufijo aleatorio de 3 dígitos, para que dos operaciones casi
+ * simultáneas (o en distintos días) no terminen con el mismo número.
+ */
+function nroInterno(prefix){
+  var t = Date.now().toString().slice(-8);
+  var r = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return (prefix || '') + t + r;
 }
 
 /**
