@@ -5349,6 +5349,7 @@
       <div class="module" id="moduleInicio">
         <header class="main-header">
           <div style="display:flex;align-items:center;gap:14px">
+            <img id="inicioLogo" alt="" style="display:none;width:46px;height:46px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line-2);padding:3px;flex-shrink:0">
             <h1 class="main-title" id="inicioSaludo">Inicio</h1>
           </div>
         </header>
@@ -15788,6 +15789,12 @@ function renderInicio(){
     var hoyStr = new Date().toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
     saludoEl.innerHTML = (nombreEmp ? eH(nombreEmp) : 'Inicio') +
       ' <span style="font-size:13px;font-weight:400;color:var(--text-soft)">\u00b7 '+hoyStr+'</span>';
+  }
+  var inicioLogoEl = document.getElementById('inicioLogo');
+  if(inicioLogoEl){
+    var logoUrlEmp = (typeof currentEmpresa !== 'undefined' && currentEmpresa && currentEmpresa.logoUrl) ? currentEmpresa.logoUrl : '';
+    if(logoUrlEmp){ inicioLogoEl.src = logoUrlEmp; inicioLogoEl.style.display = 'block'; }
+    else { inicioLogoEl.style.display = 'none'; inicioLogoEl.removeAttribute('src'); }
   }
 
   // Ventas de hoy (sin contar presupuestos)
