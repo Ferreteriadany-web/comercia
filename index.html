@@ -5156,7 +5156,21 @@
       </div>
 
       <!-- ═══ MÓDULO PRODUCTOS ═══ -->
-      <div class="module" id="moduleProductos">
+      <style id="ayudaModStyles">
+.ayuda-mod{border:1px solid var(--line,#e5e7eb);border-radius:12px;margin:0 0 18px;background:transparent;overflow:hidden}
+.ayuda-mod>summary{list-style:none;cursor:pointer;padding:11px 15px;display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:var(--text,#222);user-select:none}
+.ayuda-mod>summary::-webkit-details-marker{display:none}
+.ayuda-mod>summary:hover{background:rgba(224,142,60,.07)}
+.ayuda-mod .ay-ico{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#fbbf24,#f97316);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;line-height:1}
+.ayuda-mod .ay-arrow{margin-left:auto;transition:transform .2s;color:var(--text-mute,#999);font-size:13px}
+.ayuda-mod[open]>summary .ay-arrow{transform:rotate(180deg)}
+.ayuda-mod .ay-cuerpo{padding:0 16px 15px 16px;font-size:13px;color:var(--text-mute,#666);line-height:1.6}
+.ayuda-mod .ay-cuerpo b{color:var(--text,#222);font-weight:600}
+.ayuda-mod .ay-cuerpo ul{margin:7px 0 0;padding-left:18px}
+.ayuda-mod .ay-cuerpo li{margin:4px 0}
+.ayuda-mod .ay-cuerpo .ay-tip{margin-top:9px;padding:8px 11px;border-radius:8px;background:rgba(224,142,60,.10);color:var(--text,#333);font-size:12.5px}
+</style>
+<div class="module" id="moduleProductos">
         <header class="main-header">
           <div style="display:flex;align-items:center;gap:14px">
             <h1 class="main-title">Productos</h1>
@@ -5168,6 +5182,8 @@
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128230;</span><span>¿Cómo funciona Productos?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Ac&aacute; vive tu <b>cat&aacute;logo</b>: todo lo que vend&eacute;s.<ul><li>Carg&aacute; un producto nuevo con su nombre, c&oacute;digo, c&oacute;digo de barras, precio y stock.</li><li>Busc&aacute; por nombre o c&oacute;digo en el buscador de arriba.</li><li>Toc&aacute; un producto para <b>editarlo</b> o ver su detalle.</li></ul><div class="ay-tip">&#128161; Los precios tambi&eacute;n se pueden actualizar en masa desde <b>Listas de Proveedores</b>.</div></div></details>
+
         <div class="main-body">
           <div class="stats-row">
             <div class="stat-card">
@@ -5271,6 +5287,8 @@
             <button class="btn btn-primary btn-sm" onclick="openClienteModal()">&#43; Nuevo cliente</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128100;</span><span>¿Cómo funciona Clientes?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es tu <b>agenda de clientes</b>. Guard&aacute; nombre, contacto y datos de cada uno.<ul><li>Despu&eacute;s los us&aacute;s al hacer una <b>venta</b>, un <b>presupuesto</b> o en su <b>cuenta corriente</b>.</li><li>Pod&eacute;s importar muchos clientes juntos desde una planilla.</li></ul></div></details>
+
         <div class="main-body">
           <div class="stats-row">
             <div class="stat-card">
@@ -5353,6 +5371,8 @@
             <h1 class="main-title" id="inicioSaludo">Inicio</h1>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#127968;</span><span>¿Cómo funciona el Inicio?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es tu <b>tablero del d&iacute;a</b>. De un vistazo ves las ventas de hoy, lo que entr&oacute; en caja, cu&aacute;nto te deben los clientes y qu&eacute; productos quedan con poco stock. <b>Toc&aacute; cualquier tarjeta</b> para ir directo a esa secci&oacute;n.</div></details>
+
         <div class="main-body">
           <div class="stats-row">
             <div class="stat-card" onclick="navTo('ventas')" style="cursor:pointer">
@@ -5408,6 +5428,8 @@
             <button class="btn btn-line btn-sm" onclick="ventasTabSwitch('pos')">&#43; Nueva venta</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128722;</span><span>¿Cómo funciona Ventas?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es tu <b>punto de venta</b>. As&iacute; cobr&aacute;s:<ul><li><b>Escane&aacute;</b> el c&oacute;digo de barras y el producto se agrega solo al carrito. O <b>busc&aacute; por nombre</b> y toc&aacute; la tarjeta.</li><li>Ajust&aacute; cantidades, eleg&iacute; el medio de pago y confirm&aacute;.</li><li>En <b>Historial</b> ves todas las ventas que hiciste.</li></ul></div></details>
+
         <div class="main-body">
 
           <!-- TABBAR -->
@@ -5651,6 +5673,8 @@
             <button class="btn btn-primary btn-sm" onclick="nuevoPresupuesto()">&#43; Nuevo presupuesto</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128203;</span><span>¿Cómo funciona Presupuestos?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Arm&aacute; un <b>presupuesto</b> para un cliente con los productos y cantidades que quiera.<ul><li>Se lo pod&eacute;s pasar y queda guardado.</li><li>Si lo aprueba, lo <b>convert&iacute;s en venta</b> con un toque, sin recargar todo de nuevo.</li></ul></div></details>
+
         <div class="main-body">
           <div class="stats-row">
             <div class="stat-card">
@@ -5705,6 +5729,8 @@
             <button class="btn btn-primary btn-sm" onclick="abrirMovCaja()">&#43; Movimiento</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128176;</span><span>¿Cómo funciona la Caja?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es el control de tu <b>dinero del d&iacute;a</b>. Registr&aacute; los <b>ingresos y egresos</b> (lo que entra y lo que sale) y siempre sab&eacute;s cu&aacute;nto hay en caja. Las ventas en efectivo entran ac&aacute; autom&aacute;ticamente.</div></details>
+
         <div class="main-body">
           <div class="stats-row">
             <div class="stat-card success">
@@ -5743,6 +5769,8 @@
             <button class="btn btn-primary btn-sm" onclick="exportarPedidoExcel()">&#128190; Exportar Excel</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128666;</span><span>¿Cómo funciona Pedidos de Compra?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Arm&aacute; los <b>pedidos a tus proveedores</b>: qu&eacute; productos vas a comprar y en qu&eacute; cantidad.<ul><li>Busc&aacute; productos por c&oacute;digo, descripci&oacute;n o proveedor y agregalos al pedido.</li><li>Sirve para no olvidarte nada y para tener un registro de lo que encargaste.</li></ul></div></details>
+
         <div class="main-body">
 
           <div class="table-card" style="padding:20px;margin-bottom:16px;position:relative;z-index:10;overflow:visible">
@@ -5895,6 +5923,8 @@
             <button class="btn btn-line btn-sm" onclick="ccRecargar()">&#x21BB; Recargar</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#129534;</span><span>¿Cómo funciona las Cuentas Corrientes?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es el <b>"fiado"</b>: la plata que te deben los clientes.<ul><li>Ves el <b>saldo</b> de cada cliente al d&iacute;a.</li><li>Cuando te pagan, <b>registr&aacute;s el pago</b> y el saldo se actualiza solo.</li></ul></div></details>
+
         <div class="main-body">
 
           <!-- Stats -->
@@ -6011,6 +6041,8 @@
         <header class="main-header">
           <h1 class="main-title">Reportes</h1>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128202;</span><span>¿Cómo funciona Reportes?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Son los <b>informes</b> de tu negocio.<ul><li><b>Caja</b> por d&iacute;a, <b>facturaci&oacute;n</b> por mes y <b>compras a proveedores</b> por per&iacute;odo.</li><li>Eleg&iacute; la fecha o el rango y gener&aacute; el informe.</li></ul></div></details>
+
         <div class="main-body">
           <div class="rep-tabs">
             <button class="rep-tab active" id="repTabCaja" onclick="repCambiarTab('caja')">Caja diaria</button>
@@ -6093,6 +6125,8 @@
             <button class="btn btn-line btn-sm" onclick="esVerHistorial()">&#128338; Historial</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128229;</span><span>¿Cómo funciona la Entrada de Stock?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Cuando te <b>llega mercader&iacute;a</b>, la carg&aacute;s ac&aacute; y se <b>suma al stock</b> de tus productos.<ul><li><b>A mano:</b> busc&aacute; el producto y pon&eacute; cu&aacute;nto entr&oacute;.</li><li><b>Por Excel:</b> import&aacute; la planilla del proveedor y carga todo junto.</li></ul></div></details>
+
         <div class="main-body">
           <div id="esPaso1">
             <p style="color:var(--text-mute);font-size:14px;margin:0 0 18px">Cargá la mercadería que llegó. Elegí cómo querés ingresar los productos y al confirmar se suma al stock actual.</p>
@@ -6164,6 +6198,8 @@
             <button class="btn btn-primary btn-sm" id="empBtnInvitar" onclick="empAbrirInvitar()">&#10133; Invitar empleado</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128101;</span><span>¿Cómo funciona Empleados?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Invit&aacute; a las personas que trabajan con vos para que entren a Comercia con su <b>propio usuario</b>. As&iacute; cada uno tiene su acceso y vos segu&iacute;s siendo el due&ntilde;o de la empresa.</div></details>
+
         <div class="main-body">
           <div id="empContenido">
             <div class="table-card"><div class="empty-table"><div class="empty-table-icon">&#128101;</div><div class="empty-table-title">Cargando...</div></div></div>
@@ -6177,7 +6213,9 @@
       <div class="module" id="moduleIntWoocommerce"><div id="intWoocommerceBody"></div></div>
       <div class="module" id="moduleIntFulljaus"><div id="intFulljausBody"></div></div>
       <div class="module" id="moduleIntEmpretienda"><div id="intEmpretiendaBody"></div></div>
-      <div class="module" id="modulePagosProveedores"><div id="pagosProveedoresBody"></div></div>
+      <div class="module" id="modulePagosProveedores">
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128197;</span><span>¿Cómo funciona los Pagos a Proveedores?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Tu <b>calendario de pagos y cheques</b> a proveedores.<ul><li>Carg&aacute; cada pago con su <b>vencimiento</b>, monto y proveedor.</li><li>Comercia te <b>avisa lo que vence</b> y te manda un <b>mail</b> con los pagos del d&iacute;a.</li><li>Cuando pag&aacute;s algo, lo marc&aacute;s como pagado.</li></ul></div></details>
+<div id="pagosProveedoresBody"></div></div>
 
       <!-- ═══ MÓDULO AFIP — facturación electrónica ═══ -->
       <div class="module" id="moduleAfip">
@@ -6191,6 +6229,8 @@
             <button class="btn btn-primary btn-sm" onclick="afipGuardarConfig()" id="btnAfipGuardar">&#128190; Guardar configuración</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#129534;</span><span>¿Cómo funciona la Facturaci&oacute;n AFIP?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Ac&aacute; configur&aacute;s la <b>facturaci&oacute;n electr&oacute;nica</b>.<ul><li>Carg&aacute; tu <b>certificado</b> y tus <b>puntos de venta</b>.</li><li>Eleg&iacute; el ambiente: <b>homologaci&oacute;n</b> (prueba) o <b>producci&oacute;n</b> (facturas reales).</li><li>Una vez listo, las ventas pueden emitir factura con <b>CAE</b>.</li></ul><div class="ay-tip">&#9888;&#65039; Prob&aacute; siempre en homologaci&oacute;n antes de pasar a producci&oacute;n: en producci&oacute;n las facturas son legales y reales.</div></div></details>
+
         <div class="main-body">
 
           <!-- Tabs -->
@@ -6460,6 +6500,8 @@
             <button class="btn btn-sm" onclick="lpAbrirNuevoProveedor()">&#43; Nuevo proveedor</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128221;</span><span>¿Cómo funciona las Listas de Proveedores?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Import&aacute; las <b>listas de precios</b> de tus proveedores y Comercia te calcula solo el <b>precio de venta</b>.<ul><li>Aplica tu <b>ganancia, descuentos e IVA</b> autom&aacute;ticamente.</li><li>Ideal para <b>actualizar precios r&aacute;pido</b> cuando el proveedor te manda lista nueva.</li><li>Hay una <b>gu&iacute;a paso a paso</b> en el bot&oacute;n de arriba.</li></ul></div></details>
+
         <div class="main-body">
 
           <!-- Sub-tabs -->
@@ -6993,6 +7035,8 @@
             <button class="btn btn-line btn-sm" onclick="cpLimpiarFiltros()">&#10005; Limpiar filtros</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#128270;</span><span>¿Cómo funciona la Consulta de Precios?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Para <b>consultar al toque</b> cu&aacute;nto sale un producto, sin tener que entrar a vender. Busc&aacute; por <b>c&oacute;digo, nombre o proveedor</b> y ves el precio al instante. Perfecto para cuando un cliente pregunta "&iquest;cu&aacute;nto sale esto?".</div></details>
+
         <div class="main-body">
           <style>
             #moduleConsultaPrecios .cp-filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end}
@@ -7044,6 +7088,8 @@
             <button class="btn btn-line btn-sm" onclick="iaConfig()">&#9881; Configurar</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#129302;</span><span>¿Cómo funciona el Asistente IA?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es tu <b>ayudante con inteligencia artificial</b>.<ul><li><b>Consultas:</b> qu&eacute; producto o material conviene para cada cosa.</li><li><b>Comparador:</b> en qu&eacute; proveedor te conviene comprar, seg&uacute;n tu cat&aacute;logo.</li><li><b>Soporte:</b> dudas de c&oacute;mo usar Comercia.</li></ul></div></details>
+
         <div style="padding:20px;max-width:760px;margin:0 auto;width:100%">
           <div class="ia-modes" id="iaModes">
             <button class="ia-mode active" data-mode="consultas" onclick="iaSetModo('consultas')">&#128270; Consultas</button>
@@ -7066,6 +7112,8 @@
             <button class="btn btn-primary btn-sm" onclick="guardarConfigEmpresa()" id="btnGuardarConfig">&#128190; Guardar cambios</button>
           </div>
         </header>
+<details class="ayuda-mod"><summary><span class="ay-ico">&#9881;&#65039;</span><span>¿Cómo funciona la Configuraci&oacute;n?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Los <b>datos de tu empresa</b> y los ajustes generales.<ul><li>Carg&aacute; el <b>nombre</b> y el <b>logo</b> de tu comercio.</li><li>El logo que pongas ac&aacute; aparece en el <b>Inicio</b> y en los avisos.</li><li>No te olvides de tocar <b>Guardar cambios</b>.</li></ul></div></details>
+
         <div class="main-body">
           <div class="alert error" id="configAlert"></div>
 
