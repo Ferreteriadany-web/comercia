@@ -5438,7 +5438,7 @@
                   <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
                     <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-soft);cursor:pointer">
                       <input type="checkbox" id="vAutoBarcode" checked style="accent-color:var(--accent)">
-                      <span>Autoagregar al escanear código exacto (Enter)</span>
+                      <span>Modo escáner — Enter busca solo por código de barras</span>
                     </label>
                     <div style="flex:1"></div>
                     <span style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">Click en una tarjeta para agregar</span>
@@ -14600,22 +14600,23 @@ function bindVentasSearch(){
   inp.addEventListener('keydown', function(e){
     if(e.key==='Enter'){
       e.preventDefault();
-      var autoBarcode = document.getElementById('vAutoBarcode').checked;
-      // Auto-barcode: si el código exacto matchea, agregar directo
-      if(autoBarcode && inp.value.trim()){
-        var q = inp.value.trim().toLowerCase();
-        var match = productos.find(function(p){
-          return (p.codigo||'').toLowerCase()===q || (p.codBarra||'').toLowerCase()===q;
-        });
+      var modoEscaner = document.getElementById('vAutoBarcode').checked;
+      var texto = inp.value.trim();
+      if(!texto) return;
+      // Modo escáner: busca SOLO por código (interno o de barras), sin adivinar
+      if(modoEscaner){
+        var match = buscarProductoPorCodigo(texto);
         if(match){
           agregarAlCarrito(match._id);
           inp.value = '';
           _vSearchQuery = '';
           renderGridVentas();
-          return;
+        } else {
+          toast('No encontré ese código de barras: ' + texto, 'error');
         }
+        return;
       }
-      // Si hay UN solo resultado visible en el grid, agregarlo
+      // Modo normal (búsqueda por nombre): si hay UN solo resultado, agregarlo
       if(_vGridResults.length === 1){
         agregarAlCarrito(_vGridResults[0]._id);
         inp.value = '';
@@ -20631,12 +20632,32 @@ function scanCodBarraProducto(){
 }
 
 // Ventas (POS): buscar producto por código y agregarlo al carrito
+// Normaliza un código para comparar (sin espacios, minúsculas)
+function normCod(s){ return String(s==null?'':s).trim().toLowerCase(); }
+
+// Busca un producto por código interno O código de barras, de forma tolerante
+// (ignora mayúsculas, espacios y ceros adelante típicos de los EAN de fábrica).
+function buscarProductoPorCodigo(code){
+  var q = normCod(code);
+  if(!q) return null;
+  // 1) coincidencia exacta (normalizada) en código o código de barras
+  var p = productos.find(function(x){ return normCod(x.codigo)===q || normCod(x.codBarra)===q; });
+  if(p) return p;
+  // 2) tolerante a ceros adelante (EAN/UPC: "0779..." vs "779...")
+  var qz = q.replace(/^0+/, '');
+  if(qz && qz !== q){
+    p = productos.find(function(x){
+      return normCod(x.codigo).replace(/^0+/,'')===qz || normCod(x.codBarra).replace(/^0+/,'')===qz;
+    });
+    if(p) return p;
+  }
+  return null;
+}
+
 function scanParaPOS(){
   abrirScanner(function(code){
-    // Buscar producto por código de barras o código interno
-    var p = productos.find(function(x){
-      return (x.codBarra && x.codBarra === code) || (x.codigo && x.codigo === code);
-    });
+    // Buscar producto por código de barras o código interno (tolerante)
+    var p = buscarProductoPorCodigo(code);
     if(!p){
       toast('Producto no encontrado: ' + code, 'error');
       return;
