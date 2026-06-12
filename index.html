@@ -8812,6 +8812,14 @@ auth.onAuthStateChanged(async function(user){
       return;
     }
     await cargarEmpresaUsuario(user);
+    // Aviso al volver de conectar Tienda Nube
+    try{
+      var _tnp = new URLSearchParams(location.search);
+      var _tn = _tnp.get('tiendanube');
+      if(_tn === 'ok'){ if(typeof toast==='function') toast('¡Tienda Nube conectada! 🎉','success'); }
+      else if(_tn === 'error'){ if(typeof toast==='function') toast('No se pudo conectar Tienda Nube'+(_tnp.get('motivo')?(' ('+_tnp.get('motivo')+')'):''),'error'); }
+      if(_tn){ history.replaceState(null,'',location.pathname); }
+    }catch(e){}
   } else {
     landing.style.display='flex';
     app.classList.remove('show');
@@ -21368,6 +21376,13 @@ function initIntegracion(moduleKey){
   var bodyId = moduleKey + 'Body';
   var cont = document.getElementById(bodyId);
   if(!cont) return;
+  // Tienda Nube tiene conexión real (no es "próximamente")
+  if(moduleKey === 'intTiendanube'){
+    cont.innerHTML = renderTiendanube(cfg);
+    cont.dataset.rendered = '1';
+    tnCargarEstado();
+    return;
+  }
   // Si ya está renderizado, no rehacer
   if(cont.dataset.rendered === '1') return;
   cont.innerHTML = renderIntegracion(cfg);
@@ -21434,6 +21449,70 @@ function renderIntegracion(cfg){
       '</div>'+
     '</div>'+
   '</div>';
+}
+
+// ─── Tienda Nube: conexión real (OAuth) ───
+var TN_INICIAR_URL = 'https://southamerica-east1-comercia-app-b1e9a.cloudfunctions.net/tiendanubeIniciar';
+
+function renderTiendanube(cfg){
+  var featuresHtml = cfg.features.map(function(f){ return '<li>'+eH(f)+'</li>'; }).join('');
+  return '<header class="main-header">'+
+    '<h1 class="main-title">'+eH(cfg.nombre)+'</h1>'+
+    '<div class="main-actions"><span class="int-status int-status-disabled" id="tnBadge">…</span></div>'+
+  '</header>'+
+  '<div class="main-body">'+
+    '<div class="int-hero">'+
+      '<div class="int-hero-logo">'+cfg.logoSvg+'</div>'+
+      '<div class="int-hero-content">'+
+        '<h2 class="int-hero-title">'+eH(cfg.nombre)+'</h2>'+
+        '<p class="int-hero-desc">'+eH(cfg.descripcion)+'</p>'+
+      '</div>'+
+    '</div>'+
+    '<div class="int-grid">'+
+      '<div class="int-card">'+
+        '<div class="int-card-title">&#10004; Qu&eacute; vas a poder hacer</div>'+
+        '<ul class="int-feature-list">'+featuresHtml+'</ul>'+
+      '</div>'+
+      '<div class="int-card">'+
+        '<div class="int-card-title">&#128279; Conexi&oacute;n</div>'+
+        '<div id="tnStatus" class="int-conf-form"><div class="int-conn-status"><span class="int-conn-dot"></span><span>Verificando&hellip;</span></div></div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function tnCargarEstado(){
+  var badge = document.getElementById('tnBadge');
+  var box = document.getElementById('tnStatus');
+  if(!currentEmpresaId){ if(box) box.innerHTML = '<div class="int-conf-hint">Inici&aacute; sesi&oacute;n para conectar.</div>'; return; }
+  db.collection('empresas').doc(currentEmpresaId).collection('config').doc('tiendanube').get().then(function(d){
+    var conectado = d.exists && d.data().conectado;
+    if(conectado){
+      var s = d.data();
+      if(badge){ badge.textContent = 'Conectado'; badge.className = 'int-status'; badge.style.background = 'rgba(22,163,74,.15)'; badge.style.color = '#16a34a'; }
+      if(box){
+        box.innerHTML =
+          '<div class="int-conn-status"><span class="int-conn-dot" style="background:#16a34a"></span><span>Conectado'+(s.storeId?(' &middot; tienda '+eH(String(s.storeId))):'')+'</span></div>'+
+          '<div class="int-conf-hint" style="margin-top:8px">Tu Tienda Nube est&aacute; enlazada con Comercia.</div>'+
+          '<button class="btn btn-line btn-sm" style="margin-top:10px" onclick="tnConectar()">Volver a conectar</button>';
+      }
+    } else {
+      if(badge){ badge.textContent = 'No conectado'; badge.className = 'int-status int-status-disabled'; badge.style.background=''; badge.style.color=''; }
+      if(box){
+        box.innerHTML =
+          '<p class="int-conf-help">Autoriz&aacute; a Comercia desde tu cuenta de Tienda Nube. Te llevamos a Tienda Nube para darle "Aceptar" y volv&eacute;s solo.</p>'+
+          '<button class="btn-form" style="margin-top:6px" onclick="tnConectar()">Conectar con Tienda Nube</button>';
+      }
+    }
+  }).catch(function(err){
+    console.error(err);
+    if(box) box.innerHTML = '<div class="int-conf-hint">No pude leer el estado. Reintent&aacute;.</div><button class="btn-form" style="margin-top:6px" onclick="tnConectar()">Conectar con Tienda Nube</button>';
+  });
+}
+
+function tnConectar(){
+  if(!currentEmpresaId){ toast('Ten&eacute;s que estar logueado', 'error'); return; }
+  window.location.href = TN_INICIAR_URL + '?empresa=' + encodeURIComponent(currentEmpresaId);
 }
 
 async function solicitarIntegracion(integracionId){
