@@ -8991,7 +8991,7 @@ async function pagosMarcarPagado(id){
 }
 
 async function pagosBorrar(id){
-  if(!confirm('¿Borrar este pago? Esta acción no se puede deshacer.')) return;
+  if(!await confirmComercia('¿Borrar este pago? Esta acción no se puede deshacer.')) return;
   try{
     await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).delete();
     pagosState.items = pagosState.items.filter(function(x){ return x._id!==id; });
@@ -9001,6 +9001,90 @@ async function pagosBorrar(id){
   }catch(e){ console.error('pagosBorrar', e); toast('No se pudo borrar', 'error'); }
 }
 
+
+/* ═══ Avisos con la marca de Comercia (reemplazan los del navegador) ═══ */
+function _cmEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+function _cmAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _cmIcono(){
+  return '<svg viewBox="0 0 120 120" width="32" height="32" aria-hidden="true" style="flex-shrink:0;display:block">'
+    + '<defs><linearGradient id="cmGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f97316"/></linearGradient></defs>'
+    + '<rect x="4" y="4" width="112" height="112" rx="28" fill="url(#cmGrad)"/>'
+    + '<path d="M81 39 A30 30 0 1 0 81 81" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/>'
+    + '<circle cx="86" cy="60" r="6.5" fill="#fff"/></svg>';
+}
+function _cmWrap(){
+  var w=document.getElementById('cmDialogWrap');
+  if(!w){ w=document.createElement('div'); w.id='cmDialogWrap'; document.body.appendChild(w); }
+  return w;
+}
+function _cmCard(inner){
+  return '<div id="cmOverlay" style="position:fixed;inset:0;background:rgba(20,16,10,0.5);display:flex;align-items:center;justify-content:center;z-index:100000;padding:16px;font-family:Arial,Helvetica,sans-serif">'
+    + '<div style="background:#fff;border-radius:16px;max-width:430px;width:100%;box-shadow:0 14px 44px rgba(0,0,0,.25);overflow:hidden">'
+    + '<div style="display:flex;align-items:center;gap:10px;padding:18px 20px 0">'+_cmIcono()+'<div style="font-size:15px;font-weight:700;color:#222">Comercia</div></div>'
+    + inner + '</div></div>';
+}
+function confirmComercia(mensaje, opts){
+  opts=opts||{};
+  var peligro = (opts.peligro!==undefined) ? opts.peligro : /borrar|eliminar|\u26a0|vaciar|descartar/i.test(String(mensaje));
+  var okTxt = opts.ok || 'Aceptar';
+  var cancelTxt = opts.cancel || 'Cancelar';
+  var okBg = peligro ? '#c0392b' : '#e08e3c';
+  return new Promise(function(resolve){
+    var w=_cmWrap();
+    w.innerHTML=_cmCard(
+      '<div style="padding:12px 20px 0;font-size:14px;color:#333;line-height:1.5">'+_cmEsc(mensaje)+'</div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end;padding:18px 20px 18px">'
+      +'<button id="cmNo" style="padding:9px 16px;border-radius:10px;border:1px solid #ddd;background:#fff;color:#444;font-size:14px;cursor:pointer">'+_cmEsc(cancelTxt)+'</button>'
+      +'<button id="cmYes" style="padding:9px 16px;border-radius:10px;border:none;background:'+okBg+';color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+_cmEsc(okTxt)+'</button>'
+      +'</div>');
+    function done(v){ w.innerHTML=''; document.removeEventListener('keydown',onKey,true); resolve(v); }
+    function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); done(false); } else if(e.key==='Enter'){ e.stopPropagation(); done(true); } }
+    document.getElementById('cmYes').onclick=function(){ done(true); };
+    document.getElementById('cmNo').onclick=function(){ done(false); };
+    document.getElementById('cmOverlay').addEventListener('click',function(e){ if(e.target===this) done(false); });
+    document.addEventListener('keydown',onKey,true);
+    document.getElementById('cmYes').focus();
+  });
+}
+function alertComercia(mensaje, opts){
+  opts=opts||{};
+  var okTxt=opts.ok||'Entendido';
+  return new Promise(function(resolve){
+    var w=_cmWrap();
+    w.innerHTML=_cmCard(
+      '<div style="padding:12px 20px 0;font-size:14px;color:#333;line-height:1.5">'+_cmEsc(mensaje)+'</div>'
+      +'<div style="display:flex;justify-content:flex-end;padding:18px 20px 18px">'
+      +'<button id="cmOk" style="padding:9px 16px;border-radius:10px;border:none;background:#e08e3c;color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+_cmEsc(okTxt)+'</button>'
+      +'</div>');
+    function done(){ w.innerHTML=''; document.removeEventListener('keydown',onKey,true); resolve(); }
+    function onKey(e){ if(e.key==='Escape'||e.key==='Enter'){ e.stopPropagation(); done(); } }
+    document.getElementById('cmOk').onclick=done;
+    document.addEventListener('keydown',onKey,true);
+    document.getElementById('cmOk').focus();
+  });
+}
+function promptComercia(mensaje, valorDefault, opts){
+  opts=opts||{};
+  return new Promise(function(resolve){
+    var w=_cmWrap();
+    w.innerHTML=_cmCard(
+      '<div style="padding:12px 20px 0;font-size:14px;color:#333;line-height:1.5">'+_cmEsc(mensaje)+'</div>'
+      +'<div style="padding:10px 20px 0"><input id="cmInput" style="width:100%;padding:9px 11px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box;font-size:14px" value="'+_cmAttr(valorDefault||'')+'"></div>'
+      +'<div style="display:flex;gap:8px;justify-content:flex-end;padding:18px 20px 18px">'
+      +'<button id="cmNo" style="padding:9px 16px;border-radius:10px;border:1px solid #ddd;background:#fff;color:#444;font-size:14px;cursor:pointer">Cancelar</button>'
+      +'<button id="cmYes" style="padding:9px 16px;border-radius:10px;border:none;background:#e08e3c;color:#fff;font-weight:600;font-size:14px;cursor:pointer">Aceptar</button>'
+      +'</div>');
+    var inp=document.getElementById('cmInput');
+    function done(v){ w.innerHTML=''; document.removeEventListener('keydown',onKey,true); resolve(v); }
+    function onKey(e){ if(e.key==='Escape'){ e.stopPropagation(); done(null); } else if(e.key==='Enter'){ e.stopPropagation(); done(inp.value); } }
+    document.getElementById('cmYes').onclick=function(){ done(inp.value); };
+    document.getElementById('cmNo').onclick=function(){ done(null); };
+    document.addEventListener('keydown',onKey,true);
+    inp.focus(); inp.select();
+  });
+}
+// Reemplaza el alert() feo del navegador por el de Comercia (no hace falta tocar cada llamada)
+window.alert = function(m){ alertComercia(m); };
 
 function navTo(modulo){
   // Control de acceso: si el usuario no tiene permiso para este módulo, bloquear
@@ -9397,7 +9481,7 @@ function empCopiarCodigo(){
 async function empCancelarInvitacion(invId){
   var inv = empState.invitaciones.find(function(i){ return i._id === invId; });
   if(!inv) return;
-  if(!confirm('¿Cancelar la invitación de ' + (inv.nombre || inv.email) + '?')) return;
+  if(!await confirmComercia('¿Cancelar la invitación de ' + (inv.nombre || inv.email) + '?')) return;
   try{
     await db.collection('empresas').doc(currentEmpresaId).collection('invitaciones').doc(invId).update({ estado: 'cancelada' });
     if(inv.codigo){ try{ await db.collection('invitaciones_codigos').doc(inv.codigo).delete(); }catch(e){} }
@@ -9409,7 +9493,7 @@ async function empCancelarInvitacion(invId){
 async function empEliminar(uid){
   var u = empState.empleados.find(function(e){ return e._id === uid; });
   if(!u) return;
-  if(!confirm('¿Quitar a ' + (u.nombre || u.email) + ' de tu empresa?\n\nNo va a poder seguir accediendo. Su cuenta de login no se borra, pero queda sin empresa asociada.')) return;
+  if(!await confirmComercia('¿Quitar a ' + (u.nombre || u.email) + ' de tu empresa?\n\nNo va a poder seguir accediendo. Su cuenta de login no se borra, pero queda sin empresa asociada.')) return;
   try{
     // Lo desvinculamos de la empresa (no borramos su Auth, eso requiere backend)
     await db.collection('usuarios_global').doc(uid).update({ empresaId: null, rol: 'sin_empresa', desvinculadoEn: new Date().toISOString() });
@@ -9441,8 +9525,8 @@ function esVolverInicio(){
   document.getElementById('esPaso3').style.display = 'none';
 }
 
-function esCancelar(){
-  if(esState.filas.length && !confirm('¿Descartar la entrada de stock sin aplicar?')) return;
+async function esCancelar(){
+  if(esState.filas.length && !await confirmComercia('¿Descartar la entrada de stock sin aplicar?')) return;
   esState = { filas: [], metodo: null };
   esVolverInicio();
 }
@@ -9593,15 +9677,15 @@ function esAgregarFilaManual(){
 function esQuitarFila(idx){ esState.filas.splice(idx, 1); esRender(); }
 
 // ─── Agregar manual (búsqueda) ───
-function esAgregarManual(){
+async function esAgregarManual(){
   // Reutiliza el buscador de productos si existe; sino, prompt simple
-  var codigo = prompt('Código del producto:');
+  var codigo = await promptComercia('Código del producto:');
   if(!codigo) return;
   var prod = esBuscarProducto(codigo);
   if(!prod){
-    if(!confirm('Ese código no está en tu catálogo. ¿Agregarlo igual para revisar?')) return;
+    if(!await confirmComercia('Ese código no está en tu catálogo. ¿Agregarlo igual para revisar?')) return;
   }
-  var cant = prompt('Cantidad que llegó:', '1');
+  var cant = await promptComercia('Cantidad que llegó:', '1');
   if(cant === null) return;
   esAgregarFila(codigo, Number(cant) || 1);
 }
@@ -9684,9 +9768,9 @@ async function esAplicar(){
       msg += provConfig ? ('\n\nLos nuevos se asignan al proveedor "' + provConfig.nombre + '" y su precio se calcula con tus márgenes.')
                         : ('\n\nNo encontré config de proveedor para calcular precio: los nuevos se crean SIN precio de venta (lo cargás después).');
     }
-    if(!confirm(msg)) return;
+    if(!await confirmComercia(msg)) return;
   } else {
-    if(!confirm('Vas a sumar stock a ' + validas.length + ' producto(s). ¿Confirmás?')) return;
+    if(!await confirmComercia('Vas a sumar stock a ' + validas.length + ' producto(s). ¿Confirmás?')) return;
   }
 
   var btn = document.getElementById('esBtnAplicar');
@@ -11099,7 +11183,7 @@ async function saveProduct(){
 }
 
 async function deleteProduct(id){
-  if(!confirm('¿Eliminar este producto?')) return;
+  if(!await confirmComercia('¿Eliminar este producto?')) return;
   try{
     var prod = productos.find(function(x){ return x._id === id; });
     // Borrar foto del Storage si tiene una propia (no URL externa)
@@ -11512,11 +11596,11 @@ function prodSelTodosFiltrados(){
 async function prodAsignarProveedorMasivo(){
   var ids = Array.from(prodSelectedIds);
   if(ids.length === 0){ toast('No hay productos seleccionados', 'info'); return; }
-  var nombre = prompt('Asignar proveedor a ' + ids.length + ' producto(s).\n\nEscribí el nombre del proveedor (ej: Poxipol):');
+  var nombre = await promptComercia('Asignar proveedor a ' + ids.length + ' producto(s).\n\nEscribí el nombre del proveedor (ej: Poxipol):');
   if(nombre === null) return;
   nombre = nombre.trim();
   if(!nombre){ toast('Tenés que escribir un nombre de proveedor', 'error'); return; }
-  if(!confirm('¿Asignar el proveedor "' + nombre + '" a ' + ids.length + ' producto(s)?')) return;
+  if(!await confirmComercia('¿Asignar el proveedor "' + nombre + '" a ' + ids.length + ' producto(s)?')) return;
 
   toast('Asignando proveedor...', 'info');
   try{
@@ -12787,8 +12871,8 @@ async function saveCliente(){
 // Borra TODOS los clientes de la empresa (destructivo, doble confirmación)
 async function cliBorrarTodos(){
   if(clientes.length === 0){ toast('No hay clientes para borrar', 'info'); return; }
-  if(!confirm('⚠️ Vas a BORRAR los ' + clientes.length + ' clientes de tu empresa.\n\nEsto NO se puede deshacer. ¿Seguro?')) return;
-  var conf = prompt('Para confirmar, escribí la palabra BORRAR (en mayúsculas):');
+  if(!await confirmComercia('⚠️ Vas a BORRAR los ' + clientes.length + ' clientes de tu empresa.\n\nEsto NO se puede deshacer. ¿Seguro?')) return;
+  var conf = await promptComercia('Para confirmar, escribí la palabra BORRAR (en mayúsculas):');
   if(conf !== 'BORRAR'){ toast('Cancelado (no se borró nada)', 'info'); return; }
 
   toast('Borrando clientes...', 'info');
@@ -13121,7 +13205,7 @@ async function cliAplicarImportar(){
 }
 
 async function deleteCliente(id){
-  if(!confirm('¿Eliminar este cliente?')) return;
+  if(!await confirmComercia('¿Eliminar este cliente?')) return;
   try{
     await db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(id).delete();
     await idbBorrarClientes(currentEmpresaId, [id]);
@@ -13728,9 +13812,9 @@ function actualizarStatsPedido(){
   document.getElementById('pedStatTotal').textContent = total>0?fmtPeso(total):'$0';
 }
 
-function limpiarPedido(){
+async function limpiarPedido(){
   if(pedItems.length===0) return;
-  if(!confirm('¿Limpiar el pedido? Se borrarán todos los productos agregados.')) return;
+  if(!await confirmComercia('¿Limpiar el pedido? Se borrarán todos los productos agregados.')) return;
   pedItems = [];
   renderPedido();
   actualizarStatsPedido();
@@ -14855,9 +14939,9 @@ function decCarrito(idx){
   }
 }
 
-function limpiarCarrito(){
+async function limpiarCarrito(){
   if(carritoVenta.length===0) return;
-  if(!confirm('¿Vaciar el carrito?')) return;
+  if(!await confirmComercia('¿Vaciar el carrito?')) return;
   carritoVenta = [];
   pagosVenta = [{ metodo: 'efectivo', monto: 0 }];
   document.getElementById('vDescuentoPct').value = 0;
@@ -15486,7 +15570,7 @@ async function confirmarVenta(){
       }
     });
     if(faltantes.length){
-      if(!confirm('Stock insuficiente en:\n\n' + faltantes.join('\n') + '\n\n¿Confirmás igual? El stock quedará en negativo.')){
+      if(!await confirmComercia('Stock insuficiente en:\n\n' + faltantes.join('\n') + '\n\n¿Confirmás igual? El stock quedará en negativo.')){
         return;
       }
     }
@@ -15963,7 +16047,7 @@ async function guardarMovCaja(){
 }
 
 async function eliminarMovCaja(id){
-  if(!confirm('¿Eliminar este movimiento?')) return;
+  if(!await confirmComercia('¿Eliminar este movimiento?')) return;
   try{
     await db.collection('empresas').doc(currentEmpresaId).collection('caja_movimientos').doc(id).delete();
     cajaMovimientos = cajaMovimientos.filter(function(m){ return m._id !== id; });
@@ -16140,10 +16224,10 @@ function renderHistorialPresupuestos(){
 }
 
 // Carga los ítems de un presupuesto en el carrito del POS para cerrarlo como venta.
-function convertirPresupuestoAVenta(){
+async function convertirPresupuestoAVenta(){
   var v = _ventaActualVer;
   if(!v) return;
-  if(carritoVenta.length > 0 && !confirm('Esto reemplaza el carrito actual con los ítems del presupuesto. ¿Seguir?')) return;
+  if(carritoVenta.length > 0 && !await confirmComercia('Esto reemplaza el carrito actual con los ítems del presupuesto. ¿Seguir?')) return;
 
   carritoVenta = [];
   var noEncontrados = 0;
@@ -17490,14 +17574,14 @@ async function facturarEnAfip(){
   }catch(err){ toast('Error leyendo config AFIP','error'); return; }
 
   if(!cfgDoc.exists){
-    if(confirm('Todavía no configuraste AFIP en Comercia. ¿Te llevo a la configuración?')){
+    if(await confirmComercia('Todavía no configuraste AFIP en Comercia. ¿Te llevo a la configuración?')){
       navTo('afip');
     }
     return;
   }
   var cfg = cfgDoc.data();
   if(!cfg.certActivo || !cfg.keyActiva){
-    if(confirm('Falta cargar el certificado o la clave AFIP. ¿Vamos a la configuración?')){
+    if(await confirmComercia('Falta cargar el certificado o la clave AFIP. ¿Vamos a la configuración?')){
       navTo('afip');
     }
     return;
@@ -17512,7 +17596,7 @@ async function facturarEnAfip(){
   var pvSnap = await db.collection('empresas').doc(currentEmpresaId)
     .collection('afip_puntos_venta').limit(1).get();
   if(pvSnap.empty){
-    if(confirm('No tenés puntos de venta cargados. ¿Vamos a configurarlos?')){
+    if(await confirmComercia('No tenés puntos de venta cargados. ¿Vamos a configurarlos?')){
       navTo('afip');
     }
     return;
@@ -17571,7 +17655,7 @@ async function facturarEnAfip(){
     'Pto venta: '+String(ptoVta).padStart(4,'0')+'\n'+
     'Total: '+fmtPeso(v.total)+'\n'+
     'Cliente: '+(v.cliente && v.cliente.razonSocial ? v.cliente.razonSocial : 'Consumidor Final');
-  if(!confirm(msg)) return;
+  if(!await confirmComercia(msg)) return;
 
   // 6) Llamar a Cloud Function
   toast('Solicitando CAE a AFIP...','success');
@@ -18255,7 +18339,7 @@ async function ccConfirmarCobro(){
   }
   var saldo = c.saldoCC || 0;
   if(monto > saldo + 0.005){
-    if(!confirm('El monto supera la deuda. ¿Confirmás? Se generará vuelto.')) return;
+    if(!await confirmComercia('El monto supera la deuda. ¿Confirmás? Se generará vuelto.')) return;
   }
 
   var btn = document.getElementById('ccBtnConfirmarCobro');
@@ -18673,9 +18757,9 @@ async function ccEliminarObra(obra){
   if(!c) return;
   var saldo = (c.saldosPorObra || {})[obra] || 0;
   if(saldo > 0.005){
-    if(!confirm('La obra "'+obra+'" tiene saldo de '+fmtPeso(saldo)+'.\n\nSi la eliminás, ese saldo pasa a la cuenta general del cliente.\n\n¿Continuar?')) return;
+    if(!await confirmComercia('La obra "'+obra+'" tiene saldo de '+fmtPeso(saldo)+'.\n\nSi la eliminás, ese saldo pasa a la cuenta general del cliente.\n\n¿Continuar?')) return;
   } else {
-    if(!confirm('¿Eliminar la obra "'+obra+'"?')) return;
+    if(!await confirmComercia('¿Eliminar la obra "'+obra+'"?')) return;
   }
   var obras = (c.obras || []).filter(function(o){ return o !== obra; });
   var saldos = Object.assign({}, c.saldosPorObra || {});
@@ -20883,7 +20967,7 @@ async function empresaLogoUpload(event){
 }
 
 async function empresaLogoQuitar(){
-  if(!confirm('¿Quitar el logo?')) return;
+  if(!await confirmComercia('¿Quitar el logo?')) return;
   var pathPrevio = document.getElementById('empresaLogoPath').value;
   if(pathPrevio){
     try{ await storage.ref(pathPrevio).delete(); }catch(e){ console.warn(e); }
@@ -21172,7 +21256,7 @@ function afipSwitchTab(tab){
 }
 
 // ── Cambio de ambiente (homologación / producción) ──
-function afipCambiarAmbiente(esProd){
+async function afipCambiarAmbiente(esProd){
   var banner = document.getElementById('afipAmbienteBanner');
   var icon = document.getElementById('afipAmbienteIcon');
   var title = document.getElementById('afipAmbienteTitle');
@@ -21181,7 +21265,7 @@ function afipCambiarAmbiente(esProd){
 
   if(esProd){
     // Producción → confirmar
-    if(!confirm('⚠ ATENCIÓN\n\nVas a pasar a AMBIENTE DE PRODUCCIÓN.\n\nLos CAE que generes en este ambiente son facturas legales reales y van a aparecer en tu IVA Ventas.\n\nAsegurate de:\n• Tener el certificado de PRODUCCIÓN cargado (no el de homologación)\n• Haber hecho pruebas exhaustivas en homologación primero\n• Tener los puntos de venta correctos\n\n¿Continuar?')){
+    if(!await confirmComercia('⚠ ATENCIÓN\n\nVas a pasar a AMBIENTE DE PRODUCCIÓN.\n\nLos CAE que generes en este ambiente son facturas legales reales y van a aparecer en tu IVA Ventas.\n\nAsegurate de:\n• Tener el certificado de PRODUCCIÓN cargado (no el de homologación)\n• Haber hecho pruebas exhaustivas en homologación primero\n• Tener los puntos de venta correctos\n\n¿Continuar?')){
       document.getElementById('afipAmbienteSwitch').checked = false;
       return;
     }
@@ -21498,8 +21582,8 @@ async function afipTestConexion(){
 }
 
 // ── Puntos de venta ──
-function afipAgregarPV(){
-  var n = prompt('Número de punto de venta (1 a 9999):');
+async function afipAgregarPV(){
+  var n = await promptComercia('Número de punto de venta (1 a 9999):');
   if(!n) return;
   n = parseInt(n);
   if(isNaN(n) || n < 1 || n > 9999){ toast('Número inválido','error'); return; }
@@ -21556,7 +21640,7 @@ function renderPuntosVenta(){
 }
 
 async function afipEliminarPV(id){
-  if(!confirm('¿Quitar este punto de venta? Solo se borra de Comercia, no de AFIP.')) return;
+  if(!await confirmComercia('¿Quitar este punto de venta? Solo se borra de Comercia, no de AFIP.')) return;
   try{
     await db.collection('empresas').doc(currentEmpresaId)
       .collection('afip_puntos_venta').doc(id).delete();
@@ -22380,9 +22464,9 @@ function lpAgregarTramo(){
 
 // Reemplaza todos los tramos por uno solo con margen parejo (para listas que ya
 // vienen con un margen fijo bajo, como las que traen precio de venta calculado).
-function lpMargenFijo(){
+async function lpMargenFijo(){
   var actual = (lpState.tramosEditando && lpState.tramosEditando[0]) ? lpState.tramosEditando[0].ganancia : 14;
-  var v = prompt('Margen fijo para TODOS los productos de este proveedor (%).\n\nEjemplo: 14 significa 14% de ganancia sobre el costo, parejo para todo.', actual);
+  var v = await promptComercia('Margen fijo para TODOS los productos de este proveedor (%).\n\nEjemplo: 14 significa 14% de ganancia sobre el costo, parejo para todo.', actual);
   if(v === null) return;
   var m = Number(String(v).replace(',', '.'));
   if(isNaN(m) || m < 0){ toast('Ingresá un porcentaje válido', 'error'); return; }
@@ -22446,9 +22530,9 @@ async function lpRecalcularProveedor(provId){
   var usdAplicados = conCosto.filter(function(p){ return (p.costoMoneda || prov.moneda) === 'USD'; }).length;
   var provQuiereUsd = (prov.moneda === 'USD') && (Number(prov.cotizacion) > 0);
   if(provQuiereUsd && usdAplicados === 0){
-    if(!confirm('⚠️ Atención: este proveedor está configurado en DÓLARES, pero sus ' + conCosto.length + ' producto(s) están guardados en PESOS.\n\nLa cotización del dólar NO se les va a aplicar, así que los precios no van a cambiar por el dólar. Esto pasa cuando la lista se importó ya convertida a pesos.\n\nPara que el dólar funcione, reimportá la lista del proveedor en dólares (sin convertirla a mano).\n\n¿Recalcular igual de todos modos?')) return;
+    if(!await confirmComercia('⚠️ Atención: este proveedor está configurado en DÓLARES, pero sus ' + conCosto.length + ' producto(s) están guardados en PESOS.\n\nLa cotización del dólar NO se les va a aplicar, así que los precios no van a cambiar por el dólar. Esto pasa cuando la lista se importó ya convertida a pesos.\n\nPara que el dólar funcione, reimportá la lista del proveedor en dólares (sin convertirla a mano).\n\n¿Recalcular igual de todos modos?')) return;
   } else {
-    if(!confirm('Recalcular el precio de ' + conCosto.length + ' producto(s) de "' + nombreProv + '" con la ganancia, descuento e IVA actuales?')) return;
+    if(!await confirmComercia('Recalcular el precio de ' + conCosto.length + ' producto(s) de "' + nombreProv + '" con la ganancia, descuento e IVA actuales?')) return;
   }
 
   var nowIso = new Date().toISOString();
@@ -22499,11 +22583,11 @@ async function lpAumentarProveedor(provId){
   var provNombre = prov.proveedorNombre || prov.nombre || '';
   var prods = (productos || []).filter(function(p){ return p.proveedor === provNombre; });
   if(prods.length === 0){ toast('Este proveedor no tiene productos', 'info'); return; }
-  var raw = prompt('¿Qué % de aumento aplicar a TODOS los productos de "' + provNombre + '"?\n\nEj: 15 para +15%. Para bajar, negativo: -10');
+  var raw = await promptComercia('¿Qué % de aumento aplicar a TODOS los productos de "' + provNombre + '"?\n\nEj: 15 para +15%. Para bajar, negativo: -10');
   if(raw === null) return;
   var pct = Number(String(raw).replace('%', '').replace(',', '.').trim());
   if(isNaN(pct) || pct === 0){ toast('Ingresá un número válido (ej: 15)', 'error'); return; }
-  if(!confirm('Aplicar ' + (pct > 0 ? '+' : '') + pct + '% a ' + prods.length + ' producto' + (prods.length!==1?'s':'') + ' de "' + provNombre + '"?\n\nSe ajustan costo y precio de venta (el margen se mantiene).')) return;
+  if(!await confirmComercia('Aplicar ' + (pct > 0 ? '+' : '') + pct + '% a ' + prods.length + ' producto' + (prods.length!==1?'s':'') + ' de "' + provNombre + '"?\n\nSe ajustan costo y precio de venta (el margen se mantiene).')) return;
 
   var factor = 1 + pct / 100;
   try{
@@ -22559,7 +22643,7 @@ async function lpConvertirPackUnitario(provId){
     if(nb > 1) aConvertir.push({ p: p, nb: nb });
   });
   if(aConvertir.length === 0){ toast('No hay productos con cantidad por convertir en "' + provNombre + '" (o ya están convertidos)', 'info'); return; }
-  if(!confirm('Vas a convertir ' + aConvertir.length + ' producto' + (aConvertir.length!==1?'s':'') + ' de "' + provNombre + '" de precio de PACK a precio por UNIDAD (precio ÷ cantidad), y se activa la venta por Unidad/Caja.\n\nEjemplo: una CAJA X 12 a $58.734 pasa a $4.895 c/u.\n\n¿Continuar?')) return;
+  if(!await confirmComercia('Vas a convertir ' + aConvertir.length + ' producto' + (aConvertir.length!==1?'s':'') + ' de "' + provNombre + '" de precio de PACK a precio por UNIDAD (precio ÷ cantidad), y se activa la venta por Unidad/Caja.\n\nEjemplo: una CAJA X 12 a $58.734 pasa a $4.895 c/u.\n\n¿Continuar?')) return;
   var redondea = (typeof redondearPrecio === 'function') ? redondearPrecio : function(n){ return Math.round(n); };
   try{
     var nowIso = new Date().toISOString();
@@ -22699,7 +22783,7 @@ async function lpBorrarProvVacios(){
     return p._configurado && (cuenta[n] || 0) === 0;
   });
   if(vacios.length === 0){ toast('No hay proveedores vacíos', 'info'); return; }
-  if(!confirm('Borrar ' + vacios.length + ' proveedores que no tienen ningún producto?\n\nSolo se borra su configuración; como no tienen productos, no se pierde nada.')) return;
+  if(!await confirmComercia('Borrar ' + vacios.length + ' proveedores que no tienen ningún producto?\n\nSolo se borra su configuración; como no tienen productos, no se pierde nada.')) return;
   try{
     var bs = 400;
     for(var i = 0; i < vacios.length; i += bs){
@@ -22735,8 +22819,8 @@ async function lpBorrarProductosDesde(){
     return t && !isNaN(t) && t >= cutoff;
   });
   if(aBorrar.length === 0){ toast('No hay productos creados después de esa fecha', 'info'); return; }
-  if(!confirm('Se van a BORRAR ' + aBorrar.length + ' productos creados después de ' + input.value + '.\n\nEsto NO se puede deshacer. ¿Seguro?')) return;
-  if(aBorrar.length > 500 && !confirm('Son ' + aBorrar.length + ' productos. Puede tardar varios minutos y consume escrituras de Firestore. ¿Confirmás igual?')) return;
+  if(!await confirmComercia('Se van a BORRAR ' + aBorrar.length + ' productos creados después de ' + input.value + '.\n\nEsto NO se puede deshacer. ¿Seguro?')) return;
+  if(aBorrar.length > 500 && !await confirmComercia('Son ' + aBorrar.length + ' productos. Puede tardar varios minutos y consume escrituras de Firestore. ¿Confirmás igual?')) return;
 
   try{
     var bs = 400, borrados = 0;
@@ -22782,8 +22866,8 @@ async function _lpBorrarColeccion(collName, onProgress){
 // Borra TODO el catálogo (productos + proveedores) para rearmar de cero.
 // No toca ventas, clientes, cuentas corrientes ni caja.
 async function lpBorrarTodoCatalogo(){
-  if(!confirm('Vas a borrar TODOS los productos y TODOS los proveedores para empezar de cero.\n\nNO se tocan ventas, clientes, cuentas corrientes ni caja.\n\n¿Continuar?')) return;
-  var conf = prompt('Esto NO se puede deshacer. Para confirmar, escribí:  BORRAR TODO');
+  if(!await confirmComercia('Vas a borrar TODOS los productos y TODOS los proveedores para empezar de cero.\n\nNO se tocan ventas, clientes, cuentas corrientes ni caja.\n\n¿Continuar?')) return;
+  var conf = await promptComercia('Esto NO se puede deshacer. Para confirmar, escribí:  BORRAR TODO');
   if(conf == null) return;
   if(String(conf).trim().toUpperCase() !== 'BORRAR TODO'){ toast('No se confirmó (texto incorrecto). No se borró nada.', 'info'); return; }
   try{
@@ -22852,7 +22936,7 @@ async function lpGuardarProveedor(){
     if(cambioNombre){
       var afectados = productos.filter(function(p){ return String(p.proveedor || '').trim() === nombreViejo; });
       if(afectados.length > 0){
-        if(!confirm('Vas a renombrar "' + nombreViejo + '" → "' + nombre + '" y reasignar ' + afectados.length + ' producto(s). ¿Continuar?')){ return; }
+        if(!await confirmComercia('Vas a renombrar "' + nombreViejo + '" → "' + nombre + '" y reasignar ' + afectados.length + ' producto(s). ¿Continuar?')){ return; }
         var bsize = 400, actualizadosLocal = [], nowIso = new Date().toISOString();
         for(var s = 0; s < afectados.length; s += bsize){
           var slice = afectados.slice(s, s + bsize);
@@ -22911,7 +22995,7 @@ async function lpEliminarProveedor(){
 
   // Si no tiene productos, solo borra la config (como antes)
   if(nProds === 0){
-    if(!confirm('No encontré productos asociados a "' + nombreProv + '".\n\n¿Eliminar solo la configuración de cálculo de este proveedor?')) return;
+    if(!await confirmComercia('No encontré productos asociados a "' + nombreProv + '".\n\n¿Eliminar solo la configuración de cálculo de este proveedor?')) return;
     try{
       await db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').doc(lpState.proveedorEditando).delete();
       toast('Configuración eliminada', 'success');
@@ -22922,13 +23006,13 @@ async function lpEliminarProveedor(){
   }
 
   // Tiene productos: preguntar qué hacer
-  var opcion = confirm('El proveedor "' + nombreProv + '" tiene ' + nProds + ' producto(s).\n\n' +
+  var opcion = await confirmComercia('El proveedor "' + nombreProv + '" tiene ' + nProds + ' producto(s).\n\n' +
     'Aceptar = BORRAR el proveedor Y sus ' + nProds + ' productos del catálogo.\n' +
     'Cancelar = no hacer nada.\n\n' +
     '⚠️ Esto NO se puede deshacer.');
   if(!opcion) return;
 
-  var conf = prompt('Vas a BORRAR ' + nProds + ' productos de "' + nombreProv + '".\n\nPara confirmar, escribí BORRAR (en mayúsculas):');
+  var conf = await promptComercia('Vas a BORRAR ' + nProds + ' productos de "' + nombreProv + '".\n\nPara confirmar, escribí BORRAR (en mayúsculas):');
   if(conf !== 'BORRAR'){ toast('Cancelado (no se borró nada)', 'info'); return; }
 
   toast('Borrando ' + nProds + ' productos...', 'info');
@@ -23101,7 +23185,7 @@ function lpSetModoImport(modo){
 async function lpConfigurarTodosAuto(){
   var sinConfig = lpState.proveedores.filter(function(p){ return !p._configurado; });
   if(sinConfig.length === 0){ toast('Ya están todos configurados', 'success'); return; }
-  if(!confirm('¿Configurar ' + sinConfig.length + ' proveedor(es) detectado(s) con valores por defecto?\n\n' +
+  if(!await confirmComercia('¿Configurar ' + sinConfig.length + ' proveedor(es) detectado(s) con valores por defecto?\n\n' +
               'IVA 21% · sin descuento de proveedor · ganancia escalonada estándar (50/40/35/30%).\n\n' +
               'Después podés ajustar cada uno con el botón Editar.')){ return; }
   var btn = document.getElementById('lpBtnConfigTodos');
@@ -23859,8 +23943,8 @@ function lpVolverAPaso1(){
   document.getElementById('lpImportarPaso1').style.display = 'block';
 }
 
-function lpCancelarImport(){
-  if(confirm('¿Cancelar la importación? Vas a perder los cambios sin guardar.')){
+async function lpCancelarImport(){
+  if(await confirmComercia('¿Cancelar la importación? Vas a perder los cambios sin guardar.')){
     lpState.importacion = null;
     lpVolverAPaso1();
     document.getElementById('lpFileInput').value = '';
@@ -24023,7 +24107,7 @@ async function lpAplicarTodo(){
   if(!imp){ return; }
   var sel = imp.rows.filter(function(r){ return r.seleccionado; });
   if(sel.length === 0){ toast('No hay nada seleccionado', 'error'); return; }
-  if(!confirm('¿Aplicar cambios a ' + sel.length + ' producto(s)?')){ return; }
+  if(!await confirmComercia('¿Aplicar cambios a ' + sel.length + ' producto(s)?')){ return; }
   await lpEjecutarAplicar(sel);
 }
 
@@ -24032,7 +24116,7 @@ async function lpAplicarSoloNuevos(){
   if(!imp){ return; }
   var nuevos = imp.rows.filter(function(r){ return r.estado === 'crear'; });
   if(nuevos.length === 0){ toast('No hay productos nuevos para crear', 'error'); return; }
-  if(!confirm('¿Crear ' + nuevos.length + ' producto(s) nuevo(s)? Los existentes no se modifican.')){ return; }
+  if(!await confirmComercia('¿Crear ' + nuevos.length + ' producto(s) nuevo(s)? Los existentes no se modifican.')){ return; }
   await lpEjecutarAplicar(nuevos);
 }
 
@@ -24340,8 +24424,8 @@ async function lpCargarHistorial(){
   var iaCargando = false;
   function iaEndpoint(){ try{ return localStorage.getItem('comercia_asistente_endpoint') || ''; }catch(e){ return ''; } }
   function initIA(){ iaSetModo(iaModo); }
-  function iaConfig(){
-    var url = prompt('Pegá la URL de tu Cloud Function de IA\n(la obtenés al desplegar la función en Firebase):', iaEndpoint());
+  async function iaConfig(){
+    var url = await promptComercia('Pegá la URL de tu Cloud Function de IA\n(la obtenés al desplegar la función en Firebase):', iaEndpoint());
     if(url == null) return;
     try{ localStorage.setItem('comercia_asistente_endpoint', String(url).trim()); }catch(e){}
     if(typeof toast === 'function') toast('Conexión con la IA guardada', 'success');
