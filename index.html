@@ -4777,9 +4777,6 @@
     border-radius:10px; font-size:13px; color:var(--text-mute);
   }
   .es-resumen strong{ color:var(--text); }
-  .es-ocr-prog{ display:flex; align-items:center; gap:12px; margin-bottom:14px; font-size:13px; color:var(--text-mute); }
-  .es-ocr-bar{ flex:1; height:8px; background:var(--bg-2); border-radius:9px; overflow:hidden; max-width:300px; }
-  .es-ocr-fill{ height:100%; width:0%; background:var(--accent); transition:width .3s; }
   .es-row-nuevo td{ background:rgba(245,158,11,.06); }
   .es-badge{ font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
   .es-badge.ok{ background:var(--success-soft,#e6f7ed); color:var(--success,#1a7f4c); }
@@ -6114,14 +6111,8 @@
                 <span class="es-metodo-tit">Subir Excel</span>
                 <span class="es-metodo-desc">Un Excel con código y cantidad. Detecta las columnas solo.</span>
               </button>
-              <button class="es-metodo" onclick="esElegirMetodo('foto')">
-                <span class="es-metodo-icon">&#128247;</span>
-                <span class="es-metodo-tit">Foto o PDF (OCR)</span>
-                <span class="es-metodo-desc">Subí una foto o PDF de la boleta y leemos los códigos. Siempre revisás antes de aplicar.</span>
-              </button>
             </div>
             <input type="file" id="esExcelInput" accept=".xlsx,.xls" style="display:none">
-            <input type="file" id="esFotoInput" accept="image/*,application/pdf" style="display:none">
           </div>
 
           <!-- Vista de carga (lista editable) -->
@@ -6135,10 +6126,6 @@
                 <button class="btn btn-sm btn-light" id="esBtnAgregar" onclick="esAgregarFilaManual()">&#43; Agregar fila</button>
                 <button class="btn btn-sm btn-light" id="esBtnEscanear" onclick="esEscanear()">&#128247; Escanear</button>
               </div>
-            </div>
-            <div id="esOcrProgreso" style="display:none" class="es-ocr-prog">
-              <div class="es-ocr-bar"><div class="es-ocr-fill" id="esOcrFill"></div></div>
-              <span id="esOcrTexto">Leyendo imagen...</span>
             </div>
             <div class="lp-table-wrap">
               <table class="lp-table" id="esTabla">
@@ -8328,7 +8315,6 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -9451,8 +9437,6 @@ function initEntradaStock(){
   // enganchar inputs de archivo una vez
   var ex = document.getElementById('esExcelInput');
   if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', function(){ if(ex.files[0]) esProcesarExcel(ex.files[0]); }); }
-  var fo = document.getElementById('esFotoInput');
-  if(fo && !fo._wired){ fo._wired = true; fo.addEventListener('change', function(){ if(fo.files[0]) esProcesarFoto(fo.files[0]); }); }
 }
 
 function esVolverInicio(){
@@ -9476,9 +9460,6 @@ function esElegirMetodo(metodo){
   } else if(metodo === 'excel'){
     document.getElementById('esExcelInput').value = '';
     document.getElementById('esExcelInput').click();
-  } else if(metodo === 'foto'){
-    document.getElementById('esFotoInput').value = '';
-    document.getElementById('esFotoInput').click();
   }
 }
 
@@ -9681,233 +9662,6 @@ async function esProcesarExcel(file){
   }
 }
 
-// ─── Foto / PDF con OCR ───
-async function esProcesarFoto(file){
-  var esPdf = (file.type === 'application/pdf') || /\.pdf$/i.test(file.name);
-  esIrAPaso2(esPdf ? 'PDF de boleta · leyendo con OCR...' : 'Foto de boleta · leyendo con OCR...');
-  esState.filas = [];
-  if(typeof Tesseract === 'undefined'){
-    toast('La librería de OCR aún se está cargando. Probá de nuevo en unos segundos.', 'error');
-    return;
-  }
-  var prog = document.getElementById('esOcrProgreso');
-  var fill = document.getElementById('esOcrFill');
-  var txt = document.getElementById('esOcrTexto');
-  prog.style.display = 'flex';
-  fill.style.width = '5%';
-  txt.textContent = 'Preparando lector...';
-
-  try{
-    // Obtener una o más imágenes a leer
-    var imagenes = [];
-    if(esPdf){
-      if(typeof pdfjsLib === 'undefined'){ throw new Error('No se pudo cargar el lector de PDF. Reintentá en unos segundos.'); }
-      // 1) Intentar extraer texto NATIVO del PDF (PDFs digitales, no escaneados):
-      //    es mucho más preciso que el OCR y casi instantáneo.
-      txt.textContent = 'Analizando PDF...';
-      var textoNativo = await esPdfTextoNativo(file);
-      var detNativo = esParsearTextoOCR(textoNativo);
-      if(detNativo.length >= 2){
-        prog.style.display = 'none';
-        detNativo.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad, d.descripcion, d.precioUnit); });
-        document.getElementById('esSubtitulo').textContent = 'PDF (texto) · ' + detNativo.length + ' líneas detectadas — REVISÁ antes de aplicar';
-        toast('Leí ' + detNativo.length + ' líneas del PDF. Revisá antes de aplicar.', 'info');
-        return;
-      }
-      // 2) Si no había texto (PDF escaneado), convertir a imágenes y usar OCR
-      txt.textContent = 'PDF escaneado, convirtiendo...';
-      imagenes = await esPdfAImagenes(file, function(p){ txt.textContent = 'Convirtiendo PDF... ' + p; });
-    } else {
-      imagenes = [URL.createObjectURL(file)];
-    }
-
-    var todasLasLineas = [];
-    for(var i = 0; i < imagenes.length; i++){
-      txt.textContent = imagenes.length > 1 ? ('Leyendo página ' + (i+1) + ' de ' + imagenes.length + '...') : 'Leyendo texto...';
-      var result = await Tesseract.recognize(imagenes[i], 'spa+eng', {
-        logger: function(m){
-          if(m.status === 'recognizing text'){
-            fill.style.width = Math.round(m.progress * 100) + '%';
-          }
-        }
-      });
-      var texto = (result && result.data && result.data.text) || '';
-      var det = esParsearTextoOCR(texto);
-      todasLasLineas = todasLasLineas.concat(det);
-      try{ if(imagenes[i].indexOf('blob:') === 0) URL.revokeObjectURL(imagenes[i]); }catch(e){}
-    }
-    prog.style.display = 'none';
-
-    if(todasLasLineas.length === 0){
-      toast('No pude detectar códigos claros. Revisá la calidad o cargá manual.', 'error');
-      document.getElementById('esSubtitulo').textContent = 'OCR sin resultados claros — agregá manualmente';
-      return;
-    }
-    todasLasLineas.forEach(function(d){ esAgregarFila(d.codigo, d.cantidad, d.descripcion, d.precioUnit); });
-    document.getElementById('esSubtitulo').textContent = (esPdf ? 'PDF' : 'Foto') + ' · ' + todasLasLineas.length + ' líneas detectadas — REVISÁ antes de aplicar';
-    toast('Leí ' + todasLasLineas.length + ' líneas. Revisá bien antes de aplicar.', 'info');
-  }catch(err){
-    console.error(err);
-    prog.style.display = 'none';
-    toast('Error en OCR: ' + (err.message || 'no se pudo leer'), 'error');
-    document.getElementById('esSubtitulo').textContent = 'Error al leer — probá con foto o cargá manual';
-  }
-}
-
-// Extrae el texto nativo de un PDF (si es digital, no escaneado). Devuelve '' si no hay.
-async function esPdfTextoNativo(file){
-  try{
-    var buf = await file.arrayBuffer();
-    var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-    var maxPaginas = Math.min(pdf.numPages, 15);
-    var lineas = [];
-    for(var n = 1; n <= maxPaginas; n++){
-      var page = await pdf.getPage(n);
-      var content = await page.getTextContent();
-      // Agrupar items por su posición vertical (Y) para reconstruir líneas
-      var filasPorY = {};
-      content.items.forEach(function(it){
-        if(!it.str || !it.str.trim()) return;
-        var y = Math.round(it.transform[5]); // coordenada Y
-        if(!filasPorY[y]) filasPorY[y] = [];
-        filasPorY[y].push({ x: it.transform[4], s: it.str });
-      });
-      Object.keys(filasPorY).sort(function(a, b){ return b - a; }).forEach(function(y){
-        var fila = filasPorY[y].sort(function(a, b){ return a.x - b.x; }).map(function(o){ return o.s; }).join(' ');
-        lineas.push(fila);
-      });
-    }
-    return lineas.join('\n');
-  }catch(err){
-    console.warn('No se pudo extraer texto nativo del PDF:', err);
-    return '';
-  }
-}
-
-// Convierte cada página de un PDF en una imagen (dataURL) usando pdf.js
-async function esPdfAImagenes(file, onProgress){
-  var buf = await file.arrayBuffer();
-  var pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-  var maxPaginas = Math.min(pdf.numPages, 10); // límite de seguridad
-  var imagenes = [];
-  for(var n = 1; n <= maxPaginas; n++){
-    if(onProgress) onProgress(n + '/' + maxPaginas);
-    var page = await pdf.getPage(n);
-    // Escala alta para que el OCR lea mejor (texto a ~200dpi aprox)
-    var viewport = page.getViewport({ scale: 2.2 });
-    var canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    var ctx = canvas.getContext('2d');
-    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-    imagenes.push(canvas.toDataURL('image/png'));
-  }
-  return imagenes;
-}
-
-// Parsea el texto de una factura/boleta buscando: CÓDIGO ... CANTIDAD IMP.LISTA %BONIF TOTAL
-// Pensado para facturas argentinas (números tipo 1.000,00). Devuelve {codigo, cantidad}.
-function esParsearTextoOCR(texto){
-  // Intentar primero como factura de compra estructurada (más preciso)
-  var fac = esParsearFacturaCompra(texto);
-  if(fac.length >= 2) return fac;
-  // Fallback genérico
-  return esParsearGenerico(texto);
-}
-
-// Convierte "1.000,00" → 1000 ; "8,00" → 8 (formato argentino)
-function esNumAr(s){
-  if(!s) return NaN;
-  return Number(String(s).trim().replace(/\./g, '').replace(',', '.'));
-}
-
-// Parser de factura de compra: CODIGO DESCRIPCION CANTIDAD PRECIO %BONIF TOTAL
-// Valida con cantidad×precio≈total para no confundir la cantidad con medidas
-// de la descripción (ej "5/16x 4", "8x32").
-function esParsearFacturaCompra(texto){
-  var lineas = texto.split('\n');
-  var out = [];
-  var saltar = /^(COD\b|A\s*r\s*t|ART[IÍ]CULO|Importe|I\.?V\.?A|Total|CAE|C\.A\.E|Otros|Numero|Despachado|Cuenta|Vdor|Operador|Despacho|ESTA LISTA|PAG|COLORES|MARCA|C[oó]digo|GRANEL|BATERIA|ACCESORIOS|\d+W\b|PRESENTACION|PRECIO|CANTIDAD|Factura|CUIT|C\.U\.I\.T|Ingresos|Inicio|Fecha|ORIGINAL|DUPLICADO|TRIPLICADO|Mayorista|ventas@|www\.|subtotal|neto|descuento|iva tasa|iibb|son pesos|se[ñn]or|domicilio|provincia|localidad|condici[oó]n|saldo|comprobante|\d+\s*[íi]tems)/i;
-
-  // monto = número con coma decimal de 2 dígitos (precio o importe)
-  function esMonto(t){ return /^\d{1,3}(\.\d{3})*,\d{2}$/.test(t) || /^\d+,\d{2}$/.test(t); }
-  // cantidad = entero, o X.00, o X,00 (formatos varios)
-  function esCant(t){ return /^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(t) || /^\d+,\d{1,2}$/.test(t) || /^\d+\.\d{1,2}$/.test(t) || /^\d+$/.test(t); }
-  function codigoValido(c){
-    if(esMonto(c)) return false;
-    if(!/^[0-9A-Za-z][0-9A-Za-z\.\/\-]*$/.test(c)) return false;
-    if(!/\d/.test(c)) return false;             // tiene al menos un dígito
-    if(c.length < 3) return false;              // descartar "30","40"
-    if(/^\d+(mm|cm|kg|w|v|lt|lts)$/i.test(c)) return false;
-    return true;
-  }
-
-  for(var i = 0; i < lineas.length; i++){
-    var l = lineas[i].trim();
-    if(!l || l.length < 6 || saltar.test(l)) continue;
-    var tokens = l.split(/\s+/);
-    if(tokens.length < 4) continue;
-
-    // Montos (coma + 2 decimales): los dos últimos = P.Unitario e Importe
-    var montos = [];
-    for(var t = 0; t < tokens.length; t++){ if(esMonto(tokens[t])) montos.push({ pos: t, val: esNumAr(tokens[t]) }); }
-    if(montos.length < 2) continue;
-    var total = montos[montos.length - 1].val;
-    var precio = montos[montos.length - 2].val;
-    if(!total || total <= 0 || !precio || precio <= 0) continue;
-
-    // Cantidad: total/precio (probando con y sin 25% bonif), debe dar entero razonable
-    var cantidad = null;
-    var c1 = Math.round(total / precio);
-    var c2 = Math.round(total / (precio * 0.75));
-    if(c1 > 0 && Math.abs(c1 * precio - total) / total < 0.03) cantidad = c1;
-    else if(c2 > 0 && Math.abs(c2 * precio * 0.75 - total) / total < 0.03) cantidad = c2;
-    if(!cantidad || cantidad <= 0 || cantidad >= 1000000) continue;
-
-    // Código: primer token (antes del primer monto) que sea código válido
-    var primerMonto = montos[0].pos;
-    var codigo = null, codPos = -1;
-    for(var k = 0; k < primerMonto; k++){
-      if(codigoValido(tokens[k])){ codigo = tokens[k]; codPos = k; break; }
-    }
-    if(!codigo) continue;
-
-    // Descripción: tokens entre el código y el primer monto, salvo cantidades sueltas
-    var desc = '';
-    for(var d = codPos + 1; d < primerMonto; d++){
-      if(esCant(tokens[d]) && !/[A-Za-z]/.test(tokens[d])) continue;
-      desc += (desc ? ' ' : '') + tokens[d];
-    }
-
-    out.push({ codigo: codigo, cantidad: cantidad, precioUnit: precio, descripcion: desc });
-  }
-  return out;
-}
-
-// Fallback genérico: una línea = código + un número de cantidad
-function esParsearGenerico(texto){
-  var lineas = texto.split('\n');
-  var out = [];
-  lineas.forEach(function(linea){
-    var l = linea.trim();
-    if(l.length < 3) return;
-    var tokens = l.split(/\s+/);
-    if(tokens.length < 2) return;
-    var codigo = null;
-    for(var i = 0; i < tokens.length; i++){
-      if(/^[A-Za-z0-9][A-Za-z0-9\/\-\.]{1,}$/.test(tokens[i]) && /\d/.test(tokens[i])){ codigo = tokens[i]; break; }
-    }
-    if(!codigo) return;
-    var cantidad = 1;
-    for(var j = tokens.length - 1; j >= 0; j--){
-      var n = tokens[j].replace(/[^0-9]/g, '');
-      if(n && /^\d{1,4}$/.test(n) && tokens[j] !== codigo){ cantidad = Number(n); break; }
-    }
-    out.push({ codigo: codigo, cantidad: cantidad });
-  });
-  return out;
-}
-
 // ─── Aplicar ───
 async function esAplicar(){
   var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
@@ -10047,7 +9801,7 @@ async function esVerHistorial(){
     snap.docs.forEach(function(d){
       var e = d.data();
       var fecha = e.fecha && e.fecha.toDate ? e.fecha.toDate().toLocaleString('es-AR') : '';
-      var metodoTxt = { manual: 'Manual', excel: 'Excel', foto: 'Foto/OCR' }[e.metodo] || e.metodo || '';
+      var metodoTxt = { manual: 'Manual', excel: 'Excel' }[e.metodo] || e.metodo || '';
       html += '<div class="emp-card">' +
         '<div class="emp-avatar" style="background:var(--accent-soft);color:var(--accent)">&#128229;</div>' +
         '<div class="emp-info"><div class="emp-nombre">' + (e.cantidadProductos || 0) + ' productos · ' + (e.totalUnidades || 0) + ' unidades</div>' +
