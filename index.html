@@ -5437,12 +5437,7 @@
                     </select>
                   </div>
                   <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-soft);cursor:pointer">
-                      <input type="checkbox" id="vAutoBarcode" checked style="accent-color:var(--accent)">
-                      <span>Modo escáner — Enter busca solo por código de barras</span>
-                    </label>
-                    <div style="flex:1"></div>
-                    <span style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">Click en una tarjeta para agregar</span>
+                    <span style="font-size:11px;color:var(--text-mute)">Escaneá un código de barras y se agrega solo al carrito. Para buscar por nombre, escribí y tocá la tarjeta.</span>
                   </div>
                 </div>
 
@@ -14601,29 +14596,30 @@ function bindVentasSearch(){
   inp.addEventListener('keydown', function(e){
     if(e.key==='Enter'){
       e.preventDefault();
-      var modoEscaner = document.getElementById('vAutoBarcode').checked;
+      if(timer) clearTimeout(timer); // cancelar el filtro pendiente: no "busca" mientras escaneás
       var texto = inp.value.trim();
       if(!texto) return;
-      // Modo escáner: busca SOLO por código (interno o de barras), sin adivinar
-      if(modoEscaner){
-        var match = buscarProductoPorCodigo(texto);
-        if(match){
-          agregarAlCarrito(match._id);
-          inp.value = '';
-          _vSearchQuery = '';
-          renderGridVentas();
-        } else {
-          toast('No encontré ese código de barras: ' + texto, 'error');
-        }
+      // 1) Escaneo: si el texto es un código (interno o de barras), se agrega solo al carrito
+      var match = buscarProductoPorCodigo(texto);
+      if(match){
+        agregarAlCarrito(match._id);
+        inp.value = '';
+        _vSearchQuery = '';
+        renderGridVentas();
         return;
       }
-      // Modo normal (búsqueda por nombre): si hay UN solo resultado, agregarlo
+      // 2) No es un código conocido → búsqueda por nombre
+      _vSearchQuery = texto;
+      vGridPage = 0;
+      renderGridVentas();
       if(_vGridResults.length === 1){
         agregarAlCarrito(_vGridResults[0]._id);
         inp.value = '';
         _vSearchQuery = '';
         renderGridVentas();
-      } else if(_vGridResults.length > 0){
+      } else if(_vGridResults.length === 0){
+        toast('No encontré: ' + texto, 'error');
+      } else {
         toast(_vGridResults.length + ' resultados — click en una tarjeta para agregar', 'success');
       }
     } else if(e.key==='Escape'){
