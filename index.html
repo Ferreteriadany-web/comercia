@@ -5169,6 +5169,14 @@
 .ayuda-mod .ay-cuerpo ul{margin:7px 0 0;padding-left:18px}
 .ayuda-mod .ay-cuerpo li{margin:4px 0}
 .ayuda-mod .ay-cuerpo .ay-tip{margin-top:9px;padding:8px 11px;border-radius:8px;background:rgba(224,142,60,.10);color:var(--text,#333);font-size:12.5px}
+.es-picker-drop{position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:10px;margin-top:4px;max-height:330px;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.14)}
+.es-pick-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line,#eee)}
+.es-pick-item:last-child{border-bottom:none}
+.es-pick-item:hover{background:rgba(224,142,60,.08)}
+.es-pick-desc{font-size:13.5px;color:var(--text,#222);font-weight:500}
+.es-pick-meta{font-size:11.5px;color:var(--text-mute,#888);font-family:var(--mono,monospace)}
+.es-pick-empty{cursor:default;color:var(--text-mute,#888);font-size:13px}
+.es-pick-empty a{color:var(--accent,#e08e3c);font-weight:600}
 </style>
 <div class="module" id="moduleProductos">
         <header class="main-header">
@@ -6153,9 +6161,13 @@
                 <p class="lp-pane-sub" id="esSubtitulo">—</p>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-sm btn-light" id="esBtnAgregar" onclick="esAgregarFilaManual()">&#43; Agregar fila</button>
+                <button class="btn btn-sm btn-primary" onclick="esAbrirNuevoModal()">&#43; Producto nuevo</button>
                 <button class="btn btn-sm btn-light" id="esBtnEscanear" onclick="esEscanear()">&#128247; Escanear</button>
               </div>
+            </div>
+            <div class="es-picker" style="position:relative;margin:12px 0 4px">
+              <input id="esPickerInput" class="search-input" type="text" autocomplete="off" placeholder="&#128269; Buscá un producto por nombre o código para reponer…" oninput="esPickerBuscar()" onblur="setTimeout(function(){var d=document.getElementById('esPickerDrop');if(d)d.style.display='none';},180)">
+              <div id="esPickerDrop" class="es-picker-drop" style="display:none"></div>
             </div>
             <div class="lp-table-wrap">
               <table class="lp-table" id="esTabla">
@@ -6187,6 +6199,44 @@
               <button class="btn btn-sm btn-light" onclick="esVolverInicio()">&#8592; Volver</button>
             </div>
             <div id="esHistorialLista"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MODAL: PRODUCTO NUEVO (Entrada de Stock) ═══ -->
+      <div class="modal-overlay" id="esNuevoModal" onclick="if(event.target===this)esCerrarNuevoModal()">
+        <div class="modal" style="max-width:580px">
+          <div class="modal-header">
+            <h3 class="modal-title" id="esNuevoTitulo">Nuevo producto</h3>
+            <button class="modal-close" onclick="esCerrarNuevoModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p style="color:var(--text-mute);font-size:13px;margin-top:0">Completá los datos del producto nuevo. Se crea en tu catálogo con el stock que entró.</p>
+            <input type="hidden" id="esNuevoIdx" value="-1">
+            <div class="form-row">
+              <div class="form-group" style="flex:1"><label class="form-label">Descripción *</label><input class="form-input" type="text" id="esNuevoDesc" placeholder="Taladro inalámbrico 18V"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Código</label><input class="form-input" type="text" id="esNuevoCodigo" placeholder="(se genera solo si lo dejás vacío)"></div>
+              <div class="form-group"><label class="form-label">Código de barras</label><input class="form-input" type="text" id="esNuevoBarra" placeholder="opcional"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Proveedor</label><input class="form-input" type="text" id="esNuevoProv" list="esProvList" placeholder="Elegí o escribí" oninput="esNuevoCalcPrecio()"><datalist id="esProvList"></datalist></div>
+              <div class="form-group"><label class="form-label">Rubro</label><input class="form-input" type="text" id="esNuevoRubro" placeholder="opcional"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Costo</label><input class="form-input" type="number" id="esNuevoCosto" min="0" step="0.01" placeholder="0" oninput="esNuevoCalcPrecio()"></div>
+              <div class="form-group"><label class="form-label">Precio de venta</label><input class="form-input" type="number" id="esNuevoVenta" min="0" step="0.01" placeholder="0"></div>
+            </div>
+            <div id="esNuevoPrecioHint" style="font-size:12px;color:var(--text-mute);margin:-2px 0 8px"></div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Cantidad que entró *</label><input class="form-input" type="number" id="esNuevoCant" min="0" step="1" value="1"></div>
+              <div class="form-group"></div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-light" onclick="esCerrarNuevoModal()">Cancelar</button>
+            <button class="btn btn-sm btn-primary" onclick="esGuardarNuevo()">Agregar a la entrada</button>
           </div>
         </div>
       </div>
@@ -9584,7 +9634,7 @@ function esElegirMetodo(metodo){
   if(metodo === 'manual'){
     esState.filas = [];
     esIrAPaso2('Carga manual');
-    esAgregarManual();
+    setTimeout(function(){ var i = document.getElementById('esPickerInput'); if(i) i.focus(); }, 60);
   } else if(metodo === 'excel'){
     document.getElementById('esExcelInput').value = '';
     document.getElementById('esExcelInput').click();
@@ -9651,40 +9701,60 @@ function esAgregarFila(codigo, cantidad, descripcionOCR, precioUnit){
 function esRender(){
   var tbody = document.getElementById('esTbody');
   if(esState.filas.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:var(--text-mute)">Sin productos todavía. Agregá una fila o cargá una factura.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:28px;text-align:center;color:var(--text-mute)">Sin productos todavía. Buscá uno arriba, escaneá, o creá uno nuevo.</td></tr>';
   } else {
     var html = '';
     esState.filas.forEach(function(f, idx){
-      var encontrado = !!f.prod;
-      var stockFinal = encontrado ? ((Number(f.stockActual) || 0) + (Number(f.cantidad) || 0)) : '—';
-      var estado = encontrado
-        ? '<span class="es-badge ok">OK</span>'
-        : '<label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:12px">' +
-            '<input type="checkbox" ' + (f.crear ? 'checked' : '') + ' onchange="esToggleCrear(' + idx + ', this.checked)"> Crear' +
-          '</label>';
-      html += '<tr class="' + (encontrado ? '' : 'es-row-nuevo') + '">' +
-        '<td><input class="es-edit-input es-edit-cod" value="' + eH(f.codigo) + '" onchange="esEditarCampo(' + idx + ', \'codigo\', this.value)" placeholder="código"></td>' +
-        '<td><input class="es-edit-input" value="' + eH(f.descripcion) + '" onchange="esEditarCampo(' + idx + ', \'descripcion\', this.value)" placeholder="descripción"></td>' +
-        '<td class="lp-col-num">' + (encontrado ? (Number(f.stockActual)||0) : '—') + '</td>' +
-        '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCampo(' + idx + ', \'cantidad\', this.value)"></td>' +
-        '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="0.01" value="' + (Number(f.precioUnit)||0) + '" onchange="esEditarCampo(' + idx + ', \'precioUnit\', this.value)" title="costo unitario"></td>' +
-        '<td class="es-col-estado">' + estado + '</td>' +
-        '<td><button class="btn btn-xs btn-light" onclick="esQuitarFila(' + idx + ')">&times;</button></td>' +
-      '</tr>';
+      if(f.nuevo){
+        // ── Producto NUEVO (creado con el formulario) ──
+        var precioTxt = (Number(f.nuevo.precioVenta)||0) > 0 ? ('$' + (Number(f.nuevo.precioVenta)||0)) : '<span style="color:var(--text-mute)">sin precio</span>';
+        html += '<tr class="es-row-nuevo">' +
+          '<td>' + eH(f.nuevo.codigo || '(auto)') + '</td>' +
+          '<td>' + eH(f.nuevo.descripcion || '') + '<div style="font-size:11px;color:var(--text-mute)">' + (f.nuevo.proveedor ? ('Prov: ' + eH(f.nuevo.proveedor) + ' · ') : '') + 'Venta: ' + precioTxt + '</div></td>' +
+          '<td class="lp-col-num">—</td>' +
+          '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCampo(' + idx + ', \'cantidad\', this.value)"></td>' +
+          '<td class="es-col-cant">' + (Number(f.nuevo.precioCosto)||0) + '</td>' +
+          '<td class="es-col-estado"><span class="es-badge" style="background:rgba(224,142,60,.16);color:#b9701f">Nuevo</span> <button class="btn btn-xs btn-light" onclick="esAbrirNuevoModal(' + idx + ')" title="Editar datos">&#9998;</button></td>' +
+          '<td><button class="btn btn-xs btn-light" onclick="esQuitarFila(' + idx + ')">&times;</button></td>' +
+        '</tr>';
+      } else if(f.prod){
+        // ── Reposición (producto existente del catálogo) ──
+        var stockFinal = (Number(f.stockActual) || 0) + (Number(f.cantidad) || 0);
+        html += '<tr>' +
+          '<td>' + eH(f.codigo) + '</td>' +
+          '<td>' + eH(f.descripcion) + '</td>' +
+          '<td class="lp-col-num">' + (Number(f.stockActual)||0) + ' &#8594; <b>' + stockFinal + '</b></td>' +
+          '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCampo(' + idx + ', \'cantidad\', this.value)"></td>' +
+          '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="0.01" value="' + (Number(f.precioUnit)||0) + '" onchange="esEditarCampo(' + idx + ', \'precioUnit\', this.value)" title="costo unitario (opcional)"></td>' +
+          '<td class="es-col-estado"><span class="es-badge ok">OK</span></td>' +
+          '<td><button class="btn btn-xs btn-light" onclick="esQuitarFila(' + idx + ')">&times;</button></td>' +
+        '</tr>';
+      } else {
+        // ── Sin encontrar (ej. de Excel): código editable + crear nuevo ──
+        html += '<tr class="es-row-nuevo">' +
+          '<td><input class="es-edit-input es-edit-cod" value="' + eH(f.codigo) + '" onchange="esEditarCampo(' + idx + ', \'codigo\', this.value)" placeholder="código"></td>' +
+          '<td><input class="es-edit-input" value="' + eH(f.descripcion) + '" onchange="esEditarCampo(' + idx + ', \'descripcion\', this.value)" placeholder="descripción"></td>' +
+          '<td class="lp-col-num">—</td>' +
+          '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="1" value="' + (Number(f.cantidad)||0) + '" onchange="esEditarCampo(' + idx + ', \'cantidad\', this.value)"></td>' +
+          '<td class="es-col-cant"><input type="number" class="es-cant-input" min="0" step="0.01" value="' + (Number(f.precioUnit)||0) + '" onchange="esEditarCampo(' + idx + ', \'precioUnit\', this.value)" title="costo unitario"></td>' +
+          '<td class="es-col-estado"><span style="font-size:11px;color:var(--text-mute)">No está en catálogo</span><br><button class="btn btn-xs btn-light" onclick="esConvertirANuevo(' + idx + ')">Crear nuevo</button></td>' +
+          '<td><button class="btn btn-xs btn-light" onclick="esQuitarFila(' + idx + ')">&times;</button></td>' +
+        '</tr>';
+      }
     });
     tbody.innerHTML = html;
   }
   // Resumen
   var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
-  var aCrear = esState.filas.filter(function(f){ return !f.prod && f.crear; }).length;
-  var noEncontrados = esState.filas.filter(function(f){ return !f.prod && !f.crear; }).length;
+  var aCrear = esState.filas.filter(function(f){ return f.nuevo && (Number(f.cantidad)||0) > 0; });
   var totalUnidades = validas.reduce(function(a, f){ return a + (Number(f.cantidad)||0); }, 0);
-  var res = '<strong>' + validas.length + '</strong> producto(s) · <strong>' + totalUnidades + '</strong> unidades a sumar';
-  if(aCrear > 0) res += ' · <span style="color:var(--accent)">' + aCrear + ' nuevo(s) a crear</span>';
-  if(noEncontrados > 0) res += ' · <span style="color:var(--text-mute)">' + noEncontrados + ' sin crear (se ignoran)</span>';
+  var sinDef = esState.filas.filter(function(f){ return !f.prod && !f.nuevo; }).length;
+  var res = '<strong>' + validas.length + '</strong> a reponer · <strong>' + totalUnidades + '</strong> unidades';
+  if(aCrear.length > 0) res += ' · <span style="color:var(--accent)">' + aCrear.length + ' nuevo(s) a crear</span>';
+  if(sinDef > 0) res += ' · <span style="color:var(--text-mute)">' + sinDef + ' sin definir (se ignoran)</span>';
   document.getElementById('esResumen').innerHTML = res;
   var btn = document.getElementById('esBtnAplicar');
-  btn.disabled = (validas.length === 0 && aCrear === 0);
+  if(btn) btn.disabled = (validas.length === 0 && aCrear.length === 0);
 }
 
 function esToggleCrear(idx, on){
@@ -9737,6 +9807,144 @@ async function esAgregarManual(){
   if(cant === null) return;
   esAgregarFila(codigo, Number(cant) || 1);
 }
+
+// ─── Buscador de productos (reponer existentes) ───
+function esPickerBuscar(){
+  var inp = document.getElementById('esPickerInput');
+  var drop = document.getElementById('esPickerDrop');
+  if(!inp || !drop) return;
+  var q = (inp.value || '').trim().toLowerCase();
+  if(!q){ drop.style.display = 'none'; drop.innerHTML = ''; return; }
+  var qn = q.replace(/^0+/, '');
+  var res = (productos || []).filter(function(p){
+    var c = String(p.codigo || '').toLowerCase();
+    var b = String(p.codBarra || '').toLowerCase();
+    var d = String(p.descripcion || p.nombre || '').toLowerCase();
+    if(d.indexOf(q) >= 0 || c.indexOf(q) >= 0 || b.indexOf(q) >= 0) return true;
+    if(qn && (c.replace(/^0+/, '').indexOf(qn) >= 0 || b.replace(/^0+/, '').indexOf(qn) >= 0)) return true;
+    return false;
+  }).slice(0, 8);
+  if(res.length === 0){
+    drop.innerHTML = '<div class="es-pick-item es-pick-empty">Sin resultados. ¿Es un producto nuevo? <a href="#" onclick="esAbrirNuevoModal();return false;">Crealo acá</a></div>';
+  } else {
+    drop.innerHTML = res.map(function(p){
+      return '<div class="es-pick-item" onmousedown="esPickerElegir(\'' + escapeQ(p._id) + '\')">' +
+        '<div class="es-pick-desc">' + eH(p.descripcion || p.nombre || '(sin nombre)') + '</div>' +
+        '<div class="es-pick-meta">' + eH(p.codigo || '') + (p.codBarra ? (' · ' + eH(p.codBarra)) : '') + ' · stock ' + (Number(p.stock) || 0) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  drop.style.display = 'block';
+}
+function esPickerElegir(prodId){
+  var p = (productos || []).find(function(x){ return x._id === prodId; });
+  if(!p) return;
+  var existente = esState.filas.find(function(f){ return f.prod && f.prod._id === prodId; });
+  if(existente){ existente.cantidad = (Number(existente.cantidad) || 0) + 1; }
+  else {
+    esState.filas.push({
+      codigo: p.codigo || '', cantidad: 1, prod: p,
+      descripcion: p.descripcion || p.nombre || '', descripcionFactura: '',
+      precioUnit: Number(p.precioCosto) || 0, stockActual: Number(p.stock) || 0, crear: false
+    });
+  }
+  var inp = document.getElementById('esPickerInput');
+  var drop = document.getElementById('esPickerDrop');
+  if(inp) inp.value = '';
+  if(drop){ drop.style.display = 'none'; drop.innerHTML = ''; }
+  esRender();
+  if(inp) inp.focus();
+}
+
+// ─── Producto nuevo (con proveedor y todos los datos) ───
+function esProveedoresDisponibles(){
+  var set = {};
+  if(typeof lpState !== 'undefined' && lpState.proveedores){
+    lpState.proveedores.forEach(function(p){ if(p && p.nombre) set[p.nombre] = 1; });
+  }
+  (productos || []).forEach(function(p){ if(p.proveedor) set[String(p.proveedor)] = 1; });
+  return Object.keys(set).sort(function(a, b){ return a.localeCompare(b); });
+}
+function esProvConfig(nombre){
+  if(typeof lpState === 'undefined' || !lpState.proveedores || !nombre) return null;
+  var n = String(nombre).trim().toLowerCase();
+  return lpState.proveedores.find(function(p){ return p.nombre && p.nombre.toLowerCase() === n; })
+      || lpState.proveedores.find(function(p){ return p.nombre && p.nombre.toLowerCase().indexOf(n) >= 0; })
+      || null;
+}
+function esNuevoCalcPrecio(){
+  var costo = Number(document.getElementById('esNuevoCosto').value) || 0;
+  var prov = document.getElementById('esNuevoProv').value.trim();
+  var hint = document.getElementById('esNuevoPrecioHint');
+  var venta = document.getElementById('esNuevoVenta');
+  var cfg = esProvConfig(prov);
+  if(costo > 0 && cfg){
+    try{
+      var calc = lpCalcularPrecio(costo, cfg);
+      if(calc && calc.final > 0){
+        venta.value = calc.final;
+        hint.innerHTML = 'Precio sugerido con los márgenes de <b>' + eH(cfg.nombre) + '</b>: <b>$' + calc.final + '</b> — podés cambiarlo.';
+        return;
+      }
+    }catch(e){}
+  }
+  if(costo > 0 && prov && !cfg){ hint.textContent = 'Ese proveedor no tiene márgenes configurados en Listas: cargá el precio de venta a mano.'; }
+  else { hint.textContent = ''; }
+}
+function esAbrirNuevoModal(idx){
+  idx = (typeof idx === 'number') ? idx : -1;
+  var dl = document.getElementById('esProvList');
+  if(dl) dl.innerHTML = esProveedoresDisponibles().map(function(n){ return '<option value="' + eH(n) + '"></option>'; }).join('');
+  var f = (idx >= 0) ? esState.filas[idx] : null;
+  var n = (f && f.nuevo) ? f.nuevo : null;
+  document.getElementById('esNuevoIdx').value = idx;
+  document.getElementById('esNuevoTitulo').textContent = (idx >= 0) ? 'Editar producto nuevo' : 'Nuevo producto';
+  document.getElementById('esNuevoDesc').value = n ? (n.descripcion || '') : (f ? (f.descripcion || '') : '');
+  document.getElementById('esNuevoCodigo').value = n ? (n.codigo || '') : (f ? (f.codigo || '') : '');
+  document.getElementById('esNuevoBarra').value = n ? (n.codBarra || '') : '';
+  document.getElementById('esNuevoProv').value = n ? (n.proveedor || '') : '';
+  document.getElementById('esNuevoRubro').value = n ? (n.rubro || '') : '';
+  document.getElementById('esNuevoCosto').value = n ? (n.precioCosto || '') : (f ? (f.precioUnit || '') : '');
+  document.getElementById('esNuevoVenta').value = n ? (n.precioVenta || '') : '';
+  document.getElementById('esNuevoCant').value = f ? (Number(f.cantidad) || 1) : 1;
+  document.getElementById('esNuevoPrecioHint').textContent = '';
+  document.getElementById('esNuevoModal').classList.add('show');
+  setTimeout(function(){ document.getElementById('esNuevoDesc').focus(); }, 60);
+}
+function esCerrarNuevoModal(){ document.getElementById('esNuevoModal').classList.remove('show'); }
+function esGuardarNuevo(){
+  var desc = document.getElementById('esNuevoDesc').value.trim();
+  var cant = Number(document.getElementById('esNuevoCant').value) || 0;
+  if(!desc){ toast('Poné una descripción', 'error'); return; }
+  if(cant <= 0){ toast('Poné la cantidad que entró', 'error'); return; }
+  var nuevo = {
+    descripcion: desc,
+    codigo: document.getElementById('esNuevoCodigo').value.trim(),
+    codBarra: document.getElementById('esNuevoBarra').value.trim(),
+    barcodeTipo: 'CODE128',
+    proveedor: document.getElementById('esNuevoProv').value.trim(),
+    rubro: document.getElementById('esNuevoRubro').value.trim(),
+    precioCosto: Number(document.getElementById('esNuevoCosto').value) || 0,
+    precioVenta: Number(document.getElementById('esNuevoVenta').value) || 0
+  };
+  var idx = Number(document.getElementById('esNuevoIdx').value);
+  if(idx >= 0 && esState.filas[idx]){
+    var f = esState.filas[idx];
+    f.nuevo = nuevo; f.crear = true; f.prod = null;
+    f.codigo = nuevo.codigo || f.codigo; f.descripcion = nuevo.descripcion;
+    f.precioUnit = nuevo.precioCosto; f.cantidad = cant;
+  } else {
+    esState.filas.push({
+      codigo: nuevo.codigo, cantidad: cant, prod: null,
+      descripcion: nuevo.descripcion, descripcionFactura: nuevo.descripcion,
+      precioUnit: nuevo.precioCosto, stockActual: null, crear: true, nuevo: nuevo
+    });
+  }
+  esCerrarNuevoModal();
+  esRender();
+  toast('Producto nuevo agregado a la entrada', 'success');
+}
+function esConvertirANuevo(idx){ esAbrirNuevoModal(idx); }
 
 // ─── Escanear código de barras ───
 function esEscanear(){
@@ -9793,33 +10001,13 @@ async function esProcesarExcel(file){
 // ─── Aplicar ───
 async function esAplicar(){
   var validas = esState.filas.filter(function(f){ return f.prod && (Number(f.cantidad)||0) > 0; });
-  var aCrear = esState.filas.filter(function(f){ return !f.prod && f.crear; });
+  var aCrear = esState.filas.filter(function(f){ return f.nuevo && (Number(f.cantidad)||0) > 0; });
   if(validas.length === 0 && aCrear.length === 0){ toast('No hay nada para aplicar', 'error'); return; }
 
-  // Inferir el proveedor para los productos nuevos (del prefijo de los que matchearon)
-  var provNombre = '', provConfig = null;
-  if(aCrear.length > 0){
-    // 1) prefijo de letras de un producto que matcheó (ej "BULONFER")
-    for(var v = 0; v < validas.length; v++){
-      var pc = String(validas[v].prod.codigo || '');
-      var m = pc.match(/^([A-Za-z]+)/);
-      if(m){ provNombre = m[1]; break; }
-    }
-    // 2) buscar config de ese proveedor en listas (match por nombre, flexible)
-    if(typeof lpState !== 'undefined' && lpState.proveedores){
-      provConfig = lpState.proveedores.find(function(p){
-        return p.nombre && provNombre && p.nombre.toLowerCase().indexOf(provNombre.toLowerCase()) >= 0;
-      }) || null;
-    }
-    var msg = 'Vas a:\n• Sumar stock a ' + validas.length + ' producto(s)\n• Crear ' + aCrear.length + ' producto(s) nuevo(s)';
-    if(aCrear.length > 0){
-      msg += provConfig ? ('\n\nLos nuevos se asignan al proveedor "' + provConfig.nombre + '" y su precio se calcula con tus márgenes.')
-                        : ('\n\nNo encontré config de proveedor para calcular precio: los nuevos se crean SIN precio de venta (lo cargás después).');
-    }
-    if(!await confirmComercia(msg)) return;
-  } else {
-    if(!await confirmComercia('Vas a sumar stock a ' + validas.length + ' producto(s). ¿Confirmás?')) return;
-  }
+  var msg = 'Vas a:';
+  if(validas.length) msg += '\n• Sumar stock a ' + validas.length + ' producto(s)';
+  if(aCrear.length) msg += '\n• Crear ' + aCrear.length + ' producto(s) nuevo(s) en tu catálogo';
+  if(!await confirmComercia(msg)) return;
 
   var btn = document.getElementById('esBtnAplicar');
   btn.disabled = true; btn.textContent = 'Aplicando...';
@@ -9846,22 +10034,17 @@ async function esAplicar(){
       var sliceN = aCrear.slice(k, k + B);
       var batchN = db.batch();
       sliceN.forEach(function(f){
-        // código interno = PREFIJO proveedor + código de factura
-        var codigoInterno = (provNombre || '') + f.codigo;
+        var n = f.nuevo || {};
+        var codigoInterno = (n.codigo || '').trim() || ('PROD-' + (sanitizarId(n.descripcion || '') || 'item').slice(0, 28) + '-' + Date.now().toString().slice(-5));
         var docId = sanitizarId(codigoInterno);
-        // precio de venta: calcular con la config del proveedor si existe
-        var precioVenta = 0;
-        if(provConfig && f.precioUnit > 0){
-          try{ var calc = lpCalcularPrecio(f.precioUnit, provConfig); precioVenta = calc.final || 0; }catch(e){}
-        }
         var data = {
           codigo: codigoInterno,
-          codBarra: '', barcodeTipo: 'CODE128',
-          descripcion: f.descripcionFactura || f.descripcion || codigoInterno,
-          proveedor: provConfig ? provConfig.nombre : (provNombre || ''),
-          rubro: '',
-          precioCosto: Number(f.precioUnit) || 0,
-          precioVenta: precioVenta,
+          codBarra: n.codBarra || '', barcodeTipo: n.barcodeTipo || 'CODE128',
+          descripcion: n.descripcion || codigoInterno,
+          proveedor: n.proveedor || '',
+          rubro: n.rubro || '',
+          precioCosto: Number(n.precioCosto) || 0,
+          precioVenta: Number(n.precioVenta) || 0,
           stock: Number(f.cantidad) || 0,
           fotoUrl: '', fotoPath: '',
           origen: 'entrada_stock',
