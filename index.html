@@ -5451,27 +5451,27 @@
           <!-- TAB POS -->
           <div id="ventasTabPos">
 
+            <!-- BUSCADOR (a lo ancho, arriba) -->
+            <div class="table-card" style="padding:14px;position:relative;z-index:10;overflow:visible;margin-bottom:14px">
+              <div style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap">
+                <div class="search-box" style="flex:1;min-width:240px">
+                  <span class="search-icon">&#128269;</span>
+                  <input class="search-input" id="vSearch" type="text" placeholder="Buscar producto por código, descripción o escanear código de barras..." autocomplete="off">
+                  <button class="search-scan-btn" onclick="scanParaPOS()" title="Escanear código con cámara">&#128247;</button>
+                </div>
+                <select class="form-input" id="vProvSelect" onchange="vSeleccionarProveedor(this.value)" style="width:240px;flex-shrink:0">
+                  <option value="">Todos los proveedores</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
+                <span style="font-size:11px;color:var(--text-mute)">Escaneá un código de barras y se agrega solo al carrito. Para buscar por nombre, escribí y tocá la tarjeta.</span>
+              </div>
+            </div>
+
             <div class="ventas-layout">
 
-              <!-- COLUMNA IZQUIERDA — BUSCADOR + FILTRO + GRID -->
+              <!-- COLUMNA IZQUIERDA — GRID -->
               <div class="ventas-left">
-
-                <div class="table-card" style="padding:14px;position:relative;z-index:10;overflow:visible">
-                  <!-- Buscador + Selector proveedor en una fila -->
-                  <div style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap">
-                    <div class="search-box" style="flex:1;min-width:240px">
-                      <span class="search-icon">&#128269;</span>
-                      <input class="search-input" id="vSearch" type="text" placeholder="Buscar producto por código, descripción o escanear código de barras..." autocomplete="off">
-                      <button class="search-scan-btn" onclick="scanParaPOS()" title="Escanear código con cámara">&#128247;</button>
-                    </div>
-                    <select class="form-input" id="vProvSelect" onchange="vSeleccionarProveedor(this.value)" style="width:240px;flex-shrink:0">
-                      <option value="">Todos los proveedores</option>
-                    </select>
-                  </div>
-                  <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
-                    <span style="font-size:11px;color:var(--text-mute)">Escaneá un código de barras y se agrega solo al carrito. Para buscar por nombre, escribí y tocá la tarjeta.</span>
-                  </div>
-                </div>
 
                 <!-- INFO + GRID -->
                 <div>
