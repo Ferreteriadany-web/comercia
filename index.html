@@ -5734,13 +5734,18 @@
             <h1 class="main-title">Caja</h1>
           </div>
           <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="cajaVerReporteDia()">&#128202; Reporte del día</button>
+            <button class="btn btn-line btn-sm" onclick="verCierresCaja()">&#128193; Cierres</button>
             <button class="btn btn-line btn-sm" onclick="abrirArqueo()">&#129518; Arqueo</button>
-            <button class="btn btn-primary btn-sm" onclick="abrirMovCaja()">&#43; Movimiento</button>
+            <button class="btn btn-line btn-sm" onclick="abrirMovCaja()">&#43; Movimiento</button>
+            <button class="btn btn-primary btn-sm" id="cajaBtnAbrir" onclick="abrirCajaModal()">&#128275; Abrir caja</button>
+            <button class="btn btn-primary btn-sm" id="cajaBtnCerrar" onclick="cerrarCajaModal()" style="display:none">&#128274; Cerrar caja</button>
           </div>
         </header>
 <details class="ayuda-mod"><summary><span class="ay-ico">&#128176;</span><span>¿Cómo funciona la Caja?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es el control de tu <b>dinero del d&iacute;a</b>. Registr&aacute; los <b>ingresos y egresos</b> (lo que entra y lo que sale) y siempre sab&eacute;s cu&aacute;nto hay en caja. Las ventas en efectivo entran ac&aacute; autom&aacute;ticamente.</div></details>
 
         <div class="main-body">
+          <div id="cajaEstadoBanner" style="margin-bottom:16px"></div>
           <div class="stats-row">
             <div class="stat-card success">
               <div class="stat-card-head"><div class="stat-label">Ventas en efectivo (hoy)</div><div class="stat-icon">&#128181;</div></div>
@@ -8274,6 +8279,67 @@
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cerrar</button>
       <button class="btn-form" id="arqRegistrarBtn" onclick="registrarArqueo()" style="flex:2">Registrar arqueo &#10003;</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL ABRIR CAJA ═══════════════════ -->
+<div class="modal-overlay" id="modalAbrirCaja">
+  <div class="modal" style="max-width:420px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#128275; Caja</div>
+    <h2 class="modal-title">Abrir caja</h2>
+    <p class="modal-subtitle">Con cuánto efectivo arrancás el día (el fondo / vuelto inicial).</p>
+    <div class="form-group">
+      <label class="form-label">Fondo inicial</label>
+      <input class="form-input" type="number" id="cajaFondoInput" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="alert error" id="abrirCajaAlert"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" id="abrirCajaBtn" onclick="confirmarAbrirCaja()" style="flex:2">Abrir caja &#10003;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL CERRAR CAJA ═══════════════════ -->
+<div class="modal-overlay" id="modalCerrarCaja">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#128274; Cierre de caja</div>
+    <h2 class="modal-title">Cerrar caja</h2>
+    <p class="modal-subtitle">Contá el efectivo y cerrá el día. Queda guardado en el histórico.</p>
+    <div class="ticket-print-line"><span class="l">Fondo inicial:</span><span class="r" id="cerrarFondo">$0</span></div>
+    <div class="ticket-print-line"><span class="l">Ventas en efectivo:</span><span class="r" id="cerrarVtaEf">$0</span></div>
+    <div class="ticket-print-line"><span class="l">Ingresos:</span><span class="r" id="cerrarIng">$0</span></div>
+    <div class="ticket-print-line"><span class="l">Egresos:</span><span class="r" id="cerrarEg">$0</span></div>
+    <div class="ticket-print-line" style="border-top:1px solid var(--line);margin-top:4px;padding-top:6px"><span class="l"><strong>Efectivo esperado:</strong></span><span class="r" id="cerrarEsperado" style="font-weight:700">$0</span></div>
+    <div class="form-group" style="margin-top:12px">
+      <label class="form-label">Efectivo contado</label>
+      <input class="form-input" type="number" id="cerrarContado" placeholder="0" min="0" step="0.01" oninput="cerrarCajaCalcular()">
+    </div>
+    <div class="stock-status" id="cerrarResultado" style="display:none">
+      <div class="stock-status-icon" id="cerrarIcon">&#9898;</div>
+      <div><div class="stock-status-text" id="cerrarDifTxt">&mdash;</div><div class="stock-status-sub" id="cerrarDifSub"></div></div>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label class="form-label">Notas (opcional)</label>
+      <input class="form-input" type="text" id="cerrarNotas" placeholder="Observaciones del cierre" autocomplete="off">
+    </div>
+    <div class="alert error" id="cerrarCajaAlert"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Cancelar</button>
+      <button class="btn-form" id="cerrarCajaBtn" onclick="confirmarCerrarCaja()" style="flex:2">Cerrar caja &#10003;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MODAL CIERRES ANTERIORES ═══════════════════ -->
+<div class="modal-overlay" id="modalCierresCaja">
+  <div class="modal" style="max-width:560px;max-height:90vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div class="modal-eyebrow">&#128193; Caja</div>
+    <h2 class="modal-title">Cierres anteriores</h2>
+    <div id="cierresCajaLista" style="margin-top:10px"><div class="rep-empty">Cargando...</div></div>
   </div>
 </div>
 
@@ -16223,7 +16289,18 @@ function initCaja(){
   if(typeof ventas !== 'undefined' && ventas.length === 0 && typeof cargarVentas === 'function'){
     cargarVentas().then(renderCaja).catch(function(){});
   }
+  cargarCajaEstado();
   cargarCajaMovimientos();
+}
+
+var cajaEstado = null;
+async function cargarCajaEstado(){
+  if(!currentEmpresaId){ cajaEstado = { abierta:false }; return; }
+  try{
+    var d = await db.collection('empresas').doc(currentEmpresaId).collection('caja_estado').doc('actual').get();
+    cajaEstado = d.exists ? d.data() : { abierta:false };
+  }catch(e){ cajaEstado = { abierta:false }; }
+  renderCaja();
 }
 
 async function cargarCajaMovimientos(){
@@ -16255,12 +16332,32 @@ function cajaCalculos(){
     if(!cajaEsHoy(m.fecha)) return;
     if(m.tipo === 'ingreso') ingresos += (m.monto||0); else egresos += (m.monto||0);
   });
-  return { vtaEfectivo: vtaEfectivo, ingresos: ingresos, egresos: egresos, saldo: vtaEfectivo + ingresos - egresos };
+  var fondo = (cajaEstado && cajaEstado.abierta) ? (Number(cajaEstado.fondoInicial)||0) : 0;
+  return { fondo: fondo, vtaEfectivo: vtaEfectivo, ingresos: ingresos, egresos: egresos, saldo: fondo + vtaEfectivo + ingresos - egresos };
 }
 
 function renderCaja(){
   if(!document.getElementById('moduleCaja')) return;
   var c = cajaCalculos();
+  var abierta = !!(cajaEstado && cajaEstado.abierta);
+  var banner = document.getElementById('cajaEstadoBanner');
+  if(banner){
+    if(abierta){
+      var horaAp = cajaEstado.abiertoEn ? new Date(cajaEstado.abiertoEn).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
+      banner.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-radius:10px;background:var(--success-soft);border:1px solid var(--success);font-size:13px">'+
+        '<span style="font-weight:700;color:var(--success)">&#128275; Caja abierta</span>'+
+        '<span style="color:var(--text-soft)">&middot; Fondo inicial '+fmtPeso(Number(cajaEstado.fondoInicial)||0)+(horaAp?(' &middot; desde '+horaAp):'')+'</span>'+
+      '</div>';
+    } else {
+      banner.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-radius:10px;background:var(--bg-2);border:1px solid var(--line);font-size:13px;color:var(--text-soft)">'+
+        '<span style="font-weight:700">&#128274; Caja cerrada</span>'+
+        '<span>&middot; Abrí la caja para empezar el día y cargar el fondo.</span>'+
+      '</div>';
+    }
+  }
+  var bA = document.getElementById('cajaBtnAbrir'), bC = document.getElementById('cajaBtnCerrar');
+  if(bA) bA.style.display = abierta ? 'none' : '';
+  if(bC) bC.style.display = abierta ? '' : 'none';
   var s = function(id,v){ var e=document.getElementById(id); if(e) e.textContent = fmtPeso(v); };
   s('cajaVtaEfectivo', c.vtaEfectivo); s('cajaIngresos', c.ingresos); s('cajaEgresos', c.egresos); s('cajaSaldo', c.saldo);
 
@@ -16371,6 +16468,122 @@ async function registrarArqueo(){
     renderCaja();
   }catch(err){ toast('Error: '+(err.message||''),'error'); }
   finally{ btn.disabled = false; btn.textContent = 'Registrar arqueo \u2713'; }
+}
+
+// ─── Apertura de caja (fondo inicial) ───
+function abrirCajaModal(){
+  document.getElementById('cajaFondoInput').value = '';
+  if(typeof hideAlerts === 'function') hideAlerts();
+  closeModals();
+  document.getElementById('modalAbrirCaja').classList.add('show');
+  setTimeout(function(){ var i=document.getElementById('cajaFondoInput'); if(i) i.focus(); }, 60);
+}
+async function confirmarAbrirCaja(){
+  var fondo = Number(document.getElementById('cajaFondoInput').value) || 0;
+  var btn = document.getElementById('abrirCajaBtn'); btn.disabled = true; btn.textContent = 'Abriendo...';
+  try{
+    var data = { abierta:true, fondoInicial:fondo, abiertoEn:new Date().toISOString(), abiertoPor: currentUser ? currentUser.email : '' };
+    await db.collection('empresas').doc(currentEmpresaId).collection('caja_estado').doc('actual').set(data);
+    cajaEstado = data;
+    closeModals();
+    toast('Caja abierta con fondo ' + fmtPeso(fondo), 'success');
+    renderCaja();
+  }catch(e){ showAlert('abrirCajaAlert','Error: '+(e.message||'')); }
+  finally{ btn.disabled = false; btn.textContent = 'Abrir caja \u2713'; }
+}
+
+// ─── Cierre de caja (con histórico) ───
+function cerrarCajaModal(){
+  var c = cajaCalculos();
+  document.getElementById('cerrarFondo').textContent = fmtPeso(c.fondo);
+  document.getElementById('cerrarVtaEf').textContent = fmtPeso(c.vtaEfectivo);
+  document.getElementById('cerrarIng').textContent = fmtPeso(c.ingresos);
+  document.getElementById('cerrarEg').textContent = '\u2212' + fmtPeso(c.egresos);
+  document.getElementById('cerrarEsperado').textContent = fmtPeso(c.saldo);
+  document.getElementById('cerrarContado').value = '';
+  document.getElementById('cerrarNotas').value = '';
+  document.getElementById('cerrarResultado').style.display = 'none';
+  if(typeof hideAlerts === 'function') hideAlerts();
+  closeModals();
+  document.getElementById('modalCerrarCaja').classList.add('show');
+}
+function cerrarCajaCalcular(){
+  var c = cajaCalculos();
+  var box = document.getElementById('cerrarResultado');
+  var raw = document.getElementById('cerrarContado').value;
+  if(raw === ''){ box.style.display = 'none'; return; }
+  var dif = (Number(raw) || 0) - c.saldo;
+  box.style.display = ''; box.classList.remove('ok','low');
+  var icon = document.getElementById('cerrarIcon'), txt = document.getElementById('cerrarDifTxt'), sub = document.getElementById('cerrarDifSub');
+  if(Math.abs(dif) < 0.01){ box.classList.add('ok'); icon.innerHTML='&#9989;'; txt.textContent='Caja cuadrada'; sub.textContent='El conteo coincide con lo esperado.'; }
+  else if(dif > 0){ icon.innerHTML='&#11014;&#65039;'; txt.textContent='Sobran '+fmtPeso(dif); sub.textContent='Hay más efectivo que el esperado.'; }
+  else { box.classList.add('low'); icon.innerHTML='&#9888;&#65039;'; txt.textContent='Faltan '+fmtPeso(-dif); sub.textContent='Hay menos efectivo que el esperado.'; }
+}
+async function confirmarCerrarCaja(){
+  var raw = document.getElementById('cerrarContado').value;
+  if(raw === ''){ toast('Ingresá el efectivo contado','error'); return; }
+  var c = cajaCalculos();
+  var contado = Number(raw) || 0;
+  var dif = contado - c.saldo;
+  var btn = document.getElementById('cerrarCajaBtn'); btn.disabled = true; btn.textContent = 'Cerrando...';
+  try{
+    var cierre = {
+      fecha: new Date().toISOString(),
+      fondoInicial: c.fondo, vtaEfectivo: c.vtaEfectivo, ingresos: c.ingresos, egresos: c.egresos,
+      esperado: c.saldo, contado: contado, diferencia: dif,
+      notas: document.getElementById('cerrarNotas').value.trim(),
+      abiertoEn: cajaEstado ? (cajaEstado.abiertoEn || null) : null,
+      cerradoPor: currentUser ? currentUser.email : ''
+    };
+    await db.collection('empresas').doc(currentEmpresaId).collection('caja_cierres').add(cierre);
+    await db.collection('empresas').doc(currentEmpresaId).collection('caja_estado').doc('actual').set({ abierta:false });
+    cajaEstado = { abierta:false };
+    closeModals();
+    toast('Caja cerrada' + (Math.abs(dif) >= 0.01 ? (' · diferencia ' + fmtPeso(dif)) : ' · cuadrada'), 'success');
+    renderCaja();
+  }catch(e){ showAlert('cerrarCajaAlert','Error: '+(e.message||'')); }
+  finally{ btn.disabled = false; btn.textContent = 'Cerrar caja \u2713'; }
+}
+
+// ─── Histórico de cierres ───
+async function verCierresCaja(){
+  closeModals();
+  document.getElementById('modalCierresCaja').classList.add('show');
+  var cont = document.getElementById('cierresCajaLista');
+  cont.innerHTML = '<div class="rep-empty">Cargando...</div>';
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('caja_cierres').orderBy('fecha','desc').limit(60).get();
+    if(snap.empty){ cont.innerHTML = '<div class="rep-empty">Todavía no hay cierres registrados.</div>'; return; }
+    var html = '';
+    snap.forEach(function(d){
+      var x = d.data();
+      var f = new Date(x.fecha);
+      var fStr = f.toLocaleDateString('es-AR') + ' ' + f.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      var difC = Math.abs(x.diferencia||0) < 0.01 ? 'var(--success)' : (x.diferencia > 0 ? 'var(--text)' : 'var(--danger)');
+      var difTxt = Math.abs(x.diferencia||0) < 0.01 ? 'Cuadrada' : (x.diferencia > 0 ? ('Sobró ' + fmtPeso(x.diferencia)) : ('Faltó ' + fmtPeso(-x.diferencia)));
+      html += '<div class="ticket-card" style="cursor:default">'+
+        '<div class="ticket-card-head"><span class="ticket-num">&#128274; Cierre</span><span class="ticket-fecha">'+fStr+'</span></div>'+
+        '<div class="ticket-totales" style="flex-wrap:wrap;gap:6px 14px;font-size:12px">'+
+          '<span>Fondo: <b>'+fmtPeso(x.fondoInicial||0)+'</b></span>'+
+          '<span>Efectivo ventas: <b>'+fmtPeso(x.vtaEfectivo||0)+'</b></span>'+
+          '<span>Esperado: <b>'+fmtPeso(x.esperado||0)+'</b></span>'+
+          '<span>Contado: <b>'+fmtPeso(x.contado||0)+'</b></span>'+
+          '<span style="color:'+difC+';font-weight:700;margin-left:auto">'+difTxt+'</span>'+
+        '</div>'+
+        (x.notas ? '<div class="ticket-cliente" style="font-size:11px;color:var(--text-mute)">'+eH(x.notas)+'</div>' : '')+
+      '</div>';
+    });
+    cont.innerHTML = html;
+  }catch(e){ cont.innerHTML = '<div class="rep-empty">Error al cargar: '+eH(e.message||'')+'</div>'; }
+}
+
+// ─── Link al reporte del día (Reportes → Caja diaria) ───
+function cajaVerReporteDia(){
+  navTo('reportes');
+  setTimeout(function(){
+    if(typeof repCambiarTab === 'function') repCambiarTab('caja');
+    if(typeof repCajaHoy === 'function') repCajaHoy();
+  }, 150);
 }
 
 // ═══════════════════════════════════════════════════════
