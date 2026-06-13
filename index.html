@@ -7943,6 +7943,24 @@
       </div>
     </div>
 
+    <div id="vPresupuestoDatos" style="display:none">
+      <div class="form-section-title">Condiciones del presupuesto</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Validez (días)</label>
+          <input class="form-input" type="number" id="vPresupValidez" min="1" step="1" value="15" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Plazo de entrega</label>
+          <input class="form-input" type="text" id="vPresupEntrega" placeholder="Ej: 5 días hábiles" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Forma de pago propuesta</label>
+        <input class="form-input" type="text" id="vPresupPago" placeholder="Ej: 50% anticipo, 50% contra entrega" autocomplete="off">
+      </div>
+    </div>
+
     <div class="form-section-title">Observaciones</div>
     <textarea class="form-input" id="vCobroObs" rows="2" placeholder="Notas sobre la venta (opcional)..." style="resize:vertical"></textarea>
 
@@ -15724,6 +15742,12 @@ function openPagoModal(){
   var mostrarEntrega = (modoVenta === 'remito' || modoVenta === 'factura');
   var boxEntrega = document.getElementById('vRemitoDatos');
   if(boxEntrega) boxEntrega.style.display = mostrarEntrega ? '' : 'none';
+  var boxPresup = document.getElementById('vPresupuestoDatos');
+  if(boxPresup) boxPresup.style.display = esPresup ? '' : 'none';
+  if(esPresup){
+    var vVal = document.getElementById('vPresupValidez');
+    if(vVal && !vVal.value) vVal.value = 15;
+  }
   document.getElementById('vRemitoRetira').value = '';
   // Si todos los ítems comparten una misma obra, la usamos de encabezado
   var obrasCarrito = {};
@@ -15871,6 +15895,9 @@ async function confirmarVenta(){
       observaciones: document.getElementById('vCobroObs').value.trim(),
       retira: (document.getElementById('vRemitoRetira') ? document.getElementById('vRemitoRetira').value.trim() : ''),
       obraRemito: (document.getElementById('vRemitoObra') ? document.getElementById('vRemitoObra').value.trim() : ''),
+      validezDias: (modoVenta === 'presupuesto' && document.getElementById('vPresupValidez')) ? (parseInt(document.getElementById('vPresupValidez').value) || 15) : null,
+      plazoEntrega: (modoVenta === 'presupuesto' && document.getElementById('vPresupEntrega')) ? document.getElementById('vPresupEntrega').value.trim() : '',
+      condicionesPago: (modoVenta === 'presupuesto' && document.getElementById('vPresupPago')) ? document.getElementById('vPresupPago').value.trim() : '',
       vendedorUid: currentUser ? currentUser.uid : '',
       vendedorEmail: currentUser ? currentUser.email : '',
       creadoEn: ahora.toISOString()
@@ -17385,6 +17412,10 @@ function construirHtmlVentaA4(v){
   var empresaColorBase = currentEmpresa && currentEmpresa.colorPrincipal ? currentEmpresa.colorPrincipal : '#1f1f23';
   var bc = empresaColorBase;  // color de marca para acentos del comprobante
   var esNotaDoc = (v.modo === 'nota_credito' || v.modo === 'nota_debito');
+  var esPresupuesto = (v.modo === 'presupuesto');
+  var validezDias = v.validezDias || (currentEmpresa && currentEmpresa.presupuestoValidezDias) || 15;
+  var fechaVal = new Date(fecha.getTime() + validezDias*86400000);
+  var fechaValStr = fechaVal.toLocaleDateString('es-AR');
 
   // Logo de la empresa (si subió uno)
   var empresaLogoHtml = '';
@@ -17480,6 +17511,9 @@ function construirHtmlVentaA4(v){
 '.doc-head-tipo{font-size:10px;font-weight:700;color:#000;letter-spacing:0.1em;margin-bottom:6px;text-transform:uppercase}'+
 '.doc-head-numero{font-size:14px;font-weight:700;color:#000;font-family:"SF Mono","Monaco","Courier New",monospace;margin-bottom:6px;border-top:1px solid #ccc;padding-top:4px}'+
 '.doc-head-fecha-val{font-size:10px;color:#000;font-family:"SF Mono",monospace;font-weight:600}'+
+'.doc-head-validez{font-size:9px;color:#000;font-weight:700;margin-top:5px;border-top:1px solid #ccc;padding-top:4px;line-height:1.3}'+
+'.presup-nota{margin-bottom:9px;border:1.5px solid '+bc+';border-radius:6px;padding:6px 10px;font-size:9.5px;font-weight:700;text-align:center;letter-spacing:0.04em;color:'+bc+';background:#fff;text-transform:uppercase}'+
+'.cond-list{font-size:10px;line-height:1.7;color:#000}'+
 
 /* CUERPO COMPACTO */
 '.doc-body{padding:6mm 12mm;flex:1}'+
@@ -17598,6 +17632,7 @@ function construirHtmlVentaA4(v){
       '<div class="doc-head-tipo">'+(v.afipCbteLetra ? 'FACTURA '+v.afipCbteLetra : modoLbl)+(v.afipAmbiente==='homo'?' · HOMOLOG.':'')+'</div>'+
       '<div class="doc-head-numero">N° '+(v.afipPtoVta ? String(v.afipPtoVta).padStart(4,'0')+'-'+String(v.afipCbteNro).padStart(8,'0') : eH(v.numero))+'</div>'+
       '<div class="doc-head-fecha-val">'+fechaStr+' '+horaStr+'</div>'+
+      (esPresupuesto ? '<div class="doc-head-validez">Válido hasta '+fechaValStr+'</div>' : '')+
     '</div>'+
   '</div>'+
 '</div>'+
@@ -17605,6 +17640,7 @@ function construirHtmlVentaA4(v){
 /* CUERPO */
 '<div class="doc-body">'+
 
+  (esPresupuesto ? '<div class="presup-nota">Presupuesto — no válido como factura</div>' : '')+
   '<div class="section-title">Cliente</div>'+
   '<div class="cliente-card">'+
     '<div class="cliente-row"><span class="cliente-lbl">Nombre</span><span class="cliente-val">'+eH(clienteNombre)+'</span></div>'+
@@ -17661,10 +17697,22 @@ function construirHtmlVentaA4(v){
 
     '<div class="pie-grid">'+
       '<div>'+
-        (pagosRows ? '<div class="pagos-card">'+
-          '<div class="pagos-card-title">Forma de pago</div>'+
-          '<table class="pagos-table"><tbody>'+pagosRows+'</tbody></table>'+
-        '</div>' : '')+
+        (esPresupuesto ?
+          '<div class="pagos-card">'+
+            '<div class="pagos-card-title">Condiciones</div>'+
+            '<div class="cond-list">'+
+              '&bull; Presupuesto válido por '+validezDias+' días (hasta '+fechaValStr+').<br>'+
+              '&bull; Precios sujetos a modificación sin previo aviso.'+
+              (v.condicionesPago ? '<br>&bull; Forma de pago: '+eH(v.condicionesPago) : '')+
+              (v.plazoEntrega ? '<br>&bull; Plazo de entrega: '+eH(v.plazoEntrega) : '')+
+            '</div>'+
+          '</div>'
+        :
+          (pagosRows ? '<div class="pagos-card">'+
+            '<div class="pagos-card-title">Forma de pago</div>'+
+            '<table class="pagos-table"><tbody>'+pagosRows+'</tbody></table>'+
+          '</div>' : '')
+        )+
         (v.observaciones ? '<div class="obs-card"><strong>Observaciones:</strong> '+eH(v.observaciones)+'</div>' : '')+
       '</div>'+
       '<div class="totales-card">'+
@@ -17691,8 +17739,8 @@ function construirHtmlVentaA4(v){
   '</div>' : '')+
 
   '<div class="firmas-grid">'+
-    '<div class="firma-box">Firma vendedor</div>'+
-    '<div class="firma-box">Firma cliente · Recibido conforme</div>'+
+    '<div class="firma-box">'+(esPresupuesto?'Firma y sello':'Firma vendedor')+'</div>'+
+    '<div class="firma-box">'+(esPresupuesto?'Acepto el presupuesto · Firma del cliente':'Firma cliente · Recibido conforme')+'</div>'+
   '</div>'+
 
 '</div>'+  /* /doc-body */
