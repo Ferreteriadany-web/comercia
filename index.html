@@ -4837,7 +4837,7 @@
     <a href="#" class="logo"><span class="logo-mark"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gLand" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gLand)"/><path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><circle cx="29" cy="20" r="2.4" fill="#fff"/></svg></span>Comercia</a>
     <div class="nav-links">
       <a href="#features" class="nav-link">Funcionalidades</a>
-      <a class="nav-link">Precios</a>
+      <a href="#precios" class="nav-link">Precios</a>
       <a class="nav-link" onclick="openLogin()">Iniciar sesión</a>
       <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleLanding" title="Cambiar tema">
         <span id="themeIconLanding">&#9728;</span>
@@ -4919,6 +4919,74 @@
         <div class="feature-num">04</div>
         <h3 class="feature-title">Base de datos</h3>
         <p class="feature-desc">Toda tu información segura y trazable. Acceso desde cualquier dispositivo.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing" id="precios">
+    <style>
+      .pricing{max-width:1080px;margin:0 auto;padding:72px 20px}
+      .pricing-head{text-align:center;margin-bottom:42px}
+      .pricing-head h2{font-size:clamp(26px,4vw,34px);font-weight:800;letter-spacing:-.02em;margin:0 0 10px;color:var(--text,#1a1a2e)}
+      .pricing-head p{color:var(--text-mute,#777);font-size:15px;margin:0}
+      .pricing-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
+      @media(max-width:820px){.pricing-grid{grid-template-columns:1fr;max-width:430px;margin:0 auto}}
+      .price-card{background:var(--paper,#fff);border:1px solid var(--line,#e6e6e6);border-radius:18px;padding:28px 24px;display:flex;flex-direction:column;position:relative}
+      .price-card.featured{border-color:#f97316;box-shadow:0 14px 44px rgba(249,115,22,.18)}
+      .price-tag-pop{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#fbbf24,#f97316);color:#fff;font-size:11px;font-weight:800;letter-spacing:.04em;border-radius:99px;padding:4px 14px;white-space:nowrap}
+      .price-name{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text,#1a1a2e);margin-bottom:8px}
+      .price-amount{font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--text,#1a1a2e);line-height:1}
+      .price-amount small{font-size:13px;font-weight:600;color:var(--text-mute,#777)}
+      .price-iva{font-size:11px;color:var(--text-mute,#777);margin-top:5px;font-family:var(--mono,monospace)}
+      .price-feats{list-style:none;padding:0;margin:22px 0;display:flex;flex-direction:column;gap:11px;flex:1}
+      .price-feats li{font-size:13.5px;color:var(--text-soft,#444);display:flex;gap:9px;align-items:flex-start;line-height:1.4}
+      .price-feats li .pf-ck{flex:none;font-weight:800;color:#16a34a}
+      .price-feats li.off{color:var(--text-mute,#999);opacity:.7}
+      .price-feats li.off .pf-ck{color:var(--text-mute,#999)}
+      .price-card .btn{width:100%;justify-content:center;margin-top:auto}
+    </style>
+    <div class="pricing-head">
+      <h2>Planes simples, sin sorpresas</h2>
+      <p>Precios con IVA incluido. 14 días gratis para probar, sin tarjeta.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-name">Básico</div>
+        <div class="price-amount"><span id="landPrecioBasico">$34.900</span> <small>/mes</small></div>
+        <div class="price-iva">IVA incluido</div>
+        <ul class="price-feats">
+          <li><span class="pf-ck">&#10003;</span> POS / Ventas, Productos y Caja</li>
+          <li><span class="pf-ck">&#10003;</span> Clientes, Cuentas corrientes y Proveedores</li>
+          <li><span class="pf-ck">&#10003;</span> Reportes y Facturación AFIP</li>
+          <li><span class="pf-ck">&#10003;</span> 3 dispositivos a la vez</li>
+          <li class="off"><span class="pf-ck">&#10007;</span> Asistente IA (consultas)</li>
+          <li class="off"><span class="pf-ck">&#10007;</span> Tienda Online</li>
+        </ul>
+        <button class="btn btn-line" onclick="openRegister()">Probar gratis</button>
+      </div>
+      <div class="price-card featured">
+        <span class="price-tag-pop">&#9733; Más elegido</span>
+        <div class="price-name">Pro</div>
+        <div class="price-amount"><span id="landPrecioPro">$64.900</span> <small>/mes</small></div>
+        <div class="price-iva">IVA incluido</div>
+        <ul class="price-feats">
+          <li><span class="pf-ck">&#10003;</span> Todo lo del plan Básico</li>
+          <li><span class="pf-ck">&#10003;</span> Asistente IA: consultas y comparador de precios</li>
+          <li><span class="pf-ck">&#10003;</span> Tienda Online integrada</li>
+          <li><span class="pf-ck">&#10003;</span> Sumás dispositivos cuando quieras</li>
+        </ul>
+        <button class="btn btn-primary" onclick="openRegister()">Probar gratis</button>
+      </div>
+      <div class="price-card">
+        <div class="price-name">Premium</div>
+        <div class="price-amount"><span id="landPrecioPremium">$99.900</span> <small>/mes</small></div>
+        <div class="price-iva">IVA incluido</div>
+        <ul class="price-feats">
+          <li><span class="pf-ck">&#10003;</span> Todo lo del plan Pro</li>
+          <li><span class="pf-ck">&#10003;</span> <strong>Te actualizamos las listas de proveedores</strong></li>
+          <li><span class="pf-ck">&#10003;</span> Atención prioritaria</li>
+        </ul>
+        <button class="btn btn-line" onclick="openRegister()">Empezar</button>
       </div>
     </div>
   </section>
@@ -9545,6 +9613,15 @@ function comprarPremium(){
     alertComercia('El plan Premium ('+precio+') incluye todo lo de Pro y además nosotros te mantenemos las listas de proveedores actualizadas. Escribinos para activarlo. \uD83D\uDC51','Plan Premium');
   }
 }
+function renderLandingPrecios(){
+  if(typeof PRECIOS_PLAN === 'undefined') return;
+  var set = function(id, val){ var e = document.getElementById(id); if(e) e.textContent = (val != null && val !== '') ? ('$'+val) : 'Consultar'; };
+  set('landPrecioBasico', PRECIOS_PLAN.basico);
+  set('landPrecioPro', PRECIOS_PLAN.pro);
+  set('landPrecioPremium', PRECIOS_PLAN.premium);
+}
+if(document.readyState !== 'loading'){ try{ renderLandingPrecios(); }catch(e){} }
+else { document.addEventListener('DOMContentLoaded', function(){ try{ renderLandingPrecios(); }catch(e){} }); }
 function renderPlan(){
   var p = planActual(), cort = esCortesia();
   var esPro = (p === 'pro'), esPremium = (p === 'premium');
