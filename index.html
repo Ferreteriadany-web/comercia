@@ -22592,6 +22592,9 @@ function tnCargarEstado(){
         box.innerHTML =
           '<div class="int-conn-status"><span class="int-conn-dot" style="background:#16a34a"></span><span>Conectado'+(s.storeId?(' &middot; tienda '+eH(String(s.storeId))):'')+'</span></div>'+
           '<div class="int-conf-hint" style="margin-top:8px">Tu Tienda Nube est&aacute; enlazada con Comercia.</div>'+
+          (s.ultimaSync?('<div class="int-conf-hint" style="margin-top:4px">&Uacute;ltima sincronizaci&oacute;n: '+eH(new Date(s.ultimaSync).toLocaleString('es-AR'))+' &middot; '+(s.productosSync||0)+' productos.</div>'):'')+
+          '<button class="btn-form" style="margin-top:12px" id="tnSyncBtn" onclick="tnSincronizarProductos()">&#128260; Sincronizar productos a Tienda Nube</button>'+
+          '<div id="tnSyncProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
           '<button class="btn btn-line btn-sm" style="margin-top:10px" onclick="tnConectar()">Volver a conectar</button>';
       }
     } else {
@@ -22611,6 +22614,44 @@ function tnCargarEstado(){
 function tnConectar(){
   if(!currentEmpresaId){ toast('Ten&eacute;s que estar logueado', 'error'); return; }
   window.location.href = TN_INICIAR_URL + '?empresa=' + encodeURIComponent(currentEmpresaId);
+}
+
+async function tnSincronizarProductos(){
+  var btn = document.getElementById('tnSyncBtn');
+  var prog = document.getElementById('tnSyncProgress');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Sincronizando...'; }
+  var sync = functions.httpsCallable('tiendanubeSincronizarProductos');
+  var offset = 0, creados = 0, actualizados = 0, errores = [], total = 0, vueltas = 0;
+  try{
+    while(true){
+      var res = await sync({ offset: offset });
+      var d = res.data || {};
+      if(!d.ok){ throw new Error(d.error || 'No se pudo sincronizar'); }
+      total = d.total || 0;
+      creados += (d.creados || 0);
+      actualizados += (d.actualizados || 0);
+      if(d.errores && d.errores.length){ errores = errores.concat(d.errores); }
+      if(prog){
+        var hechos = d.procesados || 0;
+        var pct = total ? Math.round(hechos/total*100) : 100;
+        prog.innerHTML = 'Procesados '+hechos+' de '+total+' ('+pct+'%)&hellip;';
+      }
+      if(d.siguienteOffset == null) break;
+      offset = d.siguienteOffset;
+      vueltas++;
+      if(vueltas > 500) break;
+    }
+    if(prog){
+      prog.innerHTML = '&#9989; Listo: '+creados+' creados, '+actualizados+' actualizados'+(errores.length?(' &middot; '+errores.length+' con error'):'')+'.';
+    }
+    if(typeof toast==='function') toast('Productos sincronizados a Tienda Nube', 'success');
+    if(errores.length){ console.warn('Errores de sincronización Tienda Nube:', errores); }
+  }catch(e){
+    if(prog){ prog.innerHTML = '&#9888;&#65039; '+eH(e.message||'Error al sincronizar'); }
+    if(typeof toast==='function') toast('Hubo un problema al sincronizar', 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; Sincronizar productos a Tienda Nube'; }
+  }
 }
 
 async function solicitarIntegracion(integracionId){
