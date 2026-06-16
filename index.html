@@ -9704,7 +9704,7 @@ async function initTienda(){
     var est = document.getElementById('tiendaEstado');
     if(est){
       est.innerHTML = x.actualizado
-        ? ('&#9989; Publicada · ' + ((x.items && x.items.length) || 0) + ' productos · última vez: ' + new Date(x.actualizado).toLocaleString('es-AR'))
+        ? ('&#9989; Publicada · ' + (x.totalItems || (x.items && x.items.length) || 0) + ' productos · última vez: ' + new Date(x.actualizado).toLocaleString('es-AR'))
         : 'Todavía no publicaste tu tienda. Completá los datos y tocá <b>Guardar y publicar</b>.';
     }
   }catch(e){ /* primera vez, sin doc */ }
@@ -9716,7 +9716,7 @@ async function guardarPublicarTienda(){
   try{
     var wa = (document.getElementById('tiendaWhatsapp').value || '').replace(/[^0-9]/g, '');
     var lista = (typeof productos !== 'undefined' && productos) ? productos : [];
-    var items = [], MAX = 800;
+    var items = [], MAX = 5000;
     for(var i = 0; i < lista.length && items.length < MAX; i++){
       var pr = lista[i];
       if(!(Number(pr.precioVenta) > 0)) continue; // solo con precio de venta
@@ -9729,6 +9729,18 @@ async function guardarPublicarTienda(){
         s: Number(pr.stock) || 0
       });
     }
+    var ref = db.collection('tiendas').doc(currentEmpresaId);
+    var prev = await ref.get();
+    var prevChunks = (prev.exists && prev.data().chunks) ? prev.data().chunks : 0;
+    var SIZE = 400;
+    var nChunks = Math.ceil(items.length / SIZE);
+    var batch = db.batch();
+    for(var ci = 0; ci < nChunks; ci++){
+      batch.set(ref.collection('catalogo').doc(String(ci)), { items: items.slice(ci*SIZE, ci*SIZE + SIZE) });
+    }
+    for(var k = nChunks; k < prevChunks; k++){           // borrar tandas sobrantes
+      batch.delete(ref.collection('catalogo').doc(String(k)));
+    }
     var data = {
       activa: !!document.getElementById('tiendaActiva').checked,
       nombre: currentEmpresa ? (currentEmpresa.nombre || 'Tienda') : 'Tienda',
@@ -9736,10 +9748,13 @@ async function guardarPublicarTienda(){
       color: currentEmpresa ? (currentEmpresa.color || currentEmpresa.colorPrimario || '') : '',
       whatsapp: wa,
       bienvenida: (document.getElementById('tiendaBienvenida').value || '').trim(),
-      items: items,
+      chunks: nChunks,
+      totalItems: items.length,
+      items: firebase.firestore.FieldValue.delete(),     // limpiar formato viejo
       actualizado: new Date().toISOString()
     };
-    await db.collection('tiendas').doc(currentEmpresaId).set(data, { merge: true });
+    batch.set(ref, data, { merge: true });
+    await batch.commit();
     if(typeof toast === 'function') toast('Tienda publicada (' + items.length + ' productos)', 'success');
     initTienda();
   }catch(e){
@@ -9828,6 +9843,15 @@ async function initStorefront(empresaId){
     }
     _sfData = d.data();
     _sfData.items = _sfData.items || [];
+    if(_sfData.chunks){
+      var snap = await db.collection('tiendas').doc(empresaId).collection('catalogo').get();
+      var partes = [];
+      snap.forEach(function(doc){ partes.push({ i: parseInt(doc.id, 10) || 0, items: (doc.data().items || []) }); });
+      partes.sort(function(a, b){ return a.i - b.i; });
+      var todo = [];
+      partes.forEach(function(pt){ todo = todo.concat(pt.items); });
+      _sfData.items = todo;
+    }
     var rset = {}; _sfData.items.forEach(function(it){ if(it.r) rset[it.r] = 1; });
     _sfRubros = Object.keys(rset).sort();
     document.title = (_sfData.nombre || 'Tienda') + ' · Comercia';
@@ -22621,31 +22645,45 @@ async function tnSincronizarProductos(){
   var prog = document.getElementById('tnSyncProgress');
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Sincronizando...'; }
   var sync = functions.httpsCallable('tiendanubeSincronizarProductos');
-  var offset = 0, creados = 0, actualizados = 0, errores = [], total = 0, vueltas = 0;
+  var cursor = null, total = 0, procesados = 0, creados = 0, actualizados = 0, errores = [], vueltas = 0, reintentos = 0;
   try{
     while(true){
-      var res = await sync({ offset: offset });
-      var d = res.data || {};
-      if(!d.ok){ throw new Error(d.error || 'No se pudo sincronizar'); }
-      total = d.total || 0;
+      var d = null;
+      try{
+        var res = await sync({ cursor: cursor, total: total });
+        d = res.data || null;
+      }catch(callErr){ d = null; }
+
+      if(!d || !d.ok){
+        // la tanda falló: reintentar el mismo punto (es seguro, no duplica)
+        reintentos++;
+        if(reintentos <= 3){
+          if(prog){ prog.innerHTML = 'Reintentando&hellip;'; }
+          await new Promise(function(r){ setTimeout(r, 1500); });
+          continue;
+        }
+        throw new Error((d && d.error) || 'No se pudo sincronizar una tanda');
+      }
+
+      reintentos = 0;
+      total = d.total || total;
+      procesados += (d.procesadosLote || 0);
       creados += (d.creados || 0);
       actualizados += (d.actualizados || 0);
       if(d.errores && d.errores.length){ errores = errores.concat(d.errores); }
       if(prog){
-        var hechos = d.procesados || 0;
-        var pct = total ? Math.round(hechos/total*100) : 100;
-        prog.innerHTML = 'Procesados '+hechos+' de '+total+' ('+pct+'%)&hellip;';
+        var pct = total ? Math.min(100, Math.round(procesados/total*100)) : 0;
+        prog.innerHTML = 'Procesados '+procesados+' de '+total+' ('+pct+'%)&hellip;';
       }
-      if(d.siguienteOffset == null) break;
-      offset = d.siguienteOffset;
-      vueltas++;
-      if(vueltas > 500) break;
+      if(d.cursor == null) break;
+      cursor = d.cursor;
+      vueltas++; if(vueltas > 2000) break;
     }
     if(prog){
-      prog.innerHTML = '&#9989; Listo: '+creados+' creados, '+actualizados+' actualizados'+(errores.length?(' &middot; '+errores.length+' con error'):'')+'.';
+      prog.innerHTML = '&#9989; Listo: '+creados+' creados, '+actualizados+' actualizados'+(errores.length?(' &middot; '+errores.length+' con problemas'):'')+'.';
     }
     if(typeof toast==='function') toast('Productos sincronizados a Tienda Nube', 'success');
-    if(errores.length){ console.warn('Errores de sincronización Tienda Nube:', errores); }
+    if(errores.length){ console.warn('Detalles de problemas en la sincronización:', errores); }
   }catch(e){
     if(prog){ prog.innerHTML = '&#9888;&#65039; '+eH(e.message||'Error al sincronizar'); }
     if(typeof toast==='function') toast('Hubo un problema al sincronizar', 'error');
