@@ -7182,6 +7182,8 @@
           <div class="cfg-tabs">
             <button class="cfg-tab active" id="cfgTabEmpresa" onclick="cfgTab('empresa')">Empresa</button>
             <button class="cfg-tab" id="cfgTabPref" onclick="cfgTab('pref')">Preferencias</button>
+            <button class="cfg-tab" id="cfgTabDispositivos" onclick="cfgTab('dispositivos')">Dispositivos</button>
+            <button class="cfg-tab" id="cfgTabPlan" onclick="cfgTab('plan')">Plan</button>
           </div>
 
           <div class="cfg-pane" id="cfgPaneEmpresa">
@@ -7335,6 +7337,39 @@
             <div style="font-size:12px;color:var(--text-soft);margin-top:4px;font-family:var(--mono)" id="redondeoPreview">Ejemplo: $5.472 &rarr; $5.472</div>
           </div>
           </div><!-- /cfgPanePref -->
+
+          <div class="cfg-pane" id="cfgPaneDispositivos" style="display:none">
+            <div class="table-card" style="padding:24px">
+              <h3 style="font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text)">Dispositivos conectados</h3>
+              <p style="font-size:12px;color:var(--text-mute);margin-bottom:16px">Tu plan te deja usar Comercia en varias computadoras al mismo tiempo. Si llegás al límite, desconectá una o sumá más lugares.</p>
+              <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+                <div style="font-size:13px;font-weight:700;color:var(--text)" id="dispContador">&mdash; de &mdash; en uso</div>
+                <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="comprarDispositivos()">&#10133; Comprar más</button>
+              </div>
+              <div style="height:8px;background:var(--bg-2);border-radius:99px;overflow:hidden;margin-bottom:18px"><div id="dispBarFill" style="height:100%;width:0;background:linear-gradient(90deg,#fbbf24,#f97316);transition:width .3s"></div></div>
+              <div id="dispLista"><div class="rep-empty">Cargando...</div></div>
+            </div>
+            <style>
+              #cfgPaneDispositivos .disp-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--paper)}
+              #cfgPaneDispositivos .disp-name{font-size:14px;font-weight:600;color:var(--text)}
+              #cfgPaneDispositivos .disp-mio{font-size:10px;background:var(--accent);color:#fff;border-radius:99px;padding:1px 7px;margin-left:4px;vertical-align:middle}
+              #cfgPaneDispositivos .disp-sub{font-size:11px;color:var(--text-mute);font-family:var(--mono)}
+              #cfgPaneDispositivos .disp-badge{font-size:11px;font-weight:700;border-radius:99px;padding:3px 10px;white-space:nowrap}
+              #cfgPaneDispositivos .disp-badge.on{background:var(--success-soft);color:var(--success)}
+              #cfgPaneDispositivos .disp-badge.off{background:var(--bg-2);color:var(--text-mute)}
+            </style>
+          </div><!-- /cfgPaneDispositivos -->
+
+          <div class="cfg-pane" id="cfgPanePlan" style="display:none">
+            <div class="table-card" style="padding:24px">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+                <h3 style="font-size:14px;font-weight:700;margin:0;color:var(--text)">Tu plan</h3>
+                <span id="planBadge" style="font-size:11px;font-weight:800;border-radius:6px;padding:2px 9px;background:var(--bg-2);color:var(--text)">&mdash;</span>
+              </div>
+              <p style="font-size:12px;color:var(--text-mute);margin-bottom:18px" id="planSub">&mdash;</p>
+              <div id="planComparativa"></div>
+            </div>
+          </div><!-- /cfgPanePlan -->
 
         </div>
       </div>
@@ -8343,6 +8378,43 @@
   </div>
 </div>
 
+<!-- ═══════════════════ BLOQUEO POR LÍMITE DE DISPOSITIVOS ═══════════════════ -->
+<div id="bloqueoDispositivos" style="display:none;position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1a1a2e,#0f0f1a);align-items:center;justify-content:center;padding:20px">
+  <div style="max-width:440px;width:100%;background:var(--paper,#fff);border-radius:18px;padding:30px 26px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#f97316);display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px">&#128274;</div>
+    <h2 style="font-size:19px;font-weight:800;margin:0 0 6px;color:var(--text,#1a1a2e)">Límite de dispositivos alcanzado</h2>
+    <p style="font-size:13px;color:var(--text-mute,#666);margin:0 0 18px;line-height:1.5">Tu plan permite <b><span id="bdMax">3</span> dispositivos</b> conectados al mismo tiempo y ya están todos en uso. Desconectá uno para entrar desde acá, o sumá más lugares.</p>
+    <div id="bdLista" style="margin-bottom:18px"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="logout()" style="flex:1">Cerrar sesión</button>
+      <button class="btn btn-primary" onclick="reintentarDispositivos()" style="flex:1">Reintentar</button>
+    </div>
+  </div>
+  <style>
+    #bloqueoDispositivos .bd-item{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:11px 13px;border:1px solid var(--line,#eee);border-radius:11px;margin-bottom:9px}
+    #bloqueoDispositivos .bd-name{font-size:13.5px;font-weight:600;color:var(--text,#1a1a2e)}
+    #bloqueoDispositivos .bd-sub{font-size:11px;color:var(--text-mute,#888);font-family:var(--mono,monospace)}
+  </style>
+</div>
+
+<!-- ═══════════════════ MODAL UPSELL PRO ═══════════════════ -->
+<div class="modal-overlay" id="modalUpsellPro">
+  <div class="modal" style="max-width:430px">
+    <button class="modal-close" onclick="closeModals()">&times;</button>
+    <div style="width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#f97316);display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:14px">&#11088;</div>
+    <h2 class="modal-title">Función Pro</h2>
+    <p class="modal-subtitle" id="upsellTexto" style="line-height:1.5"></p>
+    <ul style="font-size:13px;color:var(--text-soft,var(--text-mute));line-height:1.9;margin:6px 0 16px;padding-left:18px">
+      <li>&#129302; Asistente IA (consultas, comparador de proveedores, soporte)</li>
+      <li>&#128722; Tienda Online integrada</li>
+    </ul>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Ahora no</button>
+      <button class="btn btn-primary" onclick="comprarPlan()" style="flex:1">Mejorar a Pro</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ MODAL NOTA DE CRÉDITO / DÉBITO ═══════════════════ -->
 <div class="modal-overlay" id="modalNotaCD">
   <div class="modal" style="max-width:460px">
@@ -8858,6 +8930,10 @@ async function cargarEmpresaUsuario(user){
     currentEmpresaId = u.empresaId;
     currentUserData = u;
 
+    // ── Límite de dispositivos conectados ──
+    var _dispOk = await chequearYRegistrarDispositivo();
+    if(!_dispOk){ return; }  // la pantalla de bloqueo ya se mostró
+
     landing.style.display='none';
     app.classList.add('show');
     document.getElementById('appUserName').textContent = u.nombre || user.email;
@@ -8906,6 +8982,7 @@ auth.onAuthStateChanged(async function(user){
       if(_tn){ history.replaceState(null,'',location.pathname); }
     }catch(e){}
   } else {
+    try{ if(typeof detenerLatidoDispositivo === 'function') detenerLatidoDispositivo(); }catch(e){}
     landing.style.display='flex';
     app.classList.remove('show');
     if(banner) banner.style.display='none';
@@ -8922,6 +8999,8 @@ auth.onAuthStateChanged(async function(user){
 
 async function logout(){
   try{ if(typeof detenerSyncPedido === 'function') detenerSyncPedido(); }catch(e){}
+  try{ if(typeof detenerLatidoDispositivo === 'function') detenerLatidoDispositivo(); }catch(e){}
+  try{ if(typeof liberarMiDispositivo === 'function') await liberarMiDispositivo(); }catch(e){}
   await auth.signOut();
 }
 
@@ -9283,6 +9362,11 @@ function navTo(modulo){
     toast('No tenés permiso para acceder a esta sección', 'error');
     return;
   }
+  // Control de plan: funciones Pro (Asistente IA, Tienda Online, etc.)
+  if(typeof moduloRequierePlan === 'function' && moduloRequierePlan(modulo)){
+    mostrarUpsellPro(MODULO_FEATURE[modulo]);
+    return;
+  }
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('[data-module="'+modulo+'"]').forEach(function(n){ n.classList.add('active'); });
   document.querySelectorAll('.module').forEach(function(m){ m.classList.remove('active'); });
@@ -9389,6 +9473,110 @@ function aplicarPermisosUI(){
   // Marcar el body con el rol (para CSS que oculte botones de edición, etc.)
   document.body.setAttribute('data-rol', currentUserData.rol || 'admin');
   document.body.classList.toggle('no-editar-productos', !tienePermiso('editar_productos'));
+  if(typeof aplicarPlanUI === 'function') aplicarPlanUI();
+}
+
+// ═══════════════════════════════════════════════════════
+// PLANES Y FUNCIONES PRO
+// ═══════════════════════════════════════════════════════
+var PLANES = {
+  basico: { nombre:'Básico', features:{ asistenteIA:false, tiendaOnline:false } },
+  pro:    { nombre:'Pro',    features:{ asistenteIA:true,  tiendaOnline:true  } }
+};
+// Precios mensuales (se definen al activar los cobros). null = "a definir".
+var PRECIOS_PLAN = { basico: null, pro: null };
+// Qué módulo necesita qué función de plan
+var MODULO_FEATURE = { ia:'asistenteIA', tienda:'tiendaOnline', tiendaOnline:'tiendaOnline' };
+
+function esCortesia(){ return !!(currentEmpresa && currentEmpresa.cortesia === true); }
+function planActual(){
+  var p = currentEmpresa && currentEmpresa.plan;
+  return (p && PLANES[p]) ? p : 'basico';
+}
+function tieneFeature(f){
+  if(esCortesia()) return true;            // cortesía => todo desbloqueado, sin cobro
+  var pl = PLANES[planActual()];
+  return !!(pl && pl.features && pl.features[f]);
+}
+function moduloRequierePlan(modulo){
+  var f = MODULO_FEATURE[modulo];
+  return f ? !tieneFeature(f) : false;     // true = bloqueado por plan
+}
+
+// Marca las funciones Pro bloqueadas con un badge y muestra/oculta el botón flotante de IA
+function aplicarPlanUI(){
+  document.querySelectorAll('.nav-item[data-module]').forEach(function(item){
+    var mod = item.getAttribute('data-module');
+    var f = MODULO_FEATURE[mod];
+    if(!f) return;
+    var bloqueado = !tieneFeature(f);
+    var badge = item.querySelector('.nav-pro-badge');
+    if(bloqueado && !badge){
+      badge = document.createElement('span');
+      badge.className = 'nav-pro-badge';
+      badge.textContent = 'PRO';
+      item.appendChild(badge);
+    } else if(!bloqueado && badge){ badge.remove(); }
+  });
+  var fab = document.querySelector('.ia-fab');
+  if(fab) fab.style.display = tieneFeature('asistenteIA') ? '' : 'none';
+}
+
+function mostrarUpsellPro(feature){
+  var nombres = { asistenteIA:'el Asistente IA', tiendaOnline:'la Tienda Online' };
+  var cual = nombres[feature] || 'esta función';
+  var t = document.getElementById('upsellTexto');
+  if(t) t.innerHTML = 'El acceso a <b>'+cual+'</b> es parte del plan <b>Pro</b>. Mejorá tu plan para desbloquearlo.';
+  var m = document.getElementById('modalUpsellPro');
+  if(m){ if(typeof closeModals==='function') closeModals(); m.classList.add('show'); }
+}
+function comprarPlan(){
+  if(typeof alertComercia === 'function'){
+    alertComercia('Muy pronto vas a poder pasarte a Pro y pagarlo directamente desde acá. Estamos terminando el sistema de pagos. \uD83D\uDE80','Plan Pro');
+  }
+}
+function renderPlan(){
+  var p = planActual(), cort = esCortesia(), esPro = (p === 'pro');
+  var badge = document.getElementById('planBadge'), sub = document.getElementById('planSub'), comp = document.getElementById('planComparativa');
+  if(badge){
+    badge.textContent = cort ? 'Cortesía' : PLANES[p].nombre;
+    badge.style.background = (cort || esPro) ? 'linear-gradient(135deg,#fbbf24,#f97316)' : 'var(--bg-2)';
+    badge.style.color = (cort || esPro) ? '#fff' : 'var(--text)';
+  }
+  if(sub){
+    sub.textContent = cort
+      ? 'Cuenta de cortesía: acceso total sin cargo.'
+      : (esPro ? 'Tenés el plan Pro, con todas las funciones.' : 'Tenés el plan Básico. Pasá a Pro para sumar el Asistente IA y la Tienda Online.');
+  }
+  if(comp){
+    var precioTxt = function(pl){ var v = PRECIOS_PLAN[pl]; return (v != null && v !== '') ? ('$' + v + ' /mes') : 'a definir'; };
+    var rows = [
+      ['POS / Ventas, Productos, Caja', true, true],
+      ['Clientes, Cuentas corrientes, Proveedores', true, true],
+      ['Reportes y Facturación AFIP', true, true],
+      ['Asistente IA', false, true],
+      ['Tienda Online', false, true]
+    ];
+    var colBas = (p === 'basico' && !cort) ? 'var(--accent)' : 'var(--text)';
+    var colPro = (esPro || cort) ? 'var(--accent)' : 'var(--text)';
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+      '<thead><tr>'+
+        '<th style="text-align:left;padding:8px 6px;color:var(--text-mute);font-size:11px;text-transform:uppercase">Función</th>'+
+        '<th style="padding:8px 6px;text-align:center"><div style="font-weight:800;color:'+colBas+'">Básico</div><div style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">'+precioTxt('basico')+'</div></th>'+
+        '<th style="padding:8px 6px;text-align:center"><div style="font-weight:800;color:'+colPro+'">Pro</div><div style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">'+precioTxt('pro')+'</div></th>'+
+      '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      html += '<tr>'+
+        '<td style="padding:8px 6px;border-top:1px solid var(--line)">'+r[0]+'</td>'+
+        '<td style="text-align:center;padding:8px 6px;border-top:1px solid var(--line)">'+(r[1]?'\u2705':'\u2014')+'</td>'+
+        '<td style="text-align:center;padding:8px 6px;border-top:1px solid var(--line)">'+(r[2]?'\u2705':'\u2014')+'</td>'+
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    if(cort){ html += '<div style="margin-top:14px;font-size:12px;color:var(--success);background:var(--success-soft);border:1px solid var(--success);border-radius:8px;padding:8px 12px">⭐ Cuenta de cortesía: tenés Pro sin cargo.</div>'; }
+    else if(!esPro){ html += '<button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="comprarPlan()">\u2b50 Pasar a Pro</button>'; }
+    comp.innerHTML = html;
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -21373,12 +21561,189 @@ function actualizarPreviewRedondeo(){
 
 // Pestañas de la pantalla de Configuración
 function cfgTab(tab){
-  var te = document.getElementById('cfgTabEmpresa'), tp = document.getElementById('cfgTabPref');
-  var pe = document.getElementById('cfgPaneEmpresa'), pp = document.getElementById('cfgPanePref');
-  if(te) te.classList.toggle('active', tab === 'empresa');
-  if(tp) tp.classList.toggle('active', tab === 'pref');
-  if(pe) pe.style.display = (tab === 'empresa') ? 'block' : 'none';
-  if(pp) pp.style.display = (tab === 'pref') ? 'block' : 'none';
+  var caps = { empresa:'Empresa', pref:'Pref', dispositivos:'Dispositivos', plan:'Plan' };
+  Object.keys(caps).forEach(function(t){
+    var btn = document.getElementById('cfgTab'+caps[t]);
+    var pane = document.getElementById('cfgPane'+caps[t]);
+    if(btn) btn.classList.toggle('active', tab === t);
+    if(pane) pane.style.display = (tab === t) ? 'block' : 'none';
+  });
+  if(tab === 'dispositivos' && typeof renderDispositivos === 'function') renderDispositivos();
+  if(tab === 'plan' && typeof renderPlan === 'function') renderPlan();
+}
+
+// ═══════════════════════════════════════════════════════
+// LÍMITE DE DISPOSITIVOS CONECTADOS A LA VEZ
+// ═══════════════════════════════════════════════════════
+var DISPOSITIVO_VENTANA_MIN = 5;      // min sin "latido" => se libera el lugar
+var DISPOSITIVO_LATIDO_MS  = 120000;  // cada 2 min avisa "sigo conectado"
+var _dispLatidoTimer = null;
+
+function getDeviceId(){
+  var k = 'comercia_device_id', id = null;
+  try{ id = localStorage.getItem(k); }catch(e){}
+  if(!id){
+    id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,10);
+    try{ localStorage.setItem(k, id); }catch(e){}
+  }
+  return id;
+}
+function nombreDispositivoAuto(){
+  var ua = navigator.userAgent || '', so = 'Dispositivo', nav = 'Navegador';
+  if(/Windows/i.test(ua)) so = 'Windows';
+  else if(/Android/i.test(ua)) so = 'Android';
+  else if(/iPhone|iPad|iPod/i.test(ua)) so = 'iPhone/iPad';
+  else if(/Macintosh|Mac OS/i.test(ua)) so = 'Mac';
+  else if(/Linux/i.test(ua)) so = 'Linux';
+  if(/Edg\//i.test(ua)) nav = 'Edge';
+  else if(/Chrome\//i.test(ua)) nav = 'Chrome';
+  else if(/Firefox\//i.test(ua)) nav = 'Firefox';
+  else if(/Safari\//i.test(ua)) nav = 'Safari';
+  return nav + ' \u00b7 ' + so;
+}
+function getDeviceNombre(){
+  try{ var n = localStorage.getItem('comercia_device_nombre'); if(n) return n; }catch(e){}
+  return nombreDispositivoAuto();
+}
+function maxDispositivos(){
+  return (currentEmpresa && Number(currentEmpresa.maxDispositivos)) ? Number(currentEmpresa.maxDispositivos) : 3;
+}
+function _dispRef(){
+  return db.collection('empresas').doc(currentEmpresaId).collection('dispositivos');
+}
+async function _dispCargar(){
+  var snap = await _dispRef().get();
+  var arr = [];
+  snap.forEach(function(d){ var x = d.data(); x._id = d.id; arr.push(x); });
+  return arr;
+}
+function _dispEsActivo(d){
+  var s = d.lastSeen ? Date.parse(d.lastSeen) : 0;
+  return s >= (Date.now() - DISPOSITIVO_VENTANA_MIN*60*1000);
+}
+
+// Chequea el límite y reclama un lugar. Devuelve true si puede entrar.
+async function chequearYRegistrarDispositivo(){
+  try{
+    var deviceId = getDeviceId();
+    var lista = await _dispCargar();
+    var activos = lista.filter(_dispEsActivo);
+    var yoActivo = activos.some(function(d){ return d._id === deviceId; });
+    var existe   = lista.some(function(d){ return d._id === deviceId; });
+    if(!yoActivo && activos.length >= maxDispositivos()){
+      mostrarBloqueoDispositivos(activos);
+      return false;
+    }
+    var payload = {
+      nombre: getDeviceNombre(),
+      userAgent: navigator.userAgent || '',
+      lastSeen: new Date().toISOString(),
+      uid: currentUser ? currentUser.uid : '',
+      email: currentUser ? currentUser.email : ''
+    };
+    if(!existe) payload.creado = new Date().toISOString();
+    await _dispRef().doc(deviceId).set(payload, { merge:true });
+    iniciarLatidoDispositivo();
+    return true;
+  }catch(e){
+    console.warn('Chequeo de dispositivos falló, se permite el ingreso:', e);
+    return true; // ante un error no dejamos a nadie afuera
+  }
+}
+function iniciarLatidoDispositivo(){
+  detenerLatidoDispositivo();
+  _dispLatidoTimer = setInterval(_latidoDispositivo, DISPOSITIVO_LATIDO_MS);
+  window.addEventListener('focus', _latidoDispositivo);
+}
+function detenerLatidoDispositivo(){
+  if(_dispLatidoTimer){ clearInterval(_dispLatidoTimer); _dispLatidoTimer = null; }
+  window.removeEventListener('focus', _latidoDispositivo);
+}
+function _latidoDispositivo(){
+  if(!currentEmpresaId) return;
+  _dispRef().doc(getDeviceId()).set({ lastSeen: new Date().toISOString() }, { merge:true }).catch(function(){});
+}
+async function liberarMiDispositivo(){
+  if(!currentEmpresaId) return;
+  try{ await _dispRef().doc(getDeviceId()).set({ lastSeen: new Date(0).toISOString() }, { merge:true }); }catch(e){}
+}
+
+function mostrarBloqueoDispositivos(activos){
+  var ov = document.getElementById('bloqueoDispositivos');
+  if(!ov) return;
+  var l = document.getElementById('landing'); if(l) l.style.display = 'none';
+  var app = document.getElementById('app'); if(app) app.classList.remove('show');
+  var html = '';
+  (activos||[]).forEach(function(d){
+    var seen = d.lastSeen ? new Date(d.lastSeen) : null;
+    var seenTxt = seen ? ('activo ' + seen.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})) : '';
+    html += '<div class="bd-item">'+
+      '<div style="min-width:0"><div class="bd-name">'+eH(d.nombre||'Dispositivo')+'</div>'+
+      '<div class="bd-sub">'+eH(d.email||'')+(seenTxt?(' \u00b7 '+seenTxt):'')+'</div></div>'+
+      '<button class="btn btn-line btn-sm" onclick="desconectarDispositivo(\''+d._id+'\', true)">Desconectar</button>'+
+    '</div>';
+  });
+  document.getElementById('bdLista').innerHTML = html || '<div class="bd-sub">No hay dispositivos para mostrar.</div>';
+  document.getElementById('bdMax').textContent = maxDispositivos();
+  ov.style.display = 'flex';
+}
+function reintentarDispositivos(){ location.reload(); }
+
+async function desconectarDispositivo(deviceId, desdeBloqueo){
+  try{
+    await _dispRef().doc(deviceId).set({ lastSeen: new Date(0).toISOString() }, { merge:true });
+  }catch(e){ if(typeof toast === 'function') toast('No se pudo desconectar el dispositivo','error'); return; }
+  if(desdeBloqueo){ location.reload(); }
+  else { if(typeof toast === 'function') toast('Dispositivo desconectado','success'); renderDispositivos(); }
+}
+
+async function renderDispositivos(){
+  var cont = document.getElementById('dispLista');
+  if(!cont) return;
+  cont.innerHTML = '<div class="rep-empty">Cargando...</div>';
+  try{
+    var lista = await _dispCargar();
+    var activos = lista.filter(_dispEsActivo);
+    var max = maxDispositivos(), miId = getDeviceId();
+    var cEl = document.getElementById('dispContador'); if(cEl) cEl.textContent = activos.length + ' de ' + max + ' en uso';
+    var bEl = document.getElementById('dispBarFill'); if(bEl) bEl.style.width = Math.min(100, Math.round(activos.length/max*100)) + '%';
+    lista.sort(function(a,b){ return (Date.parse(b.lastSeen||0)||0) - (Date.parse(a.lastSeen||0)||0); });
+    var html = '';
+    lista.forEach(function(d){
+      var s = d.lastSeen ? Date.parse(d.lastSeen) : 0;
+      var activo = _dispEsActivo(d), esMio = d._id === miId;
+      var cuando = (s > 0) ? new Date(s).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '\u2014';
+      html += '<div class="disp-item">'+
+        '<div style="font-size:14px">'+(activo?'\uD83D\uDFE2':'\u26AA')+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div class="disp-name">'+eH(d.nombre||'Dispositivo')+(esMio?' <span class="disp-mio">este</span>':'')+'</div>'+
+          '<div class="disp-sub">'+eH(d.email||'')+' \u00b7 '+(activo?'conectado ahora':('última vez: '+cuando))+'</div>'+
+        '</div>'+
+        '<span class="disp-badge '+(activo?'on':'off')+'">'+(activo?'Conectado':'Inactivo')+'</span>'+
+        (esMio
+          ? '<button class="btn btn-ghost btn-sm" onclick="renombrarDispositivo()">Renombrar</button>'
+          : '<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="desconectarDispositivo(\''+d._id+'\', false)">Desconectar</button>')+
+      '</div>';
+    });
+    cont.innerHTML = html || '<div class="rep-empty">Todavía no hay dispositivos registrados.</div>';
+  }catch(e){ cont.innerHTML = '<div class="rep-empty">Error: '+eH(e.message||'')+'</div>'; }
+}
+async function renombrarDispositivo(){
+  var nuevo = await promptComercia('¿Cómo querés llamar a este dispositivo?', getDeviceNombre());
+  if(nuevo === null) return;
+  nuevo = (nuevo||'').trim();
+  if(!nuevo) return;
+  try{ localStorage.setItem('comercia_device_nombre', nuevo); }catch(e){}
+  try{
+    await _dispRef().doc(getDeviceId()).set({ nombre: nuevo }, { merge:true });
+    if(typeof toast === 'function') toast('Nombre actualizado','success');
+    renderDispositivos();
+  }catch(e){ if(typeof toast === 'function') toast('No se pudo guardar el nombre','error'); }
+}
+function comprarDispositivos(){
+  if(typeof alertComercia === 'function'){
+    alertComercia('Muy pronto vas a poder sumar más dispositivos directamente desde acá. Estamos terminando el sistema de pagos. \uD83D\uDE4C', 'Comprar dispositivos');
+  }
 }
 
 function setColorEmpresa(color){  document.getElementById('empresaColor').value = color;
@@ -24992,6 +25357,7 @@ async function lpCargarHistorial(){
   .ia-inputbar{display:flex;gap:8px;margin-top:12px}
   .ia-inputbar input{flex:1;padding:11px 14px;border:1px solid var(--line);border-radius:24px;background:var(--bg);color:var(--text);font-size:14px;outline:none}
   .ia-inputbar button{background:var(--accent);color:#fff;border:none;border-radius:24px;padding:0 20px;cursor:pointer;font-size:14px;font-weight:600}
+  .nav-pro-badge{margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.04em;background:linear-gradient(135deg,#fbbf24,#f97316);color:#fff;border-radius:5px;padding:1px 5px;flex:none}
 </style>
 <button class="ia-fab" onclick="navTo('ia')" title="Asistente IA">&#129302;</button>
 <script>
