@@ -9602,15 +9602,35 @@ function mostrarUpsellPro(feature){
   if(m){ if(typeof closeModals==='function') closeModals(); m.classList.add('show'); }
 }
 function comprarPlan(){
-  if(typeof alertComercia === 'function'){
-    var precio = (PRECIOS_PLAN && PRECIOS_PLAN.pro) ? ('$'+PRECIOS_PLAN.pro+'/mes (IVA incluido)') : '';
-    alertComercia('El plan Pro sale '+precio+'. Muy pronto vas a poder activarlo y pagarlo directamente desde acá. \uD83D\uDE80','Plan Pro');
-  }
+  if(typeof closeModals === 'function') closeModals();
+  irACambiarPlan();
 }
 function comprarPremium(){
-  if(typeof alertComercia === 'function'){
-    var precio = (PRECIOS_PLAN && PRECIOS_PLAN.premium) ? ('$'+PRECIOS_PLAN.premium+'/mes (IVA incluido)') : '';
-    alertComercia('El plan Premium ('+precio+') incluye todo lo de Pro y además nosotros te mantenemos las listas de proveedores actualizadas. Escribinos para activarlo. \uD83D\uDC51','Plan Premium');
+  if(typeof closeModals === 'function') closeModals();
+  irACambiarPlan();
+}
+function irACambiarPlan(){
+  if(typeof navTo === 'function') navTo('configuracion');
+  setTimeout(function(){ if(typeof cfgTab === 'function') cfgTab('plan'); }, 150);
+}
+async function cambiarPlan(nuevo){
+  if(!PLANES[nuevo] || !currentEmpresaId) return;
+  if(nuevo === planActual() && !esCortesia()) return;
+  var precio = (PRECIOS_PLAN[nuevo] != null && PRECIOS_PLAN[nuevo] !== '') ? (' ($'+PRECIOS_PLAN[nuevo]+'/mes)') : '';
+  var extra = (nuevo === 'premium') ? '\n\nEl plan Premium incluye que nosotros te actualizamos las listas de proveedores. Te vamos a contactar para coordinarlo.' : '';
+  var ok = true;
+  if(typeof confirmComercia === 'function'){
+    ok = await confirmComercia('¿Querés cambiar al plan ' + PLANES[nuevo].nombre + precio + '?' + extra, 'Cambiar de plan');
+  }
+  if(!ok) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).update({ plan: nuevo });
+    if(currentEmpresa) currentEmpresa.plan = nuevo;
+    if(typeof toast === 'function') toast('Ahora estás en el plan ' + PLANES[nuevo].nombre, 'success');
+    if(typeof aplicarPlanUI === 'function') aplicarPlanUI();
+    renderPlan();
+  }catch(e){
+    if(typeof toast === 'function') toast('No se pudo cambiar el plan', 'error');
   }
 }
 function renderLandingPrecios(){
@@ -9669,13 +9689,22 @@ function renderPlan(){
     });
     html += '</tbody></table></div>';
     if(cort){
-      html += '<div style="margin-top:14px;font-size:12px;color:var(--success);background:var(--success-soft);border:1px solid var(--success);border-radius:8px;padding:8px 12px">⭐ Cuenta de cortesía: tenés Pro sin cargo.</div>';
-    } else {
-      var btns = '';
-      if(!esPro && !esPremium){ btns += '<button class="btn btn-primary btn-sm" onclick="comprarPlan()">\u2b50 Pasar a Pro</button>'; }
-      if(!esPremium){ btns += '<button class="btn btn-line btn-sm" onclick="comprarPremium()">\uD83D\uDC51 Quiero Premium</button>'; }
-      if(btns){ html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+btns+'</div>'; }
+      html += '<div style="margin-top:16px;font-size:12px;color:var(--success);background:var(--success-soft);border:1px solid var(--success);border-radius:8px;padding:8px 12px">⭐ Cuenta de cortesía: tenés acceso total sin cargo, sin importar el plan elegido.</div>';
     }
+    html += '<div style="margin-top:22px"><div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text)">Cambiar de plan</div>';
+    ['basico','pro','premium'].forEach(function(pl){
+      var actual = (pl === p) && !cort;
+      var precio = (PRECIOS_PLAN[pl] != null && PRECIOS_PLAN[pl] !== '') ? ('$'+PRECIOS_PLAN[pl]+' /mes') : 'a definir';
+      var extra = (pl === 'premium') ? ' <span style="font-size:10px;color:var(--text-mute)">&middot; servicio gestionado</span>' : '';
+      html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid '+(actual?'var(--accent)':'var(--line)')+';border-radius:12px;margin-bottom:10px;background:'+(actual?'var(--accent-soft,var(--bg-2))':'var(--paper)')+'">'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--text)">'+PLANES[pl].nombre+extra+'</div>'+
+        '<div style="font-size:12px;color:var(--text-mute);font-family:var(--mono)">'+precio+'</div></div>'+
+        (actual
+          ? '<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap">Plan actual</span>'
+          : '<button class="btn btn-sm '+(pl === 'premium' ? 'btn-line' : 'btn-primary')+'" onclick="cambiarPlan(\''+pl+'\')">Elegir</button>')+
+      '</div>';
+    });
+    html += '<div style="font-size:11px;color:var(--text-mute);margin-top:6px">Mientras activamos los pagos, el cambio es inmediato. Pronto vas a poder abonar las mejoras con Mercado Pago.</div></div>';
     comp.innerHTML = html;
   }
 }
