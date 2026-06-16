@@ -7346,7 +7346,8 @@
                 <div style="font-size:13px;font-weight:700;color:var(--text)" id="dispContador">&mdash; de &mdash; en uso</div>
                 <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="comprarDispositivos()">&#10133; Comprar más</button>
               </div>
-              <div style="height:8px;background:var(--bg-2);border-radius:99px;overflow:hidden;margin-bottom:18px"><div id="dispBarFill" style="height:100%;width:0;background:linear-gradient(90deg,#fbbf24,#f97316);transition:width .3s"></div></div>
+              <div style="height:8px;background:var(--bg-2);border-radius:99px;overflow:hidden;margin-bottom:10px"><div id="dispBarFill" style="height:100%;width:0;background:linear-gradient(90deg,#fbbf24,#f97316);transition:width .3s"></div></div>
+              <div id="dispPreciosHint" style="font-size:11px;color:var(--text-mute);margin-bottom:18px"></div>
               <div id="dispLista"><div class="rep-empty">Cargando...</div></div>
             </div>
             <style>
@@ -9480,11 +9481,13 @@ function aplicarPermisosUI(){
 // PLANES Y FUNCIONES PRO
 // ═══════════════════════════════════════════════════════
 var PLANES = {
-  basico: { nombre:'Básico', features:{ asistenteIA:false, tiendaOnline:false } },
-  pro:    { nombre:'Pro',    features:{ asistenteIA:true,  tiendaOnline:true  } }
+  basico:  { nombre:'Básico',  features:{ asistenteIA:false, tiendaOnline:false } },
+  pro:     { nombre:'Pro',     features:{ asistenteIA:true,  tiendaOnline:true  } },
+  premium: { nombre:'Premium', features:{ asistenteIA:true,  tiendaOnline:true  }, servicioListas:true }
 };
-// Precios mensuales (se definen al activar los cobros). null = "a definir".
-var PRECIOS_PLAN = { basico: null, pro: null };
+// Precios mensuales (IVA incluido). null = "a definir".
+var PRECIOS_PLAN = { basico: '34.900', pro: '64.900', premium: '99.900' };
+var PRECIOS_DISPOSITIVO = { extra: '11.900', pack3: '29.900' };
 // Qué módulo necesita qué función de plan
 var MODULO_FEATURE = { tienda:'tiendaOnline', tiendaOnline:'tiendaOnline' };
 
@@ -9532,50 +9535,70 @@ function mostrarUpsellPro(feature){
 }
 function comprarPlan(){
   if(typeof alertComercia === 'function'){
-    alertComercia('Muy pronto vas a poder pasarte a Pro y pagarlo directamente desde acá. Estamos terminando el sistema de pagos. \uD83D\uDE80','Plan Pro');
+    var precio = (PRECIOS_PLAN && PRECIOS_PLAN.pro) ? ('$'+PRECIOS_PLAN.pro+'/mes (IVA incluido)') : '';
+    alertComercia('El plan Pro sale '+precio+'. Muy pronto vas a poder activarlo y pagarlo directamente desde acá. \uD83D\uDE80','Plan Pro');
+  }
+}
+function comprarPremium(){
+  if(typeof alertComercia === 'function'){
+    var precio = (PRECIOS_PLAN && PRECIOS_PLAN.premium) ? ('$'+PRECIOS_PLAN.premium+'/mes (IVA incluido)') : '';
+    alertComercia('El plan Premium ('+precio+') incluye todo lo de Pro y además nosotros te mantenemos las listas de proveedores actualizadas. Escribinos para activarlo. \uD83D\uDC51','Plan Premium');
   }
 }
 function renderPlan(){
-  var p = planActual(), cort = esCortesia(), esPro = (p === 'pro');
+  var p = planActual(), cort = esCortesia();
+  var esPro = (p === 'pro'), esPremium = (p === 'premium');
   var badge = document.getElementById('planBadge'), sub = document.getElementById('planSub'), comp = document.getElementById('planComparativa');
   if(badge){
+    var destacar = (cort || esPro || esPremium);
     badge.textContent = cort ? 'Cortesía' : PLANES[p].nombre;
-    badge.style.background = (cort || esPro) ? 'linear-gradient(135deg,#fbbf24,#f97316)' : 'var(--bg-2)';
-    badge.style.color = (cort || esPro) ? '#fff' : 'var(--text)';
+    badge.style.background = destacar ? 'linear-gradient(135deg,#fbbf24,#f97316)' : 'var(--bg-2)';
+    badge.style.color = destacar ? '#fff' : 'var(--text)';
   }
   if(sub){
-    sub.textContent = cort
-      ? 'Cuenta de cortesía: acceso total sin cargo.'
-      : (esPro ? 'Tenés el plan Pro, con todas las funciones.' : 'Tenés el plan Básico. Pasá a Pro para sumar el Asistente IA y la Tienda Online.');
+    sub.textContent = cort ? 'Cuenta de cortesía: acceso total sin cargo.'
+      : esPremium ? 'Tenés el plan Premium: todas las funciones y nosotros te mantenemos las listas al día.'
+      : esPro ? 'Tenés el plan Pro, con todas las funciones del software.'
+      : 'Tenés el plan Básico. Pasá a Pro o Premium para sumar el Asistente IA, la Tienda Online y más.';
   }
   if(comp){
     var precioTxt = function(pl){ var v = PRECIOS_PLAN[pl]; return (v != null && v !== '') ? ('$' + v + ' /mes') : 'a definir'; };
+    // [etiqueta, basico, pro, premium]
     var rows = [
-      ['POS / Ventas, Productos, Caja', true, true],
-      ['Clientes, Cuentas corrientes, Proveedores', true, true],
-      ['Reportes y Facturación AFIP', true, true],
-      ['Asistente IA &mdash; ayuda para usar el sistema', true, true],
-      ['Asistente IA &mdash; consultas y comparador de precios', false, true],
-      ['Tienda Online', false, true]
+      ['POS / Ventas, Productos, Caja', true, true, true],
+      ['Clientes, Cuentas corrientes, Proveedores', true, true, true],
+      ['Reportes y Facturación AFIP', true, true, true],
+      ['Asistente IA &mdash; ayuda del sistema', true, true, true],
+      ['Asistente IA &mdash; consultas y comparador', false, true, true],
+      ['Tienda Online', false, true, true],
+      ['<b>Te actualizamos las listas de proveedores</b>', false, false, true]
     ];
     var colBas = (p === 'basico' && !cort) ? 'var(--accent)' : 'var(--text)';
     var colPro = (esPro || cort) ? 'var(--accent)' : 'var(--text)';
-    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">'+
+    var colPre = esPremium ? 'var(--accent)' : 'var(--text)';
+    var th = function(nombre, precio, color){
+      return '<th style="padding:8px 5px;text-align:center"><div style="font-weight:800;color:'+color+'">'+nombre+'</div><div style="font-size:10.5px;color:var(--text-mute);font-family:var(--mono)">'+precio+'</div></th>';
+    };
+    var cell = function(v){ return '<td style="text-align:center;padding:8px 5px;border-top:1px solid var(--line)">'+(v?'\u2705':'\u2014')+'</td>'; };
+    var html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:420px">'+
       '<thead><tr>'+
-        '<th style="text-align:left;padding:8px 6px;color:var(--text-mute);font-size:11px;text-transform:uppercase">Función</th>'+
-        '<th style="padding:8px 6px;text-align:center"><div style="font-weight:800;color:'+colBas+'">Básico</div><div style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">'+precioTxt('basico')+'</div></th>'+
-        '<th style="padding:8px 6px;text-align:center"><div style="font-weight:800;color:'+colPro+'">Pro</div><div style="font-size:11px;color:var(--text-mute);font-family:var(--mono)">'+precioTxt('pro')+'</div></th>'+
+        '<th style="text-align:left;padding:8px 5px;color:var(--text-mute);font-size:11px;text-transform:uppercase">Función</th>'+
+        th('Básico', precioTxt('basico'), colBas)+
+        th('Pro', precioTxt('pro'), colPro)+
+        th('Premium', precioTxt('premium'), colPre)+
       '</tr></thead><tbody>';
     rows.forEach(function(r){
-      html += '<tr>'+
-        '<td style="padding:8px 6px;border-top:1px solid var(--line)">'+r[0]+'</td>'+
-        '<td style="text-align:center;padding:8px 6px;border-top:1px solid var(--line)">'+(r[1]?'\u2705':'\u2014')+'</td>'+
-        '<td style="text-align:center;padding:8px 6px;border-top:1px solid var(--line)">'+(r[2]?'\u2705':'\u2014')+'</td>'+
-      '</tr>';
+      html += '<tr><td style="padding:8px 5px;border-top:1px solid var(--line)">'+r[0]+'</td>'+cell(r[1])+cell(r[2])+cell(r[3])+'</tr>';
     });
-    html += '</tbody></table>';
-    if(cort){ html += '<div style="margin-top:14px;font-size:12px;color:var(--success);background:var(--success-soft);border:1px solid var(--success);border-radius:8px;padding:8px 12px">⭐ Cuenta de cortesía: tenés Pro sin cargo.</div>'; }
-    else if(!esPro){ html += '<button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="comprarPlan()">\u2b50 Pasar a Pro</button>'; }
+    html += '</tbody></table></div>';
+    if(cort){
+      html += '<div style="margin-top:14px;font-size:12px;color:var(--success);background:var(--success-soft);border:1px solid var(--success);border-radius:8px;padding:8px 12px">⭐ Cuenta de cortesía: tenés Pro sin cargo.</div>';
+    } else {
+      var btns = '';
+      if(!esPro && !esPremium){ btns += '<button class="btn btn-primary btn-sm" onclick="comprarPlan()">\u2b50 Pasar a Pro</button>'; }
+      if(!esPremium){ btns += '<button class="btn btn-line btn-sm" onclick="comprarPremium()">\uD83D\uDC51 Quiero Premium</button>'; }
+      if(btns){ html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">'+btns+'</div>'; }
+    }
     comp.innerHTML = html;
   }
 }
@@ -21708,6 +21731,8 @@ async function renderDispositivos(){
     var max = maxDispositivos(), miId = getDeviceId();
     var cEl = document.getElementById('dispContador'); if(cEl) cEl.textContent = activos.length + ' de ' + max + ' en uso';
     var bEl = document.getElementById('dispBarFill'); if(bEl) bEl.style.width = Math.min(100, Math.round(activos.length/max*100)) + '%';
+    var hEl = document.getElementById('dispPreciosHint');
+    if(hEl && typeof PRECIOS_DISPOSITIVO !== 'undefined'){ hEl.innerHTML = 'Dispositivo extra: <b>$'+PRECIOS_DISPOSITIVO.extra+'</b>/mes &middot; Pack de 3: <b>$'+PRECIOS_DISPOSITIVO.pack3+'</b>/mes'; }
     lista.sort(function(a,b){ return (Date.parse(b.lastSeen||0)||0) - (Date.parse(a.lastSeen||0)||0); });
     var html = '';
     lista.forEach(function(d){
@@ -21743,7 +21768,9 @@ async function renombrarDispositivo(){
 }
 function comprarDispositivos(){
   if(typeof alertComercia === 'function'){
-    alertComercia('Muy pronto vas a poder sumar más dispositivos directamente desde acá. Estamos terminando el sistema de pagos. \uD83D\uDE4C', 'Comprar dispositivos');
+    var e = (PRECIOS_DISPOSITIVO && PRECIOS_DISPOSITIVO.extra) ? PRECIOS_DISPOSITIVO.extra : '';
+    var p = (PRECIOS_DISPOSITIVO && PRECIOS_DISPOSITIVO.pack3) ? PRECIOS_DISPOSITIVO.pack3 : '';
+    alertComercia('Cada dispositivo extra sale $'+e+'/mes, o un pack de 3 a $'+p+'/mes (más económico). Muy pronto vas a poder sumarlos y pagarlos desde acá. \uD83D\uDE4C', 'Comprar dispositivos');
   }
 }
 
