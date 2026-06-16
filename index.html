@@ -4994,6 +4994,8 @@
   <footer class="footer">&copy; 2026 Comercia &middot; Hecho en Argentina</footer>
 </div>
 
+<div id="storefront" style="display:none"></div>
+
 <div class="modal-overlay" id="modalRegister">
   <div class="modal">
     <button class="modal-close" onclick="closeModals()">&times;</button>
@@ -5150,6 +5152,9 @@
         </a>
         <a class="nav-item" data-module="ia" onclick="navTo('ia')">
           <span class="nav-item-icon"><i class="ti ti-robot"></i></span><span>Asistente IA</span>
+        </a>
+        <a class="nav-item" data-module="tienda" onclick="navTo('tienda')">
+          <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Tienda Online</span>
         </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
@@ -7229,6 +7234,42 @@
         </div>
       </div>
 
+      <div class="module" id="moduleTienda">
+        <header class="main-header">
+          <h1 class="main-title">Tienda Online</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="verTienda()">&#128065; Ver tienda</button>
+            <button class="btn btn-primary btn-sm" id="tiendaBtnPublicar" onclick="guardarPublicarTienda()">&#128722; Guardar y publicar</button>
+          </div>
+        </header>
+        <details class="ayuda-mod"><summary><span class="ay-ico">&#128722;</span><span>¿Cómo funciona la Tienda Online?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Una <b>vitrina pública</b> de tu catálogo para que tus clientes vean y te pidan.<ul><li>Activá la tienda, poné tu <b>WhatsApp</b> y tocá <b>Guardar y publicar</b>.</li><li>Se publican tus productos con <b>precio de venta y foto</b> (nunca el costo).</li><li>Compartí el <b>link</b> por WhatsApp o Instagram. Los pedidos te llegan por WhatsApp.</li><li>Cada vez que cambies precios o productos, volvé a <b>publicar</b> para actualizar la tienda.</li></ul></div></details>
+        <div class="main-body">
+          <div class="alert error" id="tiendaAlert"></div>
+          <div class="table-card" style="padding:24px;max-width:680px">
+            <label style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:20px">
+              <input type="checkbox" id="tiendaActiva" style="width:18px;height:18px"> Tienda online activa (visible para tus clientes)
+            </label>
+            <div class="form-group">
+              <label class="form-label">WhatsApp para recibir pedidos</label>
+              <input class="form-input" type="text" id="tiendaWhatsapp" placeholder="Ej: 5493764123456 (código de país, sin + ni espacios)" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mensaje de bienvenida (opcional)</label>
+              <input class="form-input" type="text" id="tiendaBienvenida" placeholder="Ej: ¡Bienvenido! Hacé tu pedido y te lo preparamos." autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Link de tu tienda</label>
+              <div style="display:flex;gap:8px">
+                <input class="form-input" type="text" id="tiendaLink" readonly style="font-family:var(--mono);font-size:12px">
+                <button class="btn btn-line btn-sm" onclick="copiarLinkTienda()" style="flex:none">Copiar</button>
+              </div>
+              <div style="font-size:11px;color:var(--text-mute);margin-top:6px">Compartí este link con tus clientes (WhatsApp, Instagram, etc.).</div>
+            </div>
+            <div id="tiendaEstado" style="font-size:12px;color:var(--text-mute);margin-top:12px"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="module" id="moduleConfiguracion">
         <header class="main-header">
           <h1 class="main-title">Configuración</h1>
@@ -9032,6 +9073,7 @@ async function cargarEmpresaUsuario(user){
 }
 
 auth.onAuthStateChanged(async function(user){
+  if(window.STORE_MODE) return;  // en modo tienda pública no tocamos el login
   var landing = document.getElementById('landing');
   var app     = document.getElementById('app');
   var banner  = document.getElementById('emailVerifyBanner');
@@ -9457,6 +9499,7 @@ function navTo(modulo){
   if(modulo==='entradaStock') initEntradaStock();
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
+  if(modulo==='tienda') initTienda();
   if(modulo==='consultaPrecios') initConsultaPrecios();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
@@ -9642,6 +9685,296 @@ function renderLandingPrecios(){
 }
 if(document.readyState !== 'loading'){ try{ renderLandingPrecios(); }catch(e){} }
 else { document.addEventListener('DOMContentLoaded', function(){ try{ renderLandingPrecios(); }catch(e){} }); }
+
+// ═══════════════════════════════════════════════════════
+// TIENDA ONLINE — administración
+// ═══════════════════════════════════════════════════════
+function tiendaPublicUrl(){
+  return location.origin + location.pathname + '?tienda=' + encodeURIComponent(currentEmpresaId || '');
+}
+async function initTienda(){
+  var link = document.getElementById('tiendaLink'); if(link) link.value = tiendaPublicUrl();
+  if(typeof hideAlerts === 'function') hideAlerts();
+  try{
+    var d = await db.collection('tiendas').doc(currentEmpresaId).get();
+    var x = d.exists ? d.data() : {};
+    var a = document.getElementById('tiendaActiva'); if(a) a.checked = !!x.activa;
+    var w = document.getElementById('tiendaWhatsapp'); if(w) w.value = x.whatsapp || '';
+    var b = document.getElementById('tiendaBienvenida'); if(b) b.value = x.bienvenida || '';
+    var est = document.getElementById('tiendaEstado');
+    if(est){
+      est.innerHTML = x.actualizado
+        ? ('&#9989; Publicada · ' + ((x.items && x.items.length) || 0) + ' productos · última vez: ' + new Date(x.actualizado).toLocaleString('es-AR'))
+        : 'Todavía no publicaste tu tienda. Completá los datos y tocá <b>Guardar y publicar</b>.';
+    }
+  }catch(e){ /* primera vez, sin doc */ }
+}
+async function guardarPublicarTienda(){
+  if(!currentEmpresaId) return;
+  var btn = document.getElementById('tiendaBtnPublicar');
+  if(btn){ btn.disabled = true; btn.textContent = 'Publicando...'; }
+  try{
+    var wa = (document.getElementById('tiendaWhatsapp').value || '').replace(/[^0-9]/g, '');
+    var lista = (typeof productos !== 'undefined' && productos) ? productos : [];
+    var items = [], MAX = 800;
+    for(var i = 0; i < lista.length && items.length < MAX; i++){
+      var pr = lista[i];
+      if(!(Number(pr.precioVenta) > 0)) continue; // solo con precio de venta
+      items.push({
+        c: pr.codigo || '',
+        n: pr.descripcion || 'Producto',
+        p: Number(pr.precioVenta) || 0,
+        f: pr.fotoUrl || '',
+        r: pr.rubro || '',
+        s: Number(pr.stock) || 0
+      });
+    }
+    var data = {
+      activa: !!document.getElementById('tiendaActiva').checked,
+      nombre: currentEmpresa ? (currentEmpresa.nombre || 'Tienda') : 'Tienda',
+      logoUrl: currentEmpresa ? (currentEmpresa.logoUrl || '') : '',
+      color: currentEmpresa ? (currentEmpresa.color || currentEmpresa.colorPrimario || '') : '',
+      whatsapp: wa,
+      bienvenida: (document.getElementById('tiendaBienvenida').value || '').trim(),
+      items: items,
+      actualizado: new Date().toISOString()
+    };
+    await db.collection('tiendas').doc(currentEmpresaId).set(data, { merge: true });
+    if(typeof toast === 'function') toast('Tienda publicada (' + items.length + ' productos)', 'success');
+    initTienda();
+  }catch(e){
+    if(typeof showAlert === 'function') showAlert('tiendaAlert', 'No se pudo publicar: ' + (e.message || ''));
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '&#128722; Guardar y publicar'; }
+  }
+}
+function copiarLinkTienda(){
+  var i = document.getElementById('tiendaLink'); if(!i) return;
+  i.select();
+  var ok = function(){ if(typeof toast === 'function') toast('Link copiado', 'success'); };
+  if(navigator.clipboard){ navigator.clipboard.writeText(i.value).then(ok).catch(function(){ try{ document.execCommand('copy'); ok(); }catch(e){} }); }
+  else { try{ document.execCommand('copy'); ok(); }catch(e){} }
+}
+function verTienda(){ window.open(tiendaPublicUrl(), '_blank'); }
+
+// ═══════════════════════════════════════════════════════
+// TIENDA ONLINE — vitrina pública (modo tienda)
+// ═══════════════════════════════════════════════════════
+var _sfData = null, _sfCart = [], _sfFiltro = '', _sfRubro = '', _sfRubros = [];
+function sfPeso(n){ try{ return '$' + Number(n || 0).toLocaleString('es-AR'); }catch(e){ return '$' + n; } }
+function sfEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function injectStorefrontStyles(){
+  if(document.getElementById('sfStyles')) return;
+  var st = document.createElement('style'); st.id = 'sfStyles';
+  st.textContent = [
+    '#storefront{--sf-accent:#f97316;font-family:inherit;min-height:100vh;background:#f6f6f7;color:#1a1a2e}',
+    '.sf-top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #ececec;display:flex;align-items:center;gap:12px;padding:12px 18px}',
+    '.sf-logo{width:40px;height:40px;border-radius:9px;object-fit:contain;background:#fff;border:1px solid #eee}',
+    '.sf-logo-ph{width:40px;height:40px;border-radius:9px;background:var(--sf-accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}',
+    '.sf-name{font-size:17px;font-weight:800;letter-spacing:-.01em}',
+    '.sf-cartbtn{margin-left:auto;position:relative;background:var(--sf-accent);color:#fff;border:none;border-radius:11px;padding:9px 16px;font-weight:700;font-size:14px;cursor:pointer}',
+    '.sf-cartbtn .sf-count{position:absolute;top:-7px;right:-7px;background:#1a1a2e;color:#fff;border-radius:99px;min-width:20px;height:20px;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 5px}',
+    '.sf-wrap{max-width:1080px;margin:0 auto;padding:18px}',
+    '.sf-welcome{background:#fff;border:1px solid #ececec;border-radius:14px;padding:14px 18px;font-size:14px;color:#444;margin-bottom:16px}',
+    '.sf-search{width:100%;padding:12px 16px;border:1px solid #e0e0e0;border-radius:12px;font-size:15px;outline:none;margin-bottom:12px;box-sizing:border-box}',
+    '.sf-rubros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}',
+    '.sf-chip{border:1px solid #e0e0e0;background:#fff;color:#444;border-radius:99px;padding:6px 14px;font-size:13px;cursor:pointer;white-space:nowrap}',
+    '.sf-chip.on{background:var(--sf-accent);color:#fff;border-color:var(--sf-accent)}',
+    '.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}',
+    '.sf-card{background:#fff;border:1px solid #ececec;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}',
+    '.sf-thumb{aspect-ratio:1/1;background:#f0f0f1;display:flex;align-items:center;justify-content:center;overflow:hidden}',
+    '.sf-thumb img{width:100%;height:100%;object-fit:cover}',
+    '.sf-thumb .sf-noimg{font-size:30px;opacity:.3}',
+    '.sf-body{padding:11px 12px;display:flex;flex-direction:column;gap:6px;flex:1}',
+    '.sf-pname{font-size:13.5px;font-weight:600;line-height:1.3;color:#1a1a2e}',
+    '.sf-pcode{font-size:10.5px;color:#999;font-family:monospace}',
+    '.sf-pprice{font-size:16px;font-weight:800;color:#1a1a2e;margin-top:auto}',
+    '.sf-add{border:none;background:var(--sf-accent);color:#fff;border-radius:9px;padding:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px}',
+    '.sf-empty{text-align:center;color:#999;padding:50px 20px}',
+    '.sf-msg{max-width:420px;margin:14vh auto;text-align:center;padding:0 20px}',
+    '.sf-msg-ico{font-size:46px;margin-bottom:10px}.sf-msg h2{font-size:20px;margin:0 0 6px}.sf-msg p{color:#777}',
+    '.sf-loading{text-align:center;padding:18vh 20px;color:#999}',
+    '.sf-drawer-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none}',
+    '.sf-drawer-bg.open{display:block}',
+    '.sf-drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:90vw;background:#fff;z-index:41;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column}',
+    '.sf-drawer.open{transform:translateX(0)}',
+    '.sf-dhead{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #eee}',
+    '.sf-dhead h3{margin:0;font-size:17px}',
+    '.sf-x{background:none;border:none;font-size:24px;cursor:pointer;color:#888;line-height:1}',
+    '.sf-ditems{flex:1;overflow-y:auto;padding:10px 18px}',
+    '.sf-citem{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0}',
+    '.sf-citem-n{flex:1;font-size:13px}',
+    '.sf-qty{display:flex;align-items:center;gap:8px}',
+    '.sf-qbtn{width:26px;height:26px;border:1px solid #ddd;background:#fff;border-radius:7px;cursor:pointer;font-size:15px;line-height:1}',
+    '.sf-dfoot{padding:16px 18px;border-top:1px solid #eee}',
+    '.sf-total{display:flex;justify-content:space-between;font-weight:800;font-size:17px;margin-bottom:12px}',
+    '.sf-wa{width:100%;border:none;background:#25D366;color:#fff;border-radius:12px;padding:14px;font-weight:800;font-size:15px;cursor:pointer}',
+    '.sf-foot{text-align:center;color:#aaa;font-size:12px;padding:30px}'
+  ].join('');
+  document.head.appendChild(st);
+}
+
+async function initStorefront(empresaId){
+  var root = document.getElementById('storefront');
+  if(!root) return;
+  injectStorefrontStyles();
+  root.innerHTML = '<div class="sf-loading">Cargando tienda…</div>';
+  try{
+    var d = await db.collection('tiendas').doc(empresaId).get();
+    if(!d.exists || !d.data().activa){
+      root.innerHTML = '<div class="sf-msg"><div class="sf-msg-ico">&#128722;</div><h2>Tienda no disponible</h2><p>Esta tienda no está publicada en este momento.</p></div>';
+      return;
+    }
+    _sfData = d.data();
+    _sfData.items = _sfData.items || [];
+    var rset = {}; _sfData.items.forEach(function(it){ if(it.r) rset[it.r] = 1; });
+    _sfRubros = Object.keys(rset).sort();
+    document.title = (_sfData.nombre || 'Tienda') + ' · Comercia';
+    renderStorefront();
+  }catch(e){
+    root.innerHTML = '<div class="sf-msg"><div class="sf-msg-ico">&#9888;&#65039;</div><h2>No pudimos cargar la tienda</h2><p>' + sfEsc((e && e.message) || '') + '</p></div>';
+  }
+}
+
+function renderStorefront(){
+  var root = document.getElementById('storefront'); if(!root || !_sfData) return;
+  var color = _sfData.color || '#f97316';
+  var logo = _sfData.logoUrl
+    ? '<img class="sf-logo" src="' + sfEsc(_sfData.logoUrl) + '" alt="">'
+    : '<div class="sf-logo-ph">' + sfEsc((_sfData.nombre || 'C').charAt(0).toUpperCase()) + '</div>';
+  var html = '' +
+    '<div class="sf-top" style="--sf-accent:' + sfEsc(color) + '">' + logo +
+      '<div class="sf-name">' + sfEsc(_sfData.nombre || 'Tienda') + '</div>' +
+      '<button class="sf-cartbtn" onclick="sfAbrirCart()">Pedido<span class="sf-count" id="sfCount">0</span></button>' +
+    '</div>' +
+    '<div class="sf-wrap" style="--sf-accent:' + sfEsc(color) + '">' +
+      (_sfData.bienvenida ? '<div class="sf-welcome">' + sfEsc(_sfData.bienvenida) + '</div>' : '') +
+      '<input class="sf-search" id="sfSearch" placeholder="Buscar productos…" oninput="sfBuscar(this.value)">' +
+      '<div class="sf-rubros" id="sfRubros"></div>' +
+      '<div class="sf-grid" id="sfGrid"></div>' +
+      '<div class="sf-foot">Hecho con <b>Comercia</b></div>' +
+    '</div>' +
+    '<div class="sf-drawer-bg" id="sfDrawerBg" onclick="sfCerrarCart()"></div>' +
+    '<div class="sf-drawer" id="sfDrawer" style="--sf-accent:' + sfEsc(color) + '">' +
+      '<div class="sf-dhead"><h3>Tu pedido</h3><button class="sf-x" onclick="sfCerrarCart()">&times;</button></div>' +
+      '<div class="sf-ditems" id="sfCartItems"></div>' +
+      '<div class="sf-dfoot">' +
+        '<div class="sf-total"><span>Total</span><span id="sfTotal">$0</span></div>' +
+        '<button class="sf-wa" onclick="sfCheckout()">&#128241; Finalizar pedido por WhatsApp</button>' +
+      '</div>' +
+    '</div>';
+  root.innerHTML = html;
+  sfRenderRubros();
+  sfRenderGrid();
+  sfRenderCart();
+}
+
+function sfRenderRubros(){
+  var c = document.getElementById('sfRubros'); if(!c) return;
+  if(!_sfRubros.length){ c.style.display = 'none'; return; }
+  var html = '<button class="sf-chip' + (_sfRubro === '' ? ' on' : '') + '" onclick="sfSetRubro(-1)">Todos</button>';
+  _sfRubros.forEach(function(r, idx){
+    html += '<button class="sf-chip' + (_sfRubro === r ? ' on' : '') + '" onclick="sfSetRubro(' + idx + ')">' + sfEsc(r) + '</button>';
+  });
+  c.innerHTML = html;
+}
+function sfSetRubro(idx){ _sfRubro = (idx < 0) ? '' : (_sfRubros[idx] || ''); sfRenderRubros(); sfRenderGrid(); }
+function sfBuscar(v){ _sfFiltro = (v || '').toLowerCase(); sfRenderGrid(); }
+
+function sfItemsFiltrados(){
+  return (_sfData.items || []).filter(function(it){
+    if(_sfRubro && it.r !== _sfRubro) return false;
+    if(_sfFiltro){
+      var hay = ((it.n || '') + ' ' + (it.c || '')).toLowerCase();
+      if(hay.indexOf(_sfFiltro) < 0) return false;
+    }
+    return true;
+  });
+}
+function sfRenderGrid(){
+  var g = document.getElementById('sfGrid'); if(!g) return;
+  var items = sfItemsFiltrados();
+  if(!items.length){ g.innerHTML = '<div class="sf-empty">No encontramos productos.</div>'; return; }
+  g.innerHTML = items.map(function(it){
+    var realIdx = _sfData.items.indexOf(it);
+    var thumb = it.f
+      ? '<img src="' + sfEsc(it.f) + '" alt="" loading="lazy">'
+      : '<span class="sf-noimg">&#128230;</span>';
+    return '<div class="sf-card">' +
+      '<div class="sf-thumb">' + thumb + '</div>' +
+      '<div class="sf-body">' +
+        '<div class="sf-pname">' + sfEsc(it.n) + '</div>' +
+        (it.c ? '<div class="sf-pcode">' + sfEsc(it.c) + '</div>' : '') +
+        '<div class="sf-pprice">' + sfPeso(it.p) + '</div>' +
+        '<button class="sf-add" onclick="sfAgregar(' + realIdx + ')">Agregar</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function sfAgregar(idx){
+  var it = _sfData.items[idx]; if(!it) return;
+  var ex = null; for(var i = 0; i < _sfCart.length; i++){ if(_sfCart[i].idx === idx){ ex = _sfCart[i]; break; } }
+  if(ex){ ex.qty++; } else { _sfCart.push({ idx: idx, item: it, qty: 1 }); }
+  sfRenderCart();
+  var cb = document.querySelector('.sf-cartbtn'); if(cb){ cb.style.transform = 'scale(1.08)'; setTimeout(function(){ cb.style.transform = ''; }, 120); }
+}
+function sfQty(idx, delta){
+  for(var i = 0; i < _sfCart.length; i++){
+    if(_sfCart[i].idx === idx){
+      _sfCart[i].qty += delta;
+      if(_sfCart[i].qty <= 0){ _sfCart.splice(i, 1); }
+      break;
+    }
+  }
+  sfRenderCart();
+}
+function sfRenderCart(){
+  var cont = document.getElementById('sfCartItems'), totalEl = document.getElementById('sfTotal'), countEl = document.getElementById('sfCount');
+  var total = 0, count = 0;
+  _sfCart.forEach(function(c){ total += c.item.p * c.qty; count += c.qty; });
+  if(countEl) countEl.textContent = count;
+  if(totalEl) totalEl.textContent = sfPeso(total);
+  if(cont){
+    if(!_sfCart.length){ cont.innerHTML = '<div class="sf-empty" style="padding:40px 0">Tu pedido está vacío.</div>'; }
+    else {
+      cont.innerHTML = _sfCart.map(function(c){
+        return '<div class="sf-citem">' +
+          '<div class="sf-citem-n">' + sfEsc(c.item.n) + '<br><small style="color:#888">' + sfPeso(c.item.p) + '</small></div>' +
+          '<div class="sf-qty"><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',-1)">&minus;</button>' +
+          '<b>' + c.qty + '</b><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',1)">+</button></div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+}
+function sfAbrirCart(){ var b = document.getElementById('sfDrawerBg'), d = document.getElementById('sfDrawer'); if(b) b.classList.add('open'); if(d) d.classList.add('open'); }
+function sfCerrarCart(){ var b = document.getElementById('sfDrawerBg'), d = document.getElementById('sfDrawer'); if(b) b.classList.remove('open'); if(d) d.classList.remove('open'); }
+function sfCheckout(){
+  if(!_sfCart.length){ if(typeof toast === 'function') toast('Agregá productos primero', 'error'); return; }
+  var lineas = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n + ' — ' + sfPeso(c.item.p * c.qty); });
+  var total = _sfCart.reduce(function(s, c){ return s + c.item.p * c.qty; }, 0);
+  var msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + '*';
+  var wa = (_sfData && _sfData.whatsapp) ? String(_sfData.whatsapp).replace(/[^0-9]/g, '') : '';
+  var url = wa ? ('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg)) : ('https://wa.me/?text=' + encodeURIComponent(msg));
+  window.open(url, '_blank');
+}
+
+// Arranque en modo tienda pública (?tienda=ID)
+function bootStoreMode(){
+  try{
+    var tiendaId = new URLSearchParams(location.search).get('tienda');
+    if(!tiendaId) return;
+    window.STORE_MODE = true;
+    var l = document.getElementById('landing'); if(l) l.style.display = 'none';
+    var a = document.getElementById('app'); if(a) a.classList.remove('show');
+    var sf = document.getElementById('storefront'); if(sf) sf.style.display = 'block';
+    initStorefront(tiendaId);
+  }catch(e){ console.warn('store mode', e); }
+}
+if(document.readyState !== 'loading'){ bootStoreMode(); }
+else { document.addEventListener('DOMContentLoaded', bootStoreMode); }
 function renderPlan(){
   var p = planActual(), cort = esCortesia();
   var esPro = (p === 'pro'), esPremium = (p === 'premium');
