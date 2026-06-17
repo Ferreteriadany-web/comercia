@@ -7300,6 +7300,7 @@
                   <button class="btn btn-line btn-sm" id="rbVerBtn" onclick="rbVerProductos()" style="width:100%;justify-content:center">Mostrar productos del proveedor</button>
                   <div id="rbLista" style="margin-top:10px"></div>
                   <div id="iaRubrosProgress" style="margin-top:8px;font-size:13px;color:var(--text-mute)"></div>
+                  <div style="margin-top:10px;text-align:center"><button class="btn btn-line btn-sm" onclick="rbRecargarNube()" style="font-size:11.5px;padding:5px 10px">&#128260; ¿Asignaste rubros antes y no aparecen? Recargá desde la nube</button></div>
                 </div>
               </div>
               <div class="tw-step" data-step="4" hidden>
@@ -9972,25 +9973,45 @@ async function rbAsignar(){
   if(!rubro){ if(prog) prog.innerHTML = 'Elegí un rubro.'; return; }
   var lista = window._rbLista || [];
   var sel = [];
-  Array.prototype.forEach.call(document.querySelectorAll('#rbLista .rb-chk'), function(c){
-    if(c.checked){ var p = lista[parseInt(c.getAttribute('data-idx'), 10)]; if(p) sel.push(p); }
+  Array.prototype.forEach.call(document.querySelectorAll('#rbLista .rb-row'), function(row){
+    if(row.style.display === 'none') return; // lo oculto por el filtro NO se asigna
+    var chk = row.querySelector('.rb-chk');
+    if(chk && chk.checked){ var p = lista[parseInt(row.getAttribute('data-idx'), 10)]; if(p) sel.push(p); }
   });
-  if(!sel.length){ if(prog) prog.innerHTML = 'No marcaste ningún producto.'; return; }
+  if(!sel.length){ if(prog) prog.innerHTML = 'No hay productos marcados (y visibles) para asignar.'; return; }
   if(prog) prog.innerHTML = 'Guardando ' + sel.length + '…';
   try{
+    var nowIso = new Date().toISOString();
     for(var i = 0; i < sel.length; i += 400){
       var batch = db.batch();
       sel.slice(i, i + 400).forEach(function(p){
-        batch.set(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id), { rubro: rubro }, { merge: true });
-        p.rubro = rubro;
+        batch.set(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id), { rubro: rubro, updatedAt: nowIso }, { merge: true });
+        p.rubro = rubro; p.updatedAt = nowIso;
       });
       await batch.commit();
     }
+    try{ await idbGuardarBatch(currentEmpresaId, sel); }catch(e){} // guardar también en el caché local para que NO se pierda
     if(prog) prog.innerHTML = '&#9989; Listo: ' + sel.length + ' producto(s) marcados como "' + eH(rubro) + '".' +
       '<div style="margin-top:6px;font-size:12px;color:var(--text-mute)">&#128073; Repetí con otro proveedor/rubro y al final volvé a <b>publicar</b> (paso 5).</div>';
   }catch(e){ if(prog) prog.innerHTML = 'No se pudo guardar: ' + eH(e.message || String(e)); return; }
-  try{ if(typeof cargarProductos === 'function') await cargarProductos(); }catch(e){}
+  if(typeof renderProductos === 'function') renderProductos();
+  if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
   var box = document.getElementById('twRubrosBox'); if(box) box.removeAttribute('data-render');
+  if(typeof twRenderRubros === 'function') twRenderRubros();
+  rbVerProductos();
+  iaRubrosPrep();
+}
+// Recargar TODOS los productos desde la nube (recupera rubros ya guardados en Firestore)
+async function rbRecargarNube(){
+  if(!currentEmpresaId) return;
+  var prog = document.getElementById('iaRubrosProgress');
+  if(prog) prog.innerHTML = 'Recargando productos desde la nube…';
+  try{
+    await idbSetMeta(currentEmpresaId, { ultSync: null, totalDocs: 0, updatedAt: new Date().toISOString() });
+    await sincronizarProductos(currentEmpresaId);
+    if(prog) prog.innerHTML = '&#9989; Productos recargados. Si ya habías asignado rubros, ya están acá. Ahora volvé a <b>publicar</b> (paso 5).';
+  }catch(e){ if(prog) prog.innerHTML = 'No se pudo recargar: ' + eH(e.message || String(e)); return; }
+  var box2 = document.getElementById('twRubrosBox'); if(box2) box2.removeAttribute('data-render');
   if(typeof twRenderRubros === 'function') twRenderRubros();
   rbVerProductos();
   iaRubrosPrep();
