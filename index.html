@@ -12135,8 +12135,6 @@ async function iaDescripcionProducto(info){
   var prov = String(info.prov || '').trim();
   var codigo = String(info.codigo || '').trim();
   var codBarra = String(info.codBarra || '').trim();
-  var endpoint = (typeof iaEndpoint === 'function') ? iaEndpoint() : '';
-  if(!endpoint) return { error: 'sin_endpoint' };
   var instrBusqueda = info.liviano
     ? 'Escribí la descripción usando tu propio conocimiento del producto; NO busques en la web.\n'
     : 'Para identificarlo bien, si necesitás buscar en la web, priorizá la página oficial del proveedor/fabricante e identificá el producto por su código o su código de barras (EAN). Si por el nombre no lo encontrás, intentá por el CÓDIGO y por el CÓDIGO DE BARRAS.\n';
@@ -12157,12 +12155,9 @@ async function iaDescripcionProducto(info){
     (codigo ? ('- Código: ' + codigo + '\n') : '') +
     (codBarra ? ('- Código de barras (EAN): ' + codBarra + '\n') : '');
   try{
-    var resp = await fetch(endpoint, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ mode:'consultas', messages:[{ role:'user', content: prompt }] })
-    });
-    if(!resp.ok) return { error: 'HTTP ' + resp.status };
-    var data = await resp.json();
+    var fn = functions.httpsCallable('asistenteIA');
+    var res = await fn({ mode:'consultas', buscarWeb: !info.liviano, messages:[{ role:'user', content: prompt }] });
+    var data = (res && res.data) ? res.data : {};
     var texto = (data.reply || data.text || '').trim();
     texto = texto.replace(/^["'«»\u201c\u201d]+|["'«»\u201c\u201d]+$/g, '').trim();
     texto = texto.replace(/^(descripci[oó]n|respuesta)\s*:\s*/i, '').trim();
@@ -12175,11 +12170,6 @@ async function iaDescripcionProducto(info){
 async function prodGenerarDescripcionIA(){
   var nombre = document.getElementById('prodDescripcion').value.trim();
   if(!nombre){ return showAlert('prodAlert','Primero escribí la descripción/nombre del producto (ej. "Taladro inalámbrico 18V").'); }
-  if(!(typeof iaEndpoint === 'function' && iaEndpoint())){
-    if(typeof toast === 'function') toast('Primero configurá la IA (en Asistente IA → Configurar)', 'error');
-    if(typeof iaConfig === 'function') iaConfig();
-    return;
-  }
   var rubro = document.getElementById('prodRubro').value.trim();
   var prov  = document.getElementById('prodProveedor').value.trim();
   var btn = document.getElementById('prodIaBtn');
@@ -12205,11 +12195,6 @@ async function prodGenerarDescripcionIA(){
 // Generación MASIVA: completa las descripciones que la IA tenga claras y reporta las que no.
 async function tnGenerarDescripcionesMasivo(){
   if(!currentEmpresaId) return;
-  if(!(typeof iaEndpoint === 'function' && iaEndpoint())){
-    if(typeof toast === 'function') toast('Primero configurá la IA (Asistente IA → Configurar)', 'error');
-    if(typeof iaConfig === 'function') iaConfig();
-    return;
-  }
   var prog = document.getElementById('tnGenDescProgress');
   var lista = (typeof productos !== 'undefined' && productos ? productos : []).filter(function(p){
     return Number(p.precioVenta) > 0 && !((p.detalle || '').trim());
@@ -26192,7 +26177,7 @@ async function lpCargarHistorial(){
     var cont = document.getElementById('iaChat'); if(!cont) return;
     var msgs = iaMsgs[iaModo] || [];
     if(msgs.length === 0){
-      var hint = iaEndpoint() ? 'Escribí tu consulta abajo 👇' : '⚙ Primero configurá la conexión con la IA (botón "Configurar").';
+      var hint = 'Escribí tu consulta abajo 👇';
       cont.innerHTML = '<div class="ia-empty">' + hint + '</div>'; return;
     }
     var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
@@ -26319,20 +26304,19 @@ async function lpCargarHistorial(){
   async function iaEnviar(){
     var input = document.getElementById('iaInput'); if(!input) return;
     var txt = input.value.trim(); if(!txt || iaCargando) return;
-    var endpoint = iaEndpoint(); if(!endpoint){ iaConfig(); return; }
     input.value='';
     iaMsgs[iaModo].push({ role:'user', content:txt });
     iaCargando = true; iaRender();
-    var payload = { messages: iaMsgs[iaModo], mode: iaModo };
+    var payload = { messages: iaMsgs[iaModo].map(function(m){ return { role:m.role, content:m.content }; }), mode: iaModo, buscarWeb: (iaModo==='consultas') };
     if(iaModo==='comparador'){
       payload.context = iaBuscarCandidatos(txt).map(function(p){
         return { codigo:p.codigo||'', desc:(p.descripcion||p.nombre||''), proveedor:p.proveedor||'', costo:Number(p.precioCosto||p.costoNeto||0), venta:Number(p.precioVenta||0) };
       });
     }
     try{
-      var resp = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-      if(!resp.ok) throw new Error('HTTP '+resp.status);
-      var data = await resp.json();
+      var fn = functions.httpsCallable('asistenteIA');
+      var res = await fn(payload);
+      var data = (res && res.data) ? res.data : {};
       if(iaModo==='comparador' && data.comparacion && (data.comparacion.recomendados || data.comparacion.resumen)){
         iaMsgs[iaModo].push({ role:'assistant', content: data.comparacion.resumen || 'Comparación lista.', data: data.comparacion });
       } else {
@@ -26340,7 +26324,7 @@ async function lpCargarHistorial(){
         iaMsgs[iaModo].push({ role:'assistant', content: reply });
       }
     }catch(err){
-      iaMsgs[iaModo].push({ role:'assistant', content:'No me pude conectar con la IA. Revisá que la Cloud Function esté desplegada y la URL configurada (botón "Configurar"). Detalle: '+(err.message||err) });
+      iaMsgs[iaModo].push({ role:'assistant', content:'No me pude conectar con la IA. Detalle: '+(err.message||err) });
     }
     iaCargando=false; iaRender();
   }
