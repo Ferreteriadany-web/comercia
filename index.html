@@ -10122,6 +10122,26 @@ function injectStorefrontStyles(){
     '.sf-pdesc{font-size:11.5px;color:#555;line-height:1.5;white-space:normal;display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden}',
     '.sf-consultar{color:#e08e3c;font-weight:700}',
     '.sf-pstock{font-size:11px;color:#888;margin-top:2px}',
+    '.sf-asesor-fab{position:fixed;left:16px;bottom:16px;z-index:60;background:var(--sf-accent);color:#fff;border:none;border-radius:28px;padding:13px 18px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.18)}',
+    '.sf-asesor-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:70;opacity:0;pointer-events:none;transition:.2s}',
+    '.sf-asesor-bg.open{opacity:1;pointer-events:auto}',
+    '.sf-asesor{position:fixed;right:0;bottom:0;z-index:71;width:100%;max-width:430px;height:82vh;max-height:640px;background:#fff;border-radius:16px 16px 0 0;display:flex;flex-direction:column;transform:translateY(110%);transition:.25s;box-shadow:0 -8px 30px rgba(0,0,0,.2)}',
+    '@media(min-width:600px){.sf-asesor{right:16px;bottom:16px;border-radius:16px;height:600px}}',
+    '.sf-asesor.open{transform:translateY(0)}',
+    '.sf-ahead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:var(--sf-accent);color:#fff;border-radius:16px 16px 0 0;font-weight:700;font-size:15px}',
+    '.sf-ahead .sf-x{color:#fff;background:none;border:none;font-size:22px;cursor:pointer;line-height:1}',
+    '.sf-amsgs{flex:1;overflow-y:auto;padding:14px;background:#f7f7f8;display:flex;flex-direction:column;gap:10px}',
+    '.sf-abubble{max-width:85%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}',
+    '.sf-abot{background:#fff;border:1px solid #eee;align-self:flex-start;border-bottom-left-radius:4px}',
+    '.sf-auser{background:var(--sf-accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}',
+    '.sf-arec{align-self:flex-start;max-width:92%;display:flex;flex-direction:column;gap:6px;width:100%}',
+    '.sf-acard{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #eee;border-radius:10px;padding:7px 9px;font-size:13px}',
+    '.sf-acard span{flex:1}',
+    '.sf-acard button{background:var(--sf-accent);color:#fff;border:none;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}',
+    '.sf-ainput{display:flex;gap:8px;padding:12px;border-top:1px solid #eee;background:#fff}',
+    '.sf-ainput input{flex:1;border:1px solid #ddd;border-radius:10px;padding:11px 13px;font-size:14px;outline:none}',
+    '.sf-ainput button{background:var(--sf-accent);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:700;cursor:pointer}',
+    '.sf-atyping{font-size:13px;color:#999;align-self:flex-start;padding:2px 6px}',
     '.sf-pprice{font-size:16px;font-weight:800;color:#1a1a2e;margin-top:auto}',
     '.sf-add{border:none;background:var(--sf-accent);color:#fff;border-radius:9px;padding:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px}',
     '.sf-empty{text-align:center;color:#999;padding:50px 20px}',
@@ -10149,6 +10169,7 @@ function injectStorefrontStyles(){
 }
 
 async function initStorefront(empresaId){
+  window._sfId = empresaId;
   var root = document.getElementById('storefront');
   if(!root) return;
   injectStorefrontStyles();
@@ -10208,6 +10229,13 @@ function renderStorefront(){
         '<div class="sf-total"><span>Total</span><span id="sfTotal">$0</span></div>' +
         '<button class="sf-wa" onclick="sfCheckout()">&#128241; Finalizar pedido por WhatsApp</button>' +
       '</div>' +
+    '</div>' +
+    '<button class="sf-asesor-fab" id="sfAsesorFab" onclick="sfAsesorAbrir()" style="--sf-accent:' + sfEsc(color) + '">&#128172; ¿Te ayudo a elegir?</button>' +
+    '<div class="sf-asesor-bg" id="sfAsesorBg" onclick="sfAsesorCerrar()"></div>' +
+    '<div class="sf-asesor" id="sfAsesorPanel" style="--sf-accent:' + sfEsc(color) + '">' +
+      '<div class="sf-ahead"><span>&#128736;&#65039; Asesor de ' + sfEsc(_sfData.nombre || 'la tienda') + '</span><button class="sf-x" onclick="sfAsesorCerrar()">&times;</button></div>' +
+      '<div class="sf-amsgs" id="sfAsesorMsgs"></div>' +
+      '<div class="sf-ainput"><input id="sfAsesorInput" placeholder="Escribí lo que buscás…" onkeydown="if(event.key===&#39;Enter&#39;)sfAsesorEnviar()" autocomplete="off"><button onclick="sfAsesorEnviar()">Enviar</button></div>' +
     '</div>';
   root.innerHTML = html;
   var bc = document.getElementById('sfBackCats'); if(bc) bc.style.display = _sfRubros.length ? '' : 'none';
@@ -10359,6 +10387,99 @@ function sfCheckout(){
   }
   var url = wa ? ('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg)) : ('https://wa.me/?text=' + encodeURIComponent(msg));
   window.open(url, '_blank');
+}
+
+// ── Asesor IA de la tienda (vendedor virtual para el cliente) ──
+var _sfAsesorMsgs = [], _sfAsesorCargando = false;
+function sfAsesorAbrir(){
+  var bg = document.getElementById('sfAsesorBg'), p = document.getElementById('sfAsesorPanel');
+  if(bg) bg.classList.add('open'); if(p) p.classList.add('open');
+  if(!_sfAsesorMsgs.length){
+    _sfAsesorMsgs.push({ role: 'assistant', content: '¡Hola! 👋 Soy el asesor de ' + (_sfData.nombre || 'la tienda') + '. Contame qué estás buscando o para qué lo necesitás, y te ayudo a encontrar el producto justo.' });
+    sfAsesorRender();
+  }
+  var inp = document.getElementById('sfAsesorInput'); if(inp) setTimeout(function(){ inp.focus(); }, 200);
+}
+function sfAsesorCerrar(){
+  var bg = document.getElementById('sfAsesorBg'), p = document.getElementById('sfAsesorPanel');
+  if(bg) bg.classList.remove('open'); if(p) p.classList.remove('open');
+}
+function sfAsesorRender(){
+  var c = document.getElementById('sfAsesorMsgs'); if(!c) return;
+  var html = _sfAsesorMsgs.map(function(m){
+    if(m.role === 'user') return '<div class="sf-abubble sf-auser">' + sfEsc(m.content) + '</div>';
+    var bub = '<div class="sf-abubble sf-abot">' + sfEsc(m.content) + '</div>';
+    if(m.productos && m.productos.length){
+      bub += '<div class="sf-arec">' + m.productos.map(function(pr){
+        var idx = sfIdxDe(pr);
+        var btn = (idx >= 0) ? ('<button onclick="sfAgregar(' + idx + ')">Agregar</button>') : '';
+        var precio = (_sfData.mostrarPrecio !== false && pr.p) ? (' — ' + sfPeso(pr.p)) : '';
+        return '<div class="sf-acard"><span><b>' + sfEsc(pr.n || '') + '</b>' + precio + '</span>' + btn + '</div>';
+      }).join('') + '</div>';
+    }
+    return bub;
+  }).join('');
+  if(_sfAsesorCargando) html += '<div class="sf-atyping">escribiendo…</div>';
+  c.innerHTML = html;
+  c.scrollTop = c.scrollHeight;
+}
+function sfIdxDe(pr){
+  var items = _sfData.items || [];
+  for(var i = 0; i < items.length; i++){
+    if((pr.c && items[i].c === pr.c) || (items[i].n === pr.n)) return i;
+  }
+  return -1;
+}
+function sfAsesorCandidatos(){
+  var texto = _sfAsesorMsgs.filter(function(m){ return m.role === 'user'; }).map(function(m){ return m.content; }).join(' ').toLowerCase();
+  var stop = { 'para':1,'que':1,'con':1,'una':1,'uno':1,'los':1,'las':1,'del':1,'por':1,'mas':1,'muy':1,'necesito':1,'quiero':1,'busco':1,'hola':1,'tengo':1,'algo':1,'sobre':1,'como':1,'esta':1,'este':1 };
+  var words = texto.replace(/[^a-záéíóúñ0-9 ]/gi, ' ').split(/\s+/).filter(function(w){ return w.length > 2 && !stop[w]; });
+  if(!words.length) return [];
+  var items = _sfData.items || [], scored = [];
+  items.forEach(function(it){
+    var hay = ((it.n || '') + ' ' + (it.r || '') + ' ' + (it.d || '')).toLowerCase();
+    var sc = 0; words.forEach(function(w){ if(hay.indexOf(w) >= 0) sc++; });
+    if(sc > 0) scored.push({ it: it, sc: sc });
+  });
+  scored.sort(function(a, b){ return b.sc - a.sc; });
+  return scored.slice(0, 30).map(function(s){ return { n: s.it.n, c: s.it.c, p: s.it.p, r: s.it.r }; });
+}
+function sfAsesorProductosEnReply(reply, candidatos){
+  var low = (reply || '').toLowerCase(), matches = [];
+  (candidatos || []).forEach(function(c){
+    var hit = false;
+    if(c.c && low.indexOf(String(c.c).toLowerCase()) >= 0) hit = true;
+    else if(c.n){
+      var nw = c.n.toLowerCase().replace(/[^a-záéíóúñ0-9 ]/gi, ' ').split(/\s+/).filter(function(w){ return w.length > 3; });
+      var got = 0; nw.forEach(function(w){ if(low.indexOf(w) >= 0) got++; });
+      if(nw.length && got >= Math.min(2, nw.length)) hit = true;
+    }
+    if(hit) matches.push(c);
+  });
+  return matches.slice(0, 6);
+}
+async function sfAsesorEnviar(){
+  var inp = document.getElementById('sfAsesorInput'); if(!inp) return;
+  var txt = inp.value.trim(); if(!txt || _sfAsesorCargando) return;
+  inp.value = '';
+  _sfAsesorMsgs.push({ role: 'user', content: txt });
+  _sfAsesorCargando = true; sfAsesorRender();
+  var candidatos = sfAsesorCandidatos();
+  try{
+    var res = await functions.httpsCallable('tiendaAsesorIA')({
+      empresaId: window._sfId || '',
+      messages: _sfAsesorMsgs.map(function(m){ return { role: m.role, content: m.content }; }),
+      candidatos: candidatos,
+      rubros: _sfRubros || []
+    });
+    var data = (res && res.data) ? res.data : {};
+    var reply = data.reply || 'Contame un poco más y te ayudo.';
+    var productos = sfAsesorProductosEnReply(reply, candidatos);
+    _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productos });
+  }catch(err){
+    _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora. Probá de nuevo o escribinos por WhatsApp.' });
+  }
+  _sfAsesorCargando = false; sfAsesorRender();
 }
 
 // Arranque en modo tienda pública (?tienda=ID)
