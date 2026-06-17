@@ -22764,6 +22764,13 @@ function tnCargarEstado(){
           '<div id="tnSyncProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
           '<button class="btn btn-line btn-sm" style="margin-top:12px;width:100%;justify-content:center" id="tnGenDescBtn" onclick="tnGenerarDescripcionesMasivo()">&#10024; Generar descripciones faltantes con IA</button>'+
           '<div id="tnGenDescProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
+          '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line,#eee)">'+
+            '<div style="font-size:12px;color:var(--text-mute);margin-bottom:6px">¿Tu tienda ya tenía productos cargados (otra plataforma o sistema)? Vinculalos por código <b>una sola vez</b> para no duplicarlos.</div>'+
+            '<button class="btn btn-line btn-sm" style="width:100%;justify-content:center" id="tnAdoptarBtn" onclick="tnAdoptarProductos()">&#128279; Vincular productos existentes (por código)</button>'+
+            '<div id="tnAdoptarProgress" style="margin-top:8px;font-size:13px;color:var(--text-mute)"></div>'+
+            '<button class="btn btn-line btn-sm" style="width:100%;justify-content:center;margin-top:8px" id="tnImgBtn" onclick="tnImportarImagenes()">&#128247; Traer im&aacute;genes desde Tienda Nube</button>'+
+            '<div id="tnImgProgress" style="margin-top:8px;font-size:13px;color:var(--text-mute)"></div>'+
+          '</div>'+
           '<button class="btn btn-line btn-sm" style="margin-top:10px" onclick="tnConectar()">Volver a conectar</button>';
       }
     } else {
@@ -22783,6 +22790,63 @@ function tnCargarEstado(){
 function tnConectar(){
   if(!currentEmpresaId){ toast('Ten&eacute;s que estar logueado', 'error'); return; }
   window.location.href = TN_INICIAR_URL + '?empresa=' + encodeURIComponent(currentEmpresaId);
+}
+
+async function tnImportarImagenes(){
+  if(!currentEmpresaId) return;
+  var ok = (typeof confirmComercia === 'function')
+    ? await confirmComercia('Voy a traer las fotos de los productos que ya están en tu Tienda Nube y ponérselas a los productos de Comercia que NO tengan foto (emparejando por código). ¿Seguimos?')
+    : confirm('¿Traer imágenes desde Tienda Nube?');
+  if(!ok) return;
+  var btn = document.getElementById('tnImgBtn');
+  var prog = document.getElementById('tnImgProgress');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Trayendo imágenes...'; }
+  if(prog) prog.innerHTML = 'Leyendo tu tienda y trayendo las fotos…';
+  try{
+    var fn = functions.httpsCallable('tiendanubeImportarImagenes');
+    var res = await fn({});
+    var d = (res && res.data) ? res.data : null;
+    if(!d || !d.ok) throw new Error((d && d.error) || 'No se pudo importar');
+    var msg = '&#9989; Imágenes traídas: '+d.importadas;
+    var extra = [];
+    if(d.yaTenian) extra.push(d.yaTenian+' ya tenían foto');
+    if(d.sinImagen) extra.push(d.sinImagen+' sin foto en la tienda');
+    if(d.sinMatch) extra.push(d.sinMatch+' sin coincidencia de código');
+    if(extra.length) msg += ' &middot; '+extra.join(' &middot; ');
+    if(prog) prog.innerHTML = msg + '.';
+    if(typeof toast === 'function') toast(d.importadas+' imágenes importadas', 'success');
+    if(typeof cargarProductos === 'function') cargarProductos();
+  }catch(e){
+    if(prog) prog.innerHTML = '&#9888;&#65039; '+eH(e.message||'Error al importar imágenes');
+    if(typeof toast === 'function') toast('No se pudieron traer las imágenes', 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '&#128247; Traer imágenes desde Tienda Nube'; }
+  }
+}
+
+async function tnAdoptarProductos(){
+  if(!currentEmpresaId) return;
+  var ok = (typeof confirmComercia === 'function')
+    ? await confirmComercia('Esto lee los productos que YA están en tu Tienda Nube y los empareja por código con los de Comercia, para no duplicarlos al sincronizar. Se hace una sola vez (al migrar). ¿Seguimos?')
+    : confirm('¿Vincular productos existentes por código?');
+  if(!ok) return;
+  var btn = document.getElementById('tnAdoptarBtn');
+  var prog = document.getElementById('tnAdoptarProgress');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Vinculando...'; }
+  if(prog) prog.innerHTML = 'Leyendo tu tienda y emparejando por código…';
+  try{
+    var fn = functions.httpsCallable('tiendanubeAdoptarProductos');
+    var res = await fn({});
+    var d = (res && res.data) ? res.data : null;
+    if(!d || !d.ok) throw new Error((d && d.error) || 'No se pudo vincular');
+    if(prog) prog.innerHTML = '&#9989; Vinculados: '+d.vinculados+' de '+d.leidos+' productos leídos en tu tienda'+(d.sinMatch?(' &middot; '+d.sinMatch+' sin coincidencia de código'):'')+'. Ahora ya podés sincronizar sin duplicar.';
+    if(typeof toast === 'function') toast(d.vinculados+' productos vinculados', 'success');
+  }catch(e){
+    if(prog) prog.innerHTML = '&#9888;&#65039; '+eH(e.message||'Error al vincular');
+    if(typeof toast === 'function') toast('No se pudo vincular', 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '&#128279; Vincular productos existentes (por código)'; }
+  }
 }
 
 async function tnSincronizarProductos(){
