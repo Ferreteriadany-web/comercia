@@ -12137,10 +12137,12 @@ async function iaDescripcionProducto(info){
   var codBarra = String(info.codBarra || '').trim();
   var endpoint = (typeof iaEndpoint === 'function') ? iaEndpoint() : '';
   if(!endpoint) return { error: 'sin_endpoint' };
-  var prompt = 'Tarea: escribir la descripción de venta de un producto para una tienda online, basada en información REAL del producto.\n' +
-    'Para identificarlo bien, si necesitás buscar en la web, priorizá la página oficial del proveedor/fabricante e identificá el producto por su código o su código de barras (EAN). ' +
-    'Si por el nombre no lo encontrás, intentá por el CÓDIGO y por el CÓDIGO DE BARRAS.\n' +
-    'Basá la descripción SOLO en datos que puedas confirmar del producto real (no inventes medidas, materiales ni potencias).\n\n' +
+  var instrBusqueda = info.liviano
+    ? 'Escribí la descripción usando tu propio conocimiento del producto; NO busques en la web.\n'
+    : 'Para identificarlo bien, si necesitás buscar en la web, priorizá la página oficial del proveedor/fabricante e identificá el producto por su código o su código de barras (EAN). Si por el nombre no lo encontrás, intentá por el CÓDIGO y por el CÓDIGO DE BARRAS.\n';
+  var prompt = 'Tarea: escribir la descripción de venta de un producto para una tienda online.\n' +
+    instrBusqueda +
+    'Basá la descripción SOLO en datos que puedas confirmar del producto (no inventes medidas, materiales ni potencias).\n\n' +
     'Formato, SIEMPRE el mismo:\n' +
     '1) Una frase gancho corta y atractiva, con 1 o 2 emojis.\n' +
     '2) Una línea en blanco y un listado de 3 a 5 características o beneficios, uno por línea, cada uno empezando con un emoji.\n' +
@@ -12231,11 +12233,11 @@ async function tnGenerarDescripcionesMasivo(){
     while(intento < 3){
       r = await iaDescripcionProducto({
         nombre: p.descripcion || '', rubro: p.rubro || '', prov: p.proveedor || '',
-        codigo: p.codigo || '', codBarra: p.codBarra || ''
+        codigo: p.codigo || '', codBarra: p.codBarra || '', liviano: true
       });
       if(r && (r.ok || r.sinInfo)) break;
       intento++;
-      if(intento < 3){ await new Promise(function(res){ setTimeout(res, 1500 * intento); }); }
+      if(intento < 3){ await new Promise(function(res){ setTimeout(res, 4000 * intento); }); }
     }
     if(r && r.ok){
       try{
@@ -12253,7 +12255,7 @@ async function tnGenerarDescripcionesMasivo(){
       consecutivos++;
       if(consecutivos >= 12){ cortado = true; break; } // freno de emergencia: la IA viene fallando seguido
     }
-    await new Promise(function(res){ setTimeout(res, 700); });
+    await new Promise(function(res){ setTimeout(res, 1200); });
   }
   if(btn){ btn.disabled = false; btn.innerHTML = '&#10024; Generar descripciones faltantes con IA'; }
   var rep = '&#9989; Generadas: ' + generadas;
