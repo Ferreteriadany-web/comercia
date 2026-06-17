@@ -9815,7 +9815,7 @@ function injectStorefrontStyles(){
     '.sf-body{padding:11px 12px;display:flex;flex-direction:column;gap:6px;flex:1}',
     '.sf-pname{font-size:13.5px;font-weight:600;line-height:1.3;color:#1a1a2e}',
     '.sf-pcode{font-size:10.5px;color:#999;font-family:monospace}',
-    '.sf-pdesc{font-size:11.5px;color:#666;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
+    '.sf-pdesc{font-size:11.5px;color:#555;line-height:1.5;white-space:normal;display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden}',
     '.sf-pprice{font-size:16px;font-weight:800;color:#1a1a2e;margin-top:auto}',
     '.sf-add{border:none;background:var(--sf-accent);color:#fff;border-radius:9px;padding:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px}',
     '.sf-empty{text-align:center;color:#999;padding:50px 20px}',
@@ -9942,7 +9942,7 @@ function sfRenderGrid(){
       '<div class="sf-body">' +
         '<div class="sf-pname">' + sfEsc(it.n) + '</div>' +
         (it.c ? '<div class="sf-pcode">' + sfEsc(it.c) + '</div>' : '') +
-        (it.d ? '<div class="sf-pdesc">' + sfEsc(it.d) + '</div>' : '') +
+        (it.d ? '<div class="sf-pdesc">' + sfEsc(it.d).replace(/\n/g, '<br>') + '</div>' : '') +
         '<div class="sf-pprice">' + sfPeso(it.p) + '</div>' +
         '<button class="sf-add" onclick="sfAgregar(' + realIdx + ')">Agregar</button>' +
       '</div>' +
@@ -12126,11 +12126,40 @@ function editProduct(id){
   autoCollapseSidebar();
 }
 
+// Genera el texto de descripción para un producto usando tu Asistente IA.
+// Devuelve { ok, texto } | { sinInfo:true } | { error }
+async function iaDescripcionProducto(nombre, rubro, prov){
+  var endpoint = (typeof iaEndpoint === 'function') ? iaEndpoint() : '';
+  if(!endpoint) return { error: 'sin_endpoint' };
+  var prompt = 'Escribí la descripción de venta de este producto para una tienda online, SIEMPRE con esta misma estructura y criterio:\n' +
+    '1) Una frase gancho corta y atractiva, con 1 o 2 emojis.\n' +
+    '2) Una línea en blanco, y después un listado de 3 a 5 características o beneficios, uno por línea, cada línea empezando con un emoji.\n' +
+    '3) Una línea en blanco, y una frase final que empiece con "Ideal para" resumiendo el uso, con un emoji.\n' +
+    'Tono vendedor y atractivo, en español rioplatense neutro. Usá emojis con criterio (ni de más ni de menos), siempre el mismo estilo. ' +
+    'Devolvé ÚNICAMENTE la descripción (sin introducciones, comentarios, advertencias, aclaraciones ni comillas). ' +
+    'No inventes datos técnicos exactos (medidas, materiales, potencias) que no puedas confirmar: si no estás seguro, hablá de beneficios generales. ' +
+    'Si NO tenés información concreta de este producto puntual, respondé EXACTAMENTE con la palabra: SIN_INFO\n\n' +
+    'Producto: ' + nombre + (rubro ? ('\nRubro: ' + rubro) : '') + (prov ? ('\nMarca/Proveedor: ' + prov) : '');
+  try{
+    var resp = await fetch(endpoint, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode:'consultas', messages:[{ role:'user', content: prompt }] })
+    });
+    if(!resp.ok) return { error: 'HTTP ' + resp.status };
+    var data = await resp.json();
+    var texto = (data.reply || data.text || '').trim();
+    texto = texto.replace(/^["'«»\u201c\u201d]+|["'«»\u201c\u201d]+$/g, '').trim();
+    texto = texto.replace(/^(descripci[oó]n|respuesta)\s*:\s*/i, '').trim();
+    if(!texto) return { error: 'vacío' };
+    if(/^sin[_\s]?info\b/i.test(texto)) return { sinInfo: true };
+    return { ok: true, texto: texto };
+  }catch(err){ return { error: (err.message || String(err)) }; }
+}
+
 async function prodGenerarDescripcionIA(){
   var nombre = document.getElementById('prodDescripcion').value.trim();
   if(!nombre){ return showAlert('prodAlert','Primero escribí la descripción/nombre del producto (ej. "Taladro inalámbrico 18V").'); }
-  var endpoint = (typeof iaEndpoint === 'function') ? iaEndpoint() : '';
-  if(!endpoint){
+  if(!(typeof iaEndpoint === 'function' && iaEndpoint())){
     if(typeof toast === 'function') toast('Primero configurá la IA (en Asistente IA → Configurar)', 'error');
     if(typeof iaConfig === 'function') iaConfig();
     return;
@@ -12141,26 +12170,68 @@ async function prodGenerarDescripcionIA(){
   var area = document.getElementById('prodDetalle');
   if(btn){ btn.disabled = true; btn.dataset.txt = btn.innerHTML; btn.innerHTML = 'Generando&hellip;'; }
   hideAlerts();
-  var prompt = 'Escribí una descripción de venta para una tienda online, sobre este producto de ferretería/comercio. ' +
-    'Reglas: 2 a 4 oraciones, en español rioplatense neutro, texto corrido (sin títulos, sin viñetas, sin emojis). ' +
-    'No inventes características técnicas que no se deduzcan del nombre. Tono claro y atractivo para el comprador.\n\n' +
-    'Producto: ' + nombre + (rubro ? ('\nRubro: ' + rubro) : '') + (prov ? ('\nMarca/Proveedor: ' + prov) : '');
-  try{
-    var resp = await fetch(endpoint, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ mode:'consultas', messages:[{ role:'user', content: prompt }] })
-    });
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
-    var data = await resp.json();
-    var texto = (data.reply || data.text || '').trim();
-    if(!texto) throw new Error('La IA no devolvió texto.');
-    if(area){ area.value = texto; }
+  var r = await iaDescripcionProducto(nombre, rubro, prov);
+  if(r.ok){
+    if(area){ area.value = r.texto; }
     if(typeof toast === 'function') toast('Descripción generada — revisala y editá si querés', 'success');
-  }catch(err){
-    showAlert('prodAlert','No pude generar la descripción: ' + (err.message || err) + '. Revisá la conexión con la IA.');
-  }finally{
-    if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.txt || '&#10024; Generar con IA'; }
+  } else if(r.sinInfo){
+    showAlert('prodAlert','No encontré información concreta de este producto. Escribí la descripción a mano, o agregá más datos al nombre/marca y volvé a probar.');
+  } else {
+    showAlert('prodAlert','No pude generar la descripción: ' + (r.error || 'error') + '. Revisá la conexión con la IA.');
   }
+  if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.txt || '&#10024; Generar con IA'; }
+}
+
+// Generación MASIVA: completa las descripciones que la IA tenga claras y reporta las que no.
+async function tnGenerarDescripcionesMasivo(){
+  if(!currentEmpresaId) return;
+  if(!(typeof iaEndpoint === 'function' && iaEndpoint())){
+    if(typeof toast === 'function') toast('Primero configurá la IA (Asistente IA → Configurar)', 'error');
+    if(typeof iaConfig === 'function') iaConfig();
+    return;
+  }
+  var prog = document.getElementById('tnGenDescProgress');
+  var lista = (typeof productos !== 'undefined' && productos ? productos : []).filter(function(p){
+    return Number(p.precioVenta) > 0 && !((p.detalle || '').trim());
+  });
+  if(!lista.length){ if(prog) prog.innerHTML = '&#9989; Todos tus productos con precio ya tienen descripción.'; return; }
+  var MAX = 600, recortado = lista.length > MAX;
+  if(recortado) lista = lista.slice(0, MAX);
+  var ok = (typeof confirmComercia === 'function')
+    ? await confirmComercia('La IA va a generar la descripción de ' + lista.length + ' producto(s) que todavía no tienen. Puede tardar un rato. ¿Arrancamos?')
+    : confirm('Generar ' + lista.length + ' descripciones con IA?');
+  if(!ok) return;
+  var btn = document.getElementById('tnGenDescBtn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Generando...'; }
+  var generadas = 0, sinInfo = [], errores = 0;
+  for(var i = 0; i < lista.length; i++){
+    var p = lista[i];
+    if(prog) prog.innerHTML = 'Generando ' + (i+1) + ' de ' + lista.length + '…';
+    var r = await iaDescripcionProducto(p.descripcion || '', p.rubro || '', p.proveedor || '');
+    if(r && r.ok){
+      try{
+        await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto }, { merge: true });
+        p.detalle = r.texto; // reflejar en memoria para la sync/publicación
+        generadas++;
+      }catch(e){ errores++; }
+    } else if(r && r.sinInfo){
+      sinInfo.push(p.descripcion || p.codigo || p._id);
+    } else { errores++; }
+    await new Promise(function(res){ setTimeout(res, 350); });
+  }
+  if(btn){ btn.disabled = false; btn.innerHTML = '&#10024; Generar descripciones faltantes con IA'; }
+  var rep = '&#9989; Generadas: ' + generadas;
+  if(errores) rep += ' &middot; con error: ' + errores;
+  if(sinInfo.length){
+    var muestra = sinInfo.slice(0, 40).map(function(n){ return '• ' + eH(n); }).join('<br>');
+    rep += '<div style="margin-top:10px;padding:10px 12px;background:var(--bg-2,#f7f7f8);border:1px solid var(--line,#eee);border-radius:8px;max-height:200px;overflow:auto;font-size:12px">' +
+      '<b>&#9888;&#65039; Estos no los pude generar (' + sinInfo.length + ') — hacelos a mano:</b><br>' + muestra +
+      (sinInfo.length > 40 ? ('<br>…y ' + (sinInfo.length - 40) + ' más') : '') + '</div>';
+  }
+  if(recortado) rep += '<div style="margin-top:6px;font-size:12px">Generé las primeras ' + MAX + '. Volvé a tocar el botón para seguir con el resto.</div>';
+  if(prog) prog.innerHTML = rep;
+  if(typeof toast === 'function') toast('Listo: ' + generadas + ' descripciones generadas', 'success');
+  if(sinInfo.length) console.log('Productos sin info (descripción no generada):', sinInfo);
 }
 
 async function saveProduct(){
@@ -22670,6 +22741,8 @@ function tnCargarEstado(){
           (s.ultimaSync?('<div class="int-conf-hint" style="margin-top:4px">&Uacute;ltima sincronizaci&oacute;n: '+eH(new Date(s.ultimaSync).toLocaleString('es-AR'))+' &middot; '+(s.productosSync||0)+' productos.</div>'):'')+
           '<button class="btn-form" style="margin-top:12px" id="tnSyncBtn" onclick="tnSincronizarProductos()">&#128260; Sincronizar productos a Tienda Nube</button>'+
           '<div id="tnSyncProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
+          '<button class="btn btn-line btn-sm" style="margin-top:12px;width:100%;justify-content:center" id="tnGenDescBtn" onclick="tnGenerarDescripcionesMasivo()">&#10024; Generar descripciones faltantes con IA</button>'+
+          '<div id="tnGenDescProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
           '<button class="btn btn-line btn-sm" style="margin-top:10px" onclick="tnConectar()">Volver a conectar</button>';
       }
     } else {
