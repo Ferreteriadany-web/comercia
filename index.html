@@ -7245,27 +7245,74 @@
         <details class="ayuda-mod"><summary><span class="ay-ico">&#128722;</span><span>¿Cómo funciona la Tienda Online?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Una <b>vitrina pública</b> de tu catálogo para que tus clientes vean y te pidan.<ul><li>Activá la tienda, poné tu <b>WhatsApp</b> y tocá <b>Guardar y publicar</b>.</li><li>Se publican tus productos con <b>precio de venta y foto</b> (nunca el costo).</li><li>Compartí el <b>link</b> por WhatsApp o Instagram. Los pedidos te llegan por WhatsApp.</li><li>Cada vez que cambies precios o productos, volvé a <b>publicar</b> para actualizar la tienda.</li></ul></div></details>
         <div class="main-body">
           <div class="alert error" id="tiendaAlert"></div>
-          <div class="table-card" style="padding:24px;max-width:680px">
-            <label style="display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:20px">
-              <input type="checkbox" id="tiendaActiva" style="width:18px;height:18px"> Tienda online activa (visible para tus clientes)
-            </label>
-            <div class="form-group">
-              <label class="form-label">WhatsApp para recibir pedidos</label>
-              <input class="form-input" type="text" id="tiendaWhatsapp" placeholder="Ej: 5493764123456 (código de país, sin + ni espacios)" autocomplete="off">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Mensaje de bienvenida (opcional)</label>
-              <input class="form-input" type="text" id="tiendaBienvenida" placeholder="Ej: ¡Bienvenido! Hacé tu pedido y te lo preparamos." autocomplete="off">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Link de tu tienda</label>
-              <div style="display:flex;gap:8px">
-                <input class="form-input" type="text" id="tiendaLink" readonly style="font-family:var(--mono);font-size:12px">
-                <button class="btn btn-line btn-sm" onclick="copiarLinkTienda()" style="flex:none">Copiar</button>
+          <style>
+            #moduleTienda .tw-card{max-width:680px}
+            #moduleTienda .tw-progress{display:flex;gap:6px;padding:18px 24px 0}
+            #moduleTienda .tw-dot{flex:1;height:5px;border-radius:3px;background:var(--line,#eee);transition:.2s}
+            #moduleTienda .tw-dot.on{background:var(--accent,#e08e3c)}
+            #moduleTienda .tw-q{font-size:16px;font-weight:700;color:var(--text,#1a1a2e);margin-bottom:6px}
+            #moduleTienda .tw-help{font-size:13px;color:var(--text-mute);margin:0 0 16px}
+            #moduleTienda .tw-switch,#moduleTienda .tw-radio{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer;padding:11px 13px;border:1px solid var(--line,#eee);border-radius:10px;margin-bottom:8px}
+            #moduleTienda .tw-switch input,#moduleTienda .tw-radio input{width:18px;height:18px;flex:none}
+            #moduleTienda .tw-nav{display:flex;justify-content:space-between;gap:10px;padding:18px 24px;border-top:1px solid var(--line,#eee);background:var(--bg-2,#fafafa)}
+            #moduleTienda .tw-rubro{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:6px 11px;border:1px solid var(--line,#eee);border-radius:20px;margin:0 6px 6px 0;cursor:pointer}
+            #moduleTienda .tw-rubro input{width:15px;height:15px}
+            #moduleTienda .tw-resumen{font-size:13.5px;line-height:1.8;background:var(--bg-2,#f7f7f8);border:1px solid var(--line,#eee);border-radius:10px;padding:14px 16px}
+          </style>
+          <div class="table-card tw-card" style="padding:0;overflow:hidden">
+            <div class="tw-progress" id="twProgress"></div>
+            <div style="padding:22px 24px">
+              <div class="tw-step" data-step="1">
+                <div class="tw-q">1 · ¿Activamos tu tienda online? &#128717;&#65039;</div>
+                <p class="tw-help">Con la tienda activa, tus clientes la pueden ver con el link de abajo.</p>
+                <label class="tw-switch"><input type="checkbox" id="tiendaActiva"> <span>Sí, tienda online activa</span></label>
+                <div class="form-group" style="margin-top:14px">
+                  <label class="form-label">Link de tu tienda (para compartir)</label>
+                  <div style="display:flex;gap:8px">
+                    <input class="form-input" type="text" id="tiendaLink" readonly style="font-family:var(--mono);font-size:12px">
+                    <button class="btn btn-line btn-sm" onclick="copiarLinkTienda()" style="flex:none">Copiar</button>
+                  </div>
+                </div>
               </div>
-              <div style="font-size:11px;color:var(--text-mute);margin-top:6px">Compartí este link con tus clientes (WhatsApp, Instagram, etc.).</div>
+              <div class="tw-step" data-step="2" hidden>
+                <div class="tw-q">2 · ¿A qué WhatsApp te llegan los pedidos? &#128242;</div>
+                <p class="tw-help">Con código de país, sin + ni espacios.</p>
+                <div class="form-group">
+                  <input class="form-input" type="text" id="tiendaWhatsapp" placeholder="Ej: 5493764123456" autocomplete="off">
+                </div>
+                <div class="tw-q" style="font-size:14px;margin-top:18px">Mensaje de bienvenida (opcional)</div>
+                <div class="form-group">
+                  <input class="form-input" type="text" id="tiendaBienvenida" placeholder="Ej: ¡Bienvenido! Hacé tu pedido y te lo preparamos." autocomplete="off">
+                </div>
+              </div>
+              <div class="tw-step" data-step="3" hidden>
+                <div class="tw-q">3 · ¿Qué productos mostrás? &#128230;</div>
+                <p class="tw-help">Siempre se muestran solo los que tienen precio de venta cargado.</p>
+                <label class="tw-radio"><input type="radio" name="twRubros" value="todos" checked onchange="twToggleRubros()"> <span>Todos</span></label>
+                <label class="tw-radio"><input type="radio" name="twRubros" value="elegir" onchange="twToggleRubros()"> <span>Elegir por rubro</span></label>
+                <div id="twRubrosBox" style="display:none;margin-top:10px"></div>
+              </div>
+              <div class="tw-step" data-step="4" hidden>
+                <div class="tw-q">4 · ¿Qué mostramos en cada producto? &#127991;&#65039;</div>
+                <p class="tw-help">Elegí qué ve el cliente en la ficha de cada producto.</p>
+                <div class="tw-q" style="font-size:13.5px">Precio</div>
+                <label class="tw-radio"><input type="radio" name="twPrecio" value="si" checked> <span>Mostrar el precio</span></label>
+                <label class="tw-radio"><input type="radio" name="twPrecio" value="no"> <span>Ocultarlo &mdash; "Consultar por WhatsApp"</span></label>
+                <label class="tw-switch" style="margin-top:12px"><input type="checkbox" id="twStock"> <span>Mostrar el stock disponible</span></label>
+                <label class="tw-switch"><input type="checkbox" id="twCodigo"> <span>Mostrar el código del producto</span></label>
+              </div>
+              <div class="tw-step" data-step="5" hidden>
+                <div class="tw-q">5 · ¡Todo listo! &#127881;</div>
+                <p class="tw-help">Revisá y publicá. Después podés volver a cambiar lo que quieras.</p>
+                <div id="twResumen" class="tw-resumen"></div>
+                <div id="tiendaEstado" style="font-size:12px;color:var(--text-mute);margin-top:12px"></div>
+              </div>
             </div>
-            <div id="tiendaEstado" style="font-size:12px;color:var(--text-mute);margin-top:12px"></div>
+            <div class="tw-nav">
+              <button class="btn btn-line btn-sm" id="twBack" onclick="twPaso(-1)" style="visibility:hidden">&larr; Atrás</button>
+              <button class="btn btn-primary btn-sm" id="twNext" onclick="twPaso(1)">Siguiente &rarr;</button>
+              <button class="btn btn-primary btn-sm" id="twPublicarBtn" onclick="guardarPublicarTienda()" style="display:none">&#128722; Guardar y publicar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -9705,19 +9752,36 @@ function tiendaPublicUrl(){
 async function initTienda(){
   var link = document.getElementById('tiendaLink'); if(link) link.value = tiendaPublicUrl();
   if(typeof hideAlerts === 'function') hideAlerts();
+  twStep = 1; window._twRubrosPrev = null;
+  var box = document.getElementById('twRubrosBox'); if(box){ box.removeAttribute('data-render'); box.innerHTML=''; }
   try{
     var d = await db.collection('tiendas').doc(currentEmpresaId).get();
     var x = d.exists ? d.data() : {};
     var a = document.getElementById('tiendaActiva'); if(a) a.checked = !!x.activa;
     var w = document.getElementById('tiendaWhatsapp'); if(w) w.value = x.whatsapp || '';
     var b = document.getElementById('tiendaBienvenida'); if(b) b.value = x.bienvenida || '';
+    // rubros
+    if(Array.isArray(x.rubrosVisibles)){
+      window._twRubrosPrev = x.rubrosVisibles;
+      var rE = document.querySelector('#moduleTienda input[name="twRubros"][value="elegir"]'); if(rE) rE.checked = true;
+    } else {
+      var rT = document.querySelector('#moduleTienda input[name="twRubros"][value="todos"]'); if(rT) rT.checked = true;
+    }
+    // precio / stock / código
+    var radP = document.querySelector('#moduleTienda input[name="twPrecio"][value="'+((x.mostrarPrecio===false)?'no':'si')+'"]'); if(radP) radP.checked = true;
+    var st = document.getElementById('twStock'); if(st) st.checked = (x.mostrarStock === true);
+    var cd = document.getElementById('twCodigo'); if(cd) cd.checked = (x.mostrarCodigo !== false);
     var est = document.getElementById('tiendaEstado');
     if(est){
       est.innerHTML = x.actualizado
         ? ('&#9989; Publicada · ' + (x.totalItems || (x.items && x.items.length) || 0) + ' productos · última vez: ' + new Date(x.actualizado).toLocaleString('es-AR'))
-        : 'Todavía no publicaste tu tienda. Completá los datos y tocá <b>Guardar y publicar</b>.';
+        : 'Todavía no publicaste tu tienda. Completá los pasos y tocá <b>Guardar y publicar</b>.';
     }
-  }catch(e){ /* primera vez, sin doc */ }
+  }catch(e){
+    var rT2 = document.querySelector('#moduleTienda input[name="twRubros"][value="todos"]'); if(rT2) rT2.checked = true;
+  }
+  if(typeof twToggleRubros === 'function') twToggleRubros();
+  if(typeof twMostrar === 'function') twMostrar();
 }
 async function guardarPublicarTienda(){
   if(!currentEmpresaId) return;
@@ -9725,15 +9789,27 @@ async function guardarPublicarTienda(){
   if(btn){ btn.disabled = true; btn.textContent = 'Publicando...'; }
   try{
     var wa = (document.getElementById('tiendaWhatsapp').value || '').replace(/[^0-9]/g, '');
+    // opciones de visualización del mago
+    var modoR = document.querySelector('#moduleTienda input[name="twRubros"]:checked');
+    var rubrosVisibles = null;
+    if(modoR && modoR.value === 'elegir'){
+      rubrosVisibles = Array.prototype.map.call(document.querySelectorAll('#twRubrosBox .tw-rubro-chk:checked'), function(c){ return c.value; });
+    }
+    var precioR = document.querySelector('#moduleTienda input[name="twPrecio"]:checked');
+    var mostrarPrecio = !(precioR && precioR.value === 'no');
+    var mostrarStock = !!document.getElementById('twStock').checked;
+    var mostrarCodigo = !!document.getElementById('twCodigo').checked;
+
     var lista = (typeof productos !== 'undefined' && productos) ? productos : [];
     var items = [], MAX = 5000;
     for(var i = 0; i < lista.length && items.length < MAX; i++){
       var pr = lista[i];
       if(!(Number(pr.precioVenta) > 0)) continue; // solo con precio de venta
+      if(rubrosVisibles && rubrosVisibles.indexOf(pr.rubro || '') < 0) continue; // filtro por rubro
       items.push({
         c: pr.codigo || '',
         n: pr.descripcion || 'Producto',
-        p: Number(pr.precioVenta) || 0,
+        p: mostrarPrecio ? (Number(pr.precioVenta) || 0) : 0, // si ocultamos precio, no lo exponemos
         f: pr.fotoUrl || '',
         r: pr.rubro || '',
         s: Number(pr.stock) || 0,
@@ -9759,6 +9835,10 @@ async function guardarPublicarTienda(){
       color: currentEmpresa ? (currentEmpresa.color || currentEmpresa.colorPrimario || '') : '',
       whatsapp: wa,
       bienvenida: (document.getElementById('tiendaBienvenida').value || '').trim(),
+      rubrosVisibles: rubrosVisibles ? rubrosVisibles : firebase.firestore.FieldValue.delete(),
+      mostrarPrecio: mostrarPrecio,
+      mostrarStock: mostrarStock,
+      mostrarCodigo: mostrarCodigo,
       chunks: nChunks,
       totalItems: items.length,
       items: firebase.firestore.FieldValue.delete(),     // limpiar formato viejo
@@ -9782,6 +9862,68 @@ function copiarLinkTienda(){
   else { try{ document.execCommand('copy'); ok(); }catch(e){} }
 }
 function verTienda(){ window.open(tiendaPublicUrl(), '_blank'); }
+
+// ── Asistente guiado de la Tienda Online ──
+var twStep = 1; var TW_TOTAL = 5;
+function twPaso(dir){
+  var n = twStep + dir;
+  if(n < 1) n = 1; if(n > TW_TOTAL) n = TW_TOTAL;
+  twStep = n; twMostrar();
+}
+function twMostrar(){
+  var steps = document.querySelectorAll('#moduleTienda .tw-step');
+  Array.prototype.forEach.call(steps, function(s){ s.hidden = (parseInt(s.getAttribute('data-step'), 10) !== twStep); });
+  var prog = document.getElementById('twProgress');
+  if(prog){ var h = ''; for(var i = 1; i <= TW_TOTAL; i++){ h += '<div class="tw-dot' + (i <= twStep ? ' on' : '') + '"></div>'; } prog.innerHTML = h; }
+  var back = document.getElementById('twBack'), next = document.getElementById('twNext'), pub = document.getElementById('twPublicarBtn');
+  if(back) back.style.visibility = (twStep === 1 ? 'hidden' : 'visible');
+  if(next) next.style.display = (twStep === TW_TOTAL ? 'none' : '');
+  if(pub) pub.style.display = (twStep === TW_TOTAL ? '' : 'none');
+  if(twStep === 3) twRenderRubros();
+  if(twStep === 5) twResumen();
+}
+function twToggleRubros(){
+  var sel = document.querySelector('#moduleTienda input[name="twRubros"]:checked');
+  var box = document.getElementById('twRubrosBox');
+  var elegir = (sel && sel.value === 'elegir');
+  if(box) box.style.display = elegir ? 'block' : 'none';
+  if(elegir) twRenderRubros();
+}
+function twRenderRubros(){
+  var box = document.getElementById('twRubrosBox'); if(!box) return;
+  var sel = document.querySelector('#moduleTienda input[name="twRubros"]:checked');
+  if(!sel || sel.value !== 'elegir'){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  if(box.getAttribute('data-render') === '1') return; // ya está, no perder lo tildado
+  var set = {}; (typeof productos !== 'undefined' && productos ? productos : []).forEach(function(p){ if(Number(p.precioVenta) > 0 && p.rubro) set[p.rubro] = 1; });
+  var rubros = Object.keys(set).sort();
+  if(!rubros.length){ box.innerHTML = '<div style="font-size:13px;color:var(--text-mute)">No tenés rubros cargados en los productos.</div>'; return; }
+  var prev = window._twRubrosPrev || null;
+  box.innerHTML = rubros.map(function(r){
+    var chk = (!prev || prev.indexOf(r) >= 0) ? 'checked' : '';
+    return '<label class="tw-rubro"><input type="checkbox" class="tw-rubro-chk" value="' + eH(r) + '" ' + chk + '> ' + eH(r) + '</label>';
+  }).join('');
+  box.setAttribute('data-render', '1');
+}
+function twResumen(){
+  var el = document.getElementById('twResumen'); if(!el) return;
+  var activa = document.getElementById('tiendaActiva').checked;
+  var wa = (document.getElementById('tiendaWhatsapp').value || '').replace(/[^0-9]/g, '');
+  var modoR = document.querySelector('#moduleTienda input[name="twRubros"]:checked');
+  var rubrosTxt = 'Todos los rubros';
+  if(modoR && modoR.value === 'elegir'){
+    var s = Array.prototype.map.call(document.querySelectorAll('#twRubrosBox .tw-rubro-chk:checked'), function(c){ return c.value; });
+    rubrosTxt = s.length ? (s.length + ' rubro(s): ' + s.join(', ')) : '⚠️ Ningún rubro elegido';
+  }
+  var precioR = document.querySelector('#moduleTienda input[name="twPrecio"]:checked');
+  var precioTxt = (precioR && precioR.value === 'no') ? 'Oculto ("Consultar por WhatsApp")' : 'Visible';
+  el.innerHTML =
+    '&#128717;&#65039; Tienda: <b>' + (activa ? 'Activa' : 'Inactiva') + '</b><br>' +
+    '&#128242; WhatsApp: <b>' + (wa || '— (sin cargar)') + '</b><br>' +
+    '&#128230; Productos: <b>' + eH(rubrosTxt) + '</b><br>' +
+    '&#127991;&#65039; Precio: <b>' + precioTxt + '</b><br>' +
+    '&#128290; Stock: <b>' + (document.getElementById('twStock').checked ? 'Sí' : 'No') + '</b> &middot; Código: <b>' + (document.getElementById('twCodigo').checked ? 'Sí' : 'No') + '</b>';
+}
 
 // ═══════════════════════════════════════════════════════
 // TIENDA ONLINE — vitrina pública (modo tienda)
@@ -9816,6 +9958,8 @@ function injectStorefrontStyles(){
     '.sf-pname{font-size:13.5px;font-weight:600;line-height:1.3;color:#1a1a2e}',
     '.sf-pcode{font-size:10.5px;color:#999;font-family:monospace}',
     '.sf-pdesc{font-size:11.5px;color:#555;line-height:1.5;white-space:normal;display:-webkit-box;-webkit-line-clamp:10;-webkit-box-orient:vertical;overflow:hidden}',
+    '.sf-consultar{color:#e08e3c;font-weight:700}',
+    '.sf-pstock{font-size:11px;color:#888;margin-top:2px}',
     '.sf-pprice{font-size:16px;font-weight:800;color:#1a1a2e;margin-top:auto}',
     '.sf-add{border:none;background:var(--sf-accent);color:#fff;border-radius:9px;padding:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px}',
     '.sf-empty{text-align:center;color:#999;padding:50px 20px}',
@@ -9932,19 +10076,26 @@ function sfRenderGrid(){
   var g = document.getElementById('sfGrid'); if(!g) return;
   var items = sfItemsFiltrados();
   if(!items.length){ g.innerHTML = '<div class="sf-empty">No encontramos productos.</div>'; return; }
+  var verPrecio = (_sfData.mostrarPrecio !== false);
+  var verCodigo = (_sfData.mostrarCodigo !== false);
+  var verStock = (_sfData.mostrarStock === true);
   g.innerHTML = items.map(function(it){
     var realIdx = _sfData.items.indexOf(it);
     var thumb = it.f
       ? '<img src="' + sfEsc(it.f) + '" alt="" loading="lazy">'
       : '<span class="sf-noimg">&#128230;</span>';
+    var precioHtml = verPrecio
+      ? '<div class="sf-pprice">' + sfPeso(it.p) + '</div>'
+      : '<div class="sf-pprice sf-consultar">Consultar</div>';
+    var stockHtml = verStock ? ('<div class="sf-pstock">' + (Number(it.s) > 0 ? ('Stock: ' + it.s) : 'Sin stock') + '</div>') : '';
     return '<div class="sf-card">' +
       '<div class="sf-thumb">' + thumb + '</div>' +
       '<div class="sf-body">' +
         '<div class="sf-pname">' + sfEsc(it.n) + '</div>' +
-        (it.c ? '<div class="sf-pcode">' + sfEsc(it.c) + '</div>' : '') +
+        ((verCodigo && it.c) ? '<div class="sf-pcode">' + sfEsc(it.c) + '</div>' : '') +
         (it.d ? '<div class="sf-pdesc">' + sfEsc(it.d).replace(/\n/g, '<br>') + '</div>' : '') +
-        '<div class="sf-pprice">' + sfPeso(it.p) + '</div>' +
-        '<button class="sf-add" onclick="sfAgregar(' + realIdx + ')">Agregar</button>' +
+        precioHtml + stockHtml +
+        '<button class="sf-add" onclick="sfAgregar(' + realIdx + ')">' + (verPrecio ? 'Agregar' : 'Agregar a la consulta') + '</button>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -9969,16 +10120,18 @@ function sfQty(idx, delta){
 }
 function sfRenderCart(){
   var cont = document.getElementById('sfCartItems'), totalEl = document.getElementById('sfTotal'), countEl = document.getElementById('sfCount');
+  var verPrecio = (_sfData.mostrarPrecio !== false);
   var total = 0, count = 0;
-  _sfCart.forEach(function(c){ total += c.item.p * c.qty; count += c.qty; });
+  _sfCart.forEach(function(c){ total += (c.item.p || 0) * c.qty; count += c.qty; });
   if(countEl) countEl.textContent = count;
-  if(totalEl) totalEl.textContent = sfPeso(total);
+  if(totalEl) totalEl.textContent = verPrecio ? sfPeso(total) : 'A consultar';
   if(cont){
     if(!_sfCart.length){ cont.innerHTML = '<div class="sf-empty" style="padding:40px 0">Tu pedido está vacío.</div>'; }
     else {
       cont.innerHTML = _sfCart.map(function(c){
+        var sub = verPrecio ? ('<br><small style="color:#888">' + sfPeso(c.item.p) + '</small>') : '';
         return '<div class="sf-citem">' +
-          '<div class="sf-citem-n">' + sfEsc(c.item.n) + '<br><small style="color:#888">' + sfPeso(c.item.p) + '</small></div>' +
+          '<div class="sf-citem-n">' + sfEsc(c.item.n) + sub + '</div>' +
           '<div class="sf-qty"><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',-1)">&minus;</button>' +
           '<b>' + c.qty + '</b><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',1)">+</button></div>' +
         '</div>';
@@ -9990,10 +10143,17 @@ function sfAbrirCart(){ var b = document.getElementById('sfDrawerBg'), d = docum
 function sfCerrarCart(){ var b = document.getElementById('sfDrawerBg'), d = document.getElementById('sfDrawer'); if(b) b.classList.remove('open'); if(d) d.classList.remove('open'); }
 function sfCheckout(){
   if(!_sfCart.length){ if(typeof toast === 'function') toast('Agregá productos primero', 'error'); return; }
-  var lineas = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n + ' — ' + sfPeso(c.item.p * c.qty); });
-  var total = _sfCart.reduce(function(s, c){ return s + c.item.p * c.qty; }, 0);
-  var msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + '*';
+  var verPrecio = (_sfData.mostrarPrecio !== false);
   var wa = (_sfData && _sfData.whatsapp) ? String(_sfData.whatsapp).replace(/[^0-9]/g, '') : '';
+  var msg;
+  if(verPrecio){
+    var lineas = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n + ' — ' + sfPeso(c.item.p * c.qty); });
+    var total = _sfCart.reduce(function(s, c){ return s + c.item.p * c.qty; }, 0);
+    msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + '*';
+  } else {
+    var lineas2 = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n; });
+    msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero consultar el precio de estos productos:\n\n' + lineas2.join('\n');
+  }
   var url = wa ? ('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg)) : ('https://wa.me/?text=' + encodeURIComponent(msg));
   window.open(url, '_blank');
 }
