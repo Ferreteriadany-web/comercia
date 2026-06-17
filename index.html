@@ -7291,6 +7291,16 @@
                 <label class="tw-radio"><input type="radio" name="twRubros" value="todos" checked onchange="twToggleRubros()"> <span>Todos</span></label>
                 <label class="tw-radio"><input type="radio" name="twRubros" value="elegir" onchange="twToggleRubros()"> <span>Elegir por rubro</span></label>
                 <div id="twRubrosBox" style="display:none;margin-top:10px"></div>
+                <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--line,#eee)">
+                  <div style="font-size:12.5px;color:var(--text-mute);margin-bottom:10px">¿Tus productos no tienen categoría? Elegí un <b>rubro</b> y un <b>proveedor</b>, mostrá sus productos y marcá los que entran en ese rubro.</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                    <select class="form-input" id="iaRubroSel" style="flex:1;min-width:150px"></select>
+                    <select class="form-input" id="iaProvSel" style="flex:1;min-width:150px"></select>
+                  </div>
+                  <button class="btn btn-line btn-sm" id="rbVerBtn" onclick="rbVerProductos()" style="width:100%;justify-content:center">Mostrar productos del proveedor</button>
+                  <div id="rbLista" style="margin-top:10px"></div>
+                  <div id="iaRubrosProgress" style="margin-top:8px;font-size:13px;color:var(--text-mute)"></div>
+                </div>
               </div>
               <div class="tw-step" data-step="4" hidden>
                 <div class="tw-q">4 · ¿Qué mostramos en cada producto? &#127991;&#65039;</div>
@@ -9863,6 +9873,78 @@ function copiarLinkTienda(){
 }
 function verTienda(){ window.open(tiendaPublicUrl(), '_blank'); }
 
+// ── Asignar rubro a mano, por proveedor (sin IA) ──
+var IA_RUBROS = ['Herramientas eléctricas','Herramientas manuales','Tornillería y fijaciones','Pinturas y accesorios','Electricidad','Iluminación','Plomería y sanitarios','Construcción y obra','Adhesivos y selladores','Cerrajería','Jardín y aire libre','Seguridad y protección','Automotor','Limpieza','Otros'];
+function iaRubrosPrep(){
+  var rs = document.getElementById('iaRubroSel');
+  if(rs && !rs.options.length){
+    rs.innerHTML = IA_RUBROS.map(function(r){ return '<option>' + eH(r) + '</option>'; }).join('');
+  }
+  var ps = document.getElementById('iaProvSel');
+  if(ps){
+    var set = {}; (typeof productos !== 'undefined' && productos ? productos : []).forEach(function(p){ var v = (p.proveedor || '').trim(); if(v) set[v] = 1; });
+    var provs = Object.keys(set).sort();
+    ps.innerHTML = provs.length ? provs.map(function(p){ return '<option>' + eH(p) + '</option>'; }).join('') : '<option value="">(sin proveedores cargados en tus productos)</option>';
+  }
+}
+function rbVerProductos(){
+  var cont = document.getElementById('rbLista'); if(!cont) return;
+  var prov = (document.getElementById('iaProvSel') || {}).value || '';
+  if(!prov){ cont.innerHTML = '<div style="font-size:12px;color:var(--text-mute)">Elegí un proveedor.</div>'; return; }
+  var lista = (typeof productos !== 'undefined' && productos ? productos : []).filter(function(p){
+    return (p.proveedor || '').trim() === prov && !((p.rubro || '').trim()) && (p.descripcion || '').trim();
+  });
+  if(!lista.length){ cont.innerHTML = '<div style="font-size:12px;color:var(--text-mute)">&#9989; No hay productos sin rubro del proveedor "' + eH(prov) + '".</div>'; return; }
+  window._rbLista = lista;
+  var rubro = (document.getElementById('iaRubroSel') || {}).value || '';
+  var rows = lista.map(function(p, idx){
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;border-bottom:1px solid var(--line,#f0f0f0);cursor:pointer">' +
+      '<input type="checkbox" class="rb-chk" data-idx="' + idx + '" checked style="width:16px;height:16px;flex:none">' +
+      '<span>' + eH(p.descripcion || '') + (p.codigo ? (' <small style="color:#999">' + eH(p.codigo) + '</small>') : '') + '</span></label>';
+  }).join('');
+  cont.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+      '<span style="font-size:12px;color:var(--text-mute)">' + lista.length + ' producto(s) de "' + eH(prov) + '"</span>' +
+      '<button class="btn btn-line btn-sm" onclick="rbToggleTodos()" style="padding:3px 8px;font-size:12px">Marcar/desmarcar todos</button>' +
+    '</div>' +
+    '<div style="max-height:260px;overflow:auto;border:1px solid var(--line,#eee);border-radius:8px;padding:4px 8px;margin-bottom:8px">' + rows + '</div>' +
+    '<button class="btn btn-primary btn-sm" onclick="rbAsignar()" style="width:100%;justify-content:center">&#10004; Asignar "' + eH(rubro) + '" a los marcados</button>';
+}
+function rbToggleTodos(){
+  var chks = document.querySelectorAll('#rbLista .rb-chk'); if(!chks.length) return;
+  var todos = true; Array.prototype.forEach.call(chks, function(c){ if(!c.checked) todos = false; });
+  Array.prototype.forEach.call(chks, function(c){ c.checked = !todos; });
+}
+async function rbAsignar(){
+  var prog = document.getElementById('iaRubrosProgress');
+  var rubro = (document.getElementById('iaRubroSel') || {}).value || '';
+  if(!rubro){ if(prog) prog.innerHTML = 'Elegí un rubro.'; return; }
+  var lista = window._rbLista || [];
+  var sel = [];
+  Array.prototype.forEach.call(document.querySelectorAll('#rbLista .rb-chk'), function(c){
+    if(c.checked){ var p = lista[parseInt(c.getAttribute('data-idx'), 10)]; if(p) sel.push(p); }
+  });
+  if(!sel.length){ if(prog) prog.innerHTML = 'No marcaste ningún producto.'; return; }
+  if(prog) prog.innerHTML = 'Guardando ' + sel.length + '…';
+  try{
+    for(var i = 0; i < sel.length; i += 400){
+      var batch = db.batch();
+      sel.slice(i, i + 400).forEach(function(p){
+        batch.set(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id), { rubro: rubro }, { merge: true });
+        p.rubro = rubro;
+      });
+      await batch.commit();
+    }
+    if(prog) prog.innerHTML = '&#9989; Listo: ' + sel.length + ' producto(s) marcados como "' + eH(rubro) + '".' +
+      '<div style="margin-top:6px;font-size:12px;color:var(--text-mute)">&#128073; Repetí con otro proveedor/rubro y al final volvé a <b>publicar</b> (paso 5).</div>';
+  }catch(e){ if(prog) prog.innerHTML = 'No se pudo guardar: ' + eH(e.message || String(e)); return; }
+  try{ if(typeof cargarProductos === 'function') await cargarProductos(); }catch(e){}
+  var box = document.getElementById('twRubrosBox'); if(box) box.removeAttribute('data-render');
+  if(typeof twRenderRubros === 'function') twRenderRubros();
+  rbVerProductos();
+  iaRubrosPrep();
+}
+
 // ── Asistente guiado de la Tienda Online ──
 var twStep = 1; var TW_TOTAL = 5;
 function twPaso(dir){
@@ -9879,7 +9961,7 @@ function twMostrar(){
   if(back) back.style.visibility = (twStep === 1 ? 'hidden' : 'visible');
   if(next) next.style.display = (twStep === TW_TOTAL ? 'none' : '');
   if(pub) pub.style.display = (twStep === TW_TOTAL ? '' : 'none');
-  if(twStep === 3) twRenderRubros();
+  if(twStep === 3){ twRenderRubros(); iaRubrosPrep(); }
   if(twStep === 5) twResumen();
 }
 function twToggleRubros(){
