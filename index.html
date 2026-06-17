@@ -12221,38 +12221,62 @@ async function tnGenerarDescripcionesMasivo(){
   if(!ok) return;
   var btn = document.getElementById('tnGenDescBtn');
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Generando...'; }
-  var generadas = 0, sinInfo = [], errores = 0;
+  var generadas = 0, sinInfo = [], errores = 0, consecutivos = 0, cortado = false;
+  var erroresMuestra = [];
   for(var i = 0; i < lista.length; i++){
     var p = lista[i];
-    if(prog) prog.innerHTML = 'Generando ' + (i+1) + ' de ' + lista.length + '…';
-    var r = await iaDescripcionProducto({
-      nombre: p.descripcion || '', rubro: p.rubro || '', prov: p.proveedor || '',
-      codigo: p.codigo || '', codBarra: p.codBarra || ''
-    });
+    if(prog) prog.innerHTML = 'Generando ' + (i+1) + ' de ' + lista.length + '… (' + generadas + ' listas)';
+    // hasta 3 intentos por producto, con espera creciente si la IA rebota
+    var r = null, intento = 0;
+    while(intento < 3){
+      r = await iaDescripcionProducto({
+        nombre: p.descripcion || '', rubro: p.rubro || '', prov: p.proveedor || '',
+        codigo: p.codigo || '', codBarra: p.codBarra || ''
+      });
+      if(r && (r.ok || r.sinInfo)) break;
+      intento++;
+      if(intento < 3){ await new Promise(function(res){ setTimeout(res, 1500 * intento); }); }
+    }
     if(r && r.ok){
       try{
         await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto }, { merge: true });
         p.detalle = r.texto; // reflejar en memoria para la sync/publicación
         generadas++;
-      }catch(e){ errores++; }
+      }catch(e){ errores++; if(erroresMuestra.length < 5) erroresMuestra.push('guardar: ' + (e.message || e)); }
+      consecutivos = 0;
     } else if(r && r.sinInfo){
       sinInfo.push(p.descripcion || p.codigo || p._id);
-    } else { errores++; }
-    await new Promise(function(res){ setTimeout(res, 350); });
+      consecutivos = 0;
+    } else {
+      errores++;
+      if(erroresMuestra.length < 5 && r && r.error) erroresMuestra.push(String(r.error));
+      consecutivos++;
+      if(consecutivos >= 12){ cortado = true; break; } // freno de emergencia: la IA viene fallando seguido
+    }
+    await new Promise(function(res){ setTimeout(res, 700); });
   }
   if(btn){ btn.disabled = false; btn.innerHTML = '&#10024; Generar descripciones faltantes con IA'; }
   var rep = '&#9989; Generadas: ' + generadas;
   if(errores) rep += ' &middot; con error: ' + errores;
+  if(cortado){
+    rep += '<div style="margin-top:10px;padding:10px 12px;background:#fff4f4;border:1px solid #f3c2c2;border-radius:8px;font-size:12px">' +
+      '&#9888;&#65039; <b>Frené porque la IA viene rechazando los pedidos seguido.</b> Suele ser por el <b>límite de tu Asistente IA</b> (muchos pedidos juntos) o que esté momentáneamente caído. ' +
+      'Esperá unos minutos y volvé a tocar el botón: sigue donde quedó (las que ya se generaron no se repiten).' +
+      (erroresMuestra.length ? ('<br><br><b>Detalle del error:</b> ' + eH(erroresMuestra[0])) : '') + '</div>';
+  } else if(errores && erroresMuestra.length){
+    rep += '<div style="margin-top:8px;font-size:12px;color:var(--text-mute)">Errores típicos: ' + eH(erroresMuestra.slice(0, 3).join('  ·  ')) + '</div>';
+  }
   if(sinInfo.length){
     var muestra = sinInfo.slice(0, 40).map(function(n){ return '• ' + eH(n); }).join('<br>');
     rep += '<div style="margin-top:10px;padding:10px 12px;background:var(--bg-2,#f7f7f8);border:1px solid var(--line,#eee);border-radius:8px;max-height:200px;overflow:auto;font-size:12px">' +
       '<b>&#9888;&#65039; Estos no los pude generar (' + sinInfo.length + ') — hacelos a mano:</b><br>' + muestra +
       (sinInfo.length > 40 ? ('<br>…y ' + (sinInfo.length - 40) + ' más') : '') + '</div>';
   }
-  if(recortado) rep += '<div style="margin-top:6px;font-size:12px">Generé las primeras ' + MAX + '. Volvé a tocar el botón para seguir con el resto.</div>';
+  if(recortado && !cortado) rep += '<div style="margin-top:6px;font-size:12px">Generé las primeras ' + MAX + '. Volvé a tocar el botón para seguir con el resto.</div>';
   if(prog) prog.innerHTML = rep;
-  if(typeof toast === 'function') toast('Listo: ' + generadas + ' descripciones generadas', 'success');
-  if(sinInfo.length) console.log('Productos sin info (descripción no generada):', sinInfo);
+  if(typeof toast === 'function') toast('Listo: ' + generadas + ' descripciones generadas', generadas ? 'success' : 'error');
+  if(erroresMuestra.length) console.log('Muestra de errores de generación:', erroresMuestra);
+  if(sinInfo.length) console.log('Productos sin info:', sinInfo);
 }
 
 async function saveProduct(){
