@@ -7294,7 +7294,7 @@
                 <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--line,#eee)">
                   <div style="font-size:12.5px;color:var(--text-mute);margin-bottom:10px">¿Tus productos no tienen categoría? Elegí un <b>rubro</b> y un <b>proveedor</b>, mostrá sus productos y marcá los que entran en ese rubro.</div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-                    <select class="form-input" id="iaRubroSel" style="flex:1;min-width:150px"></select>
+                    <select class="form-input" id="iaRubroSel" onchange="rbRubroChange()" style="flex:1;min-width:150px"></select>
                     <select class="form-input" id="iaProvSel" style="flex:1;min-width:150px"></select>
                   </div>
                   <button class="btn btn-line btn-sm" id="rbVerBtn" onclick="rbVerProductos()" style="width:100%;justify-content:center">Mostrar productos del proveedor</button>
@@ -9875,10 +9875,44 @@ function verTienda(){ window.open(tiendaPublicUrl(), '_blank'); }
 
 // ── Asignar rubro a mano, por proveedor (sin IA) ──
 var IA_RUBROS = ['Herramientas eléctricas','Herramientas manuales','Tornillería y fijaciones','Pinturas y accesorios','Electricidad','Iluminación','Plomería y sanitarios','Construcción y obra','Adhesivos y selladores','Cerrajería','Jardín y aire libre','Seguridad y protección','Automotor','Limpieza','Otros'];
+function rbRubrosDisponibles(){
+  var s = {};
+  IA_RUBROS.forEach(function(r){ s[r] = 1; });
+  (typeof productos !== 'undefined' && productos ? productos : []).forEach(function(p){ var v = (p.rubro || '').trim(); if(v) s[v] = 1; });
+  (window._rbCustom || []).forEach(function(r){ if(r) s[r] = 1; });
+  return Object.keys(s).sort(function(a, b){ return a.localeCompare(b, 'es'); });
+}
+function rbLoadCustom(){
+  try{ window._rbCustom = JSON.parse(localStorage.getItem('comercia_rubros_custom_' + currentEmpresaId) || '[]') || []; }catch(e){ window._rbCustom = []; }
+}
+function rbSaveCustom(){
+  try{ localStorage.setItem('comercia_rubros_custom_' + currentEmpresaId, JSON.stringify(window._rbCustom || [])); }catch(e){}
+}
+async function rbRubroChange(){
+  var rs = document.getElementById('iaRubroSel'); if(!rs) return;
+  if(rs.value === '__nuevo__'){
+    var nombre = (typeof promptComercia === 'function')
+      ? await promptComercia('Nombre del nuevo rubro (ej. "Bulonería", "Riego", "Soldadura"):', '')
+      : prompt('Nombre del nuevo rubro:');
+    nombre = (nombre || '').trim();
+    if(nombre){
+      if(!window._rbCustom) window._rbCustom = [];
+      if(window._rbCustom.indexOf(nombre) < 0 && rbRubrosDisponibles().indexOf(nombre) < 0){ window._rbCustom.push(nombre); rbSaveCustom(); }
+    }
+    iaRubrosPrep();
+    rs = document.getElementById('iaRubroSel');
+    if(rs && nombre) rs.value = nombre;
+  }
+}
 function iaRubrosPrep(){
+  if(!window._rbCustom) rbLoadCustom();
   var rs = document.getElementById('iaRubroSel');
-  if(rs && !rs.options.length){
-    rs.innerHTML = IA_RUBROS.map(function(r){ return '<option>' + eH(r) + '</option>'; }).join('');
+  if(rs){
+    var actual = rs.value && rs.value !== '__nuevo__' ? rs.value : '';
+    var arr = rbRubrosDisponibles();
+    rs.innerHTML = arr.map(function(r){ return '<option' + (r === actual ? ' selected' : '') + '>' + eH(r) + '</option>'; }).join('') +
+      '<option value="__nuevo__">&#10133; Agregar rubro nuevo…</option>';
+    if(actual && arr.indexOf(actual) >= 0) rs.value = actual;
   }
   var ps = document.getElementById('iaProvSel');
   if(ps){
@@ -9896,9 +9930,8 @@ function rbVerProductos(){
   });
   if(!lista.length){ cont.innerHTML = '<div style="font-size:12px;color:var(--text-mute)">&#9989; No hay productos sin rubro del proveedor "' + eH(prov) + '".</div>'; return; }
   window._rbLista = lista;
-  var rubro = (document.getElementById('iaRubroSel') || {}).value || '';
   var rows = lista.map(function(p, idx){
-    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;border-bottom:1px solid var(--line,#f0f0f0);cursor:pointer">' +
+    return '<label class="rb-row" data-idx="' + idx + '" style="display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:13px;border-bottom:1px solid var(--line,#f0f0f0);cursor:pointer">' +
       '<input type="checkbox" class="rb-chk" data-idx="' + idx + '" checked style="width:16px;height:16px;flex:none">' +
       '<span>' + eH(p.descripcion || '') + (p.codigo ? (' <small style="color:#999">' + eH(p.codigo) + '</small>') : '') + '</span></label>';
   }).join('');
@@ -9907,13 +9940,31 @@ function rbVerProductos(){
       '<span style="font-size:12px;color:var(--text-mute)">' + lista.length + ' producto(s) de "' + eH(prov) + '"</span>' +
       '<button class="btn btn-line btn-sm" onclick="rbToggleTodos()" style="padding:3px 8px;font-size:12px">Marcar/desmarcar todos</button>' +
     '</div>' +
+    '<input class="form-input" id="rbSearch" oninput="rbFiltrar()" placeholder="Buscar en esta lista (nombre o código)…" autocomplete="off" style="margin-bottom:8px;font-size:13px;padding:9px 11px">' +
     '<div style="max-height:260px;overflow:auto;border:1px solid var(--line,#eee);border-radius:8px;padding:4px 8px;margin-bottom:8px">' + rows + '</div>' +
-    '<button class="btn btn-primary btn-sm" onclick="rbAsignar()" style="width:100%;justify-content:center">&#10004; Asignar "' + eH(rubro) + '" a los marcados</button>';
+    '<div id="rbVacio" style="display:none;font-size:12px;color:var(--text-mute);margin:-4px 0 8px">No hay coincidencias con tu búsqueda.</div>' +
+    '<button class="btn btn-primary btn-sm" onclick="rbAsignar()" style="width:100%;justify-content:center">&#10004; Asignar el rubro elegido a los marcados</button>';
+}
+function rbFiltrar(){
+  var q = ((document.getElementById('rbSearch') || {}).value || '').toLowerCase().trim();
+  var lista = window._rbLista || [];
+  var rows = document.querySelectorAll('#rbLista .rb-row'), visibles = 0;
+  Array.prototype.forEach.call(rows, function(row){
+    var p = lista[parseInt(row.getAttribute('data-idx'), 10)];
+    var hay = p ? ((p.descripcion || '') + ' ' + (p.codigo || '')).toLowerCase() : '';
+    var ok = !q || hay.indexOf(q) >= 0;
+    row.style.display = ok ? 'flex' : 'none';
+    if(ok) visibles++;
+  });
+  var vac = document.getElementById('rbVacio'); if(vac) vac.style.display = visibles ? 'none' : 'block';
 }
 function rbToggleTodos(){
-  var chks = document.querySelectorAll('#rbLista .rb-chk'); if(!chks.length) return;
-  var todos = true; Array.prototype.forEach.call(chks, function(c){ if(!c.checked) todos = false; });
-  Array.prototype.forEach.call(chks, function(c){ c.checked = !todos; });
+  var rows = document.querySelectorAll('#rbLista .rb-row');
+  var chks = Array.prototype.filter.call(rows, function(r){ return r.style.display !== 'none'; })
+    .map(function(r){ return r.querySelector('.rb-chk'); }).filter(Boolean);
+  if(!chks.length) return;
+  var todos = true; chks.forEach(function(c){ if(!c.checked) todos = false; });
+  chks.forEach(function(c){ c.checked = !todos; });
 }
 async function rbAsignar(){
   var prog = document.getElementById('iaRubrosProgress');
