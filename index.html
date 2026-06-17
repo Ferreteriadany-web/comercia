@@ -12128,18 +12128,32 @@ function editProduct(id){
 
 // Genera el texto de descripción para un producto usando tu Asistente IA.
 // Devuelve { ok, texto } | { sinInfo:true } | { error }
-async function iaDescripcionProducto(nombre, rubro, prov){
+async function iaDescripcionProducto(info){
+  info = info || {};
+  var nombre = String(info.nombre || '').trim();
+  var rubro = String(info.rubro || '').trim();
+  var prov = String(info.prov || '').trim();
+  var codigo = String(info.codigo || '').trim();
+  var codBarra = String(info.codBarra || '').trim();
   var endpoint = (typeof iaEndpoint === 'function') ? iaEndpoint() : '';
   if(!endpoint) return { error: 'sin_endpoint' };
-  var prompt = 'Escribí la descripción de venta de este producto para una tienda online, SIEMPRE con esta misma estructura y criterio:\n' +
+  var prompt = 'Tarea: escribir la descripción de venta de un producto para una tienda online, basada en información REAL del producto.\n' +
+    'Para identificarlo bien, si necesitás buscar en la web, priorizá la página oficial del proveedor/fabricante e identificá el producto por su código o su código de barras (EAN). ' +
+    'Si por el nombre no lo encontrás, intentá por el CÓDIGO y por el CÓDIGO DE BARRAS.\n' +
+    'Basá la descripción SOLO en datos que puedas confirmar del producto real (no inventes medidas, materiales ni potencias).\n\n' +
+    'Formato, SIEMPRE el mismo:\n' +
     '1) Una frase gancho corta y atractiva, con 1 o 2 emojis.\n' +
-    '2) Una línea en blanco, y después un listado de 3 a 5 características o beneficios, uno por línea, cada línea empezando con un emoji.\n' +
-    '3) Una línea en blanco, y una frase final que empiece con "Ideal para" resumiendo el uso, con un emoji.\n' +
-    'Tono vendedor y atractivo, en español rioplatense neutro. Usá emojis con criterio (ni de más ni de menos), siempre el mismo estilo. ' +
+    '2) Una línea en blanco y un listado de 3 a 5 características o beneficios, uno por línea, cada uno empezando con un emoji.\n' +
+    '3) Una línea en blanco y una frase final que empiece con "Ideal para", con un emoji.\n' +
+    'Tono vendedor y atractivo, en español rioplatense neutro, emojis con criterio. ' +
     'Devolvé ÚNICAMENTE la descripción (sin introducciones, comentarios, advertencias, aclaraciones ni comillas). ' +
-    'No inventes datos técnicos exactos (medidas, materiales, potencias) que no puedas confirmar: si no estás seguro, hablá de beneficios generales. ' +
-    'Si NO tenés información concreta de este producto puntual, respondé EXACTAMENTE con la palabra: SIN_INFO\n\n' +
-    'Producto: ' + nombre + (rubro ? ('\nRubro: ' + rubro) : '') + (prov ? ('\nMarca/Proveedor: ' + prov) : '');
+    'Si NO encontrás información concreta y específica de ESTE producto puntual (ni por nombre, ni por código, ni por código de barras), respondé EXACTAMENTE con la palabra: SIN_INFO\n\n' +
+    'Datos del producto:\n' +
+    '- Nombre: ' + nombre + '\n' +
+    (prov ? ('- Marca/Proveedor: ' + prov + '\n') : '') +
+    (rubro ? ('- Rubro: ' + rubro + '\n') : '') +
+    (codigo ? ('- Código: ' + codigo + '\n') : '') +
+    (codBarra ? ('- Código de barras (EAN): ' + codBarra + '\n') : '');
   try{
     var resp = await fetch(endpoint, {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -12170,7 +12184,11 @@ async function prodGenerarDescripcionIA(){
   var area = document.getElementById('prodDetalle');
   if(btn){ btn.disabled = true; btn.dataset.txt = btn.innerHTML; btn.innerHTML = 'Generando&hellip;'; }
   hideAlerts();
-  var r = await iaDescripcionProducto(nombre, rubro, prov);
+  var r = await iaDescripcionProducto({
+    nombre: nombre, rubro: rubro, prov: prov,
+    codigo: document.getElementById('prodCodigo').value.trim(),
+    codBarra: document.getElementById('prodCodBarra').value.trim()
+  });
   if(r.ok){
     if(area){ area.value = r.texto; }
     if(typeof toast === 'function') toast('Descripción generada — revisala y editá si querés', 'success');
@@ -12207,7 +12225,10 @@ async function tnGenerarDescripcionesMasivo(){
   for(var i = 0; i < lista.length; i++){
     var p = lista[i];
     if(prog) prog.innerHTML = 'Generando ' + (i+1) + ' de ' + lista.length + '…';
-    var r = await iaDescripcionProducto(p.descripcion || '', p.rubro || '', p.proveedor || '');
+    var r = await iaDescripcionProducto({
+      nombre: p.descripcion || '', rubro: p.rubro || '', prov: p.proveedor || '',
+      codigo: p.codigo || '', codBarra: p.codBarra || ''
+    });
     if(r && r.ok){
       try{
         await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto }, { merge: true });
@@ -22769,7 +22790,7 @@ async function tnSincronizarProductos(){
   var prog = document.getElementById('tnSyncProgress');
   if(btn){ btn.disabled = true; btn.innerHTML = '<span class="sync-spinner"></span> Sincronizando...'; }
   var sync = functions.httpsCallable('tiendanubeSincronizarProductos');
-  var cursor = null, total = 0, procesados = 0, creados = 0, actualizados = 0, errores = [], vueltas = 0, reintentos = 0;
+  var cursor = null, total = 0, procesados = 0, creados = 0, actualizados = 0, sinCambios = 0, errores = [], vueltas = 0, reintentos = 0;
   try{
     while(true){
       var d = null;
@@ -22794,6 +22815,7 @@ async function tnSincronizarProductos(){
       procesados += (d.procesadosLote || 0);
       creados += (d.creados || 0);
       actualizados += (d.actualizados || 0);
+      sinCambios += (d.sinCambios || 0);
       if(d.errores && d.errores.length){ errores = errores.concat(d.errores); }
       if(prog){
         var pct = total ? Math.min(100, Math.round(procesados/total*100)) : 0;
@@ -22804,7 +22826,7 @@ async function tnSincronizarProductos(){
       vueltas++; if(vueltas > 2000) break;
     }
     if(prog){
-      prog.innerHTML = '&#9989; Listo: '+creados+' creados, '+actualizados+' actualizados'+(errores.length?(' &middot; '+errores.length+' con problemas'):'')+'.';
+      prog.innerHTML = '&#9989; Listo: '+creados+' creados, '+actualizados+' actualizados'+(sinCambios?(', '+sinCambios+' sin cambios'):'')+(errores.length?(' &middot; '+errores.length+' con problemas'):'')+'.';
     }
     if(typeof toast==='function') toast('Productos sincronizados a Tienda Nube', 'success');
     if(errores.length){ console.warn('Detalles de problemas en la sincronización:', errores); }
