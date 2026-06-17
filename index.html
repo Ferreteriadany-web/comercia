@@ -9947,6 +9947,14 @@ function injectStorefrontStyles(){
     '.sf-welcome{background:#fff;border:1px solid #ececec;border-radius:14px;padding:14px 18px;font-size:14px;color:#444;margin-bottom:16px}',
     '.sf-search{width:100%;padding:12px 16px;border:1px solid #e0e0e0;border-radius:12px;font-size:15px;outline:none;margin-bottom:12px;box-sizing:border-box}',
     '.sf-rubros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}',
+    '.sf-finder{padding:6px 0 4px}',
+    '.sf-finder-q{font-size:23px;font-weight:800;color:#222;margin:8px 0 4px}',
+    '.sf-finder-sub{font-size:14px;color:#666;margin-bottom:20px}',
+    '.sf-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-bottom:16px}',
+    '.sf-cat{background:#fff;border:1.5px solid #e6e6e6;border-radius:14px;padding:22px 14px;font-size:15px;font-weight:700;color:#333;cursor:pointer;text-align:center;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.04)}',
+    '.sf-cat:hover{border-color:var(--sf-accent);color:var(--sf-accent);transform:translateY(-2px)}',
+    '.sf-allbtn{width:100%;background:var(--sf-accent);color:#fff;border:none;border-radius:12px;padding:15px;font-size:15px;font-weight:700;cursor:pointer}',
+    '.sf-back{background:none;border:none;color:var(--sf-accent);font-size:14px;font-weight:600;cursor:pointer;padding:4px 0;margin-bottom:10px}',
     '.sf-chip{border:1px solid #e0e0e0;background:#fff;color:#444;border-radius:99px;padding:6px 14px;font-size:13px;cursor:pointer;white-space:nowrap}',
     '.sf-chip.on{background:var(--sf-accent);color:#fff;border-color:var(--sf-accent)}',
     '.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}',
@@ -10029,10 +10037,13 @@ function renderStorefront(){
       '<button class="sf-cartbtn" onclick="sfAbrirCart()">Pedido<span class="sf-count" id="sfCount">0</span></button>' +
     '</div>' +
     '<div class="sf-wrap" style="--sf-accent:' + sfEsc(color) + '">' +
-      (_sfData.bienvenida ? '<div class="sf-welcome">' + sfEsc(_sfData.bienvenida) + '</div>' : '') +
-      '<input class="sf-search" id="sfSearch" placeholder="Buscar productos…" oninput="sfBuscar(this.value)">' +
-      '<div class="sf-rubros" id="sfRubros"></div>' +
-      '<div class="sf-grid" id="sfGrid"></div>' +
+      '<div class="sf-finder" id="sfFinder"></div>' +
+      '<div class="sf-shop" id="sfShop" style="display:none">' +
+        '<button class="sf-back" id="sfBackCats" onclick="sfVolverCategorias()">&larr; Volver a categorías</button>' +
+        '<input class="sf-search" id="sfSearch" placeholder="Buscar productos…" oninput="sfBuscar(this.value)">' +
+        '<div class="sf-rubros" id="sfRubros"></div>' +
+        '<div class="sf-grid" id="sfGrid"></div>' +
+      '</div>' +
       '<div class="sf-foot">Hecho con <b>Comercia</b></div>' +
     '</div>' +
     '<div class="sf-drawer-bg" id="sfDrawerBg" onclick="sfCerrarCart()"></div>' +
@@ -10045,9 +10056,12 @@ function renderStorefront(){
       '</div>' +
     '</div>';
   root.innerHTML = html;
+  var bc = document.getElementById('sfBackCats'); if(bc) bc.style.display = _sfRubros.length ? '' : 'none';
+  sfRenderFinder();
   sfRenderRubros();
   sfRenderGrid();
   sfRenderCart();
+  if(!_sfRubros.length) sfMostrarShop(); // sin categorías → directo al catálogo
 }
 
 function sfRenderRubros(){
@@ -10061,6 +10075,41 @@ function sfRenderRubros(){
 }
 function sfSetRubro(idx){ _sfRubro = (idx < 0) ? '' : (_sfRubros[idx] || ''); sfRenderRubros(); sfRenderGrid(); }
 function sfBuscar(v){ _sfFiltro = (v || '').toLowerCase(); sfRenderGrid(); }
+
+// ── Buscador guiado para el cliente (pantalla de inicio con categorías) ──
+function sfRenderFinder(){
+  var f = document.getElementById('sfFinder'); if(!f) return;
+  if(!_sfRubros.length){ f.style.display = 'none'; return; }
+  var cats = _sfRubros.map(function(r, idx){
+    return '<button class="sf-cat" onclick="sfElegirCat(' + idx + ')">' + sfEsc(r) + '</button>';
+  }).join('');
+  f.innerHTML =
+    (_sfData.bienvenida ? '<div class="sf-welcome">' + sfEsc(_sfData.bienvenida) + '</div>' : '') +
+    '<div class="sf-finder-q">¿Qué estás buscando? &#128269;</div>' +
+    '<div class="sf-finder-sub">Elegí una categoría y te muestro los productos. O mirá todo el catálogo.</div>' +
+    '<div class="sf-cats">' + cats + '</div>' +
+    '<button class="sf-allbtn" onclick="sfElegirCat(-1)">Ver todo el catálogo</button>';
+  f.style.display = 'block';
+}
+function sfMostrarShop(){
+  var f = document.getElementById('sfFinder'), sh = document.getElementById('sfShop');
+  if(f) f.style.display = 'none';
+  if(sh) sh.style.display = 'block';
+}
+function sfElegirCat(idx){
+  _sfRubro = (idx < 0) ? '' : (_sfRubros[idx] || '');
+  _sfFiltro = ''; var s = document.getElementById('sfSearch'); if(s) s.value = '';
+  sfMostrarShop();
+  sfRenderRubros(); sfRenderGrid();
+  try{ window.scrollTo(0, 0); }catch(e){}
+}
+function sfVolverCategorias(){
+  var f = document.getElementById('sfFinder'), sh = document.getElementById('sfShop');
+  if(sh) sh.style.display = 'none';
+  if(f) f.style.display = 'block';
+  _sfRubro = ''; _sfFiltro = '';
+  try{ window.scrollTo(0, 0); }catch(e){}
+}
 
 function sfItemsFiltrados(){
   return (_sfData.items || []).filter(function(it){
