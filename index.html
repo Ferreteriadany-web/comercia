@@ -7682,6 +7682,16 @@
       </div>
     </div>
 
+    <!-- DESCRIPCIÓN PARA LA TIENDA ONLINE -->
+    <div class="form-section-title">Descripción para la tienda online</div>
+    <div class="form-group" style="margin-bottom:6px">
+      <textarea class="form-input" id="prodDetalle" rows="3" placeholder="Lo que verán tus clientes en la ficha del producto (tienda online y vitrina de WhatsApp)." style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.45"></textarea>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+      <span class="prod-foto-hint" style="margin:0">Opcional. Se sincroniza a Tienda Nube y a tu vitrina.</span>
+      <button type="button" class="btn btn-line btn-sm" id="prodIaBtn" onclick="prodGenerarDescripcionIA()" style="flex:none">&#10024; Generar con IA</button>
+    </div>
+
     <!-- CÓDIGO DE BARRAS -->
     <div class="form-section-title">Código de barras</div>
     <div class="form-group" style="margin-bottom:6px">
@@ -9726,7 +9736,8 @@ async function guardarPublicarTienda(){
         p: Number(pr.precioVenta) || 0,
         f: pr.fotoUrl || '',
         r: pr.rubro || '',
-        s: Number(pr.stock) || 0
+        s: Number(pr.stock) || 0,
+        d: (pr.detalle || '').slice(0, 600)
       });
     }
     var ref = db.collection('tiendas').doc(currentEmpresaId);
@@ -9804,6 +9815,7 @@ function injectStorefrontStyles(){
     '.sf-body{padding:11px 12px;display:flex;flex-direction:column;gap:6px;flex:1}',
     '.sf-pname{font-size:13.5px;font-weight:600;line-height:1.3;color:#1a1a2e}',
     '.sf-pcode{font-size:10.5px;color:#999;font-family:monospace}',
+    '.sf-pdesc{font-size:11.5px;color:#666;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}',
     '.sf-pprice{font-size:16px;font-weight:800;color:#1a1a2e;margin-top:auto}',
     '.sf-add{border:none;background:var(--sf-accent);color:#fff;border-radius:9px;padding:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px}',
     '.sf-empty{text-align:center;color:#999;padding:50px 20px}',
@@ -9930,6 +9942,7 @@ function sfRenderGrid(){
       '<div class="sf-body">' +
         '<div class="sf-pname">' + sfEsc(it.n) + '</div>' +
         (it.c ? '<div class="sf-pcode">' + sfEsc(it.c) + '</div>' : '') +
+        (it.d ? '<div class="sf-pdesc">' + sfEsc(it.d) + '</div>' : '') +
         '<div class="sf-pprice">' + sfPeso(it.p) + '</div>' +
         '<button class="sf-add" onclick="sfAgregar(' + realIdx + ')">Agregar</button>' +
       '</div>' +
@@ -12048,7 +12061,7 @@ function openProductModal(){
   document.getElementById('prodCodigo').value = '';
   document.getElementById('prodCodBarra').value = '';
   document.getElementById('prodDescripcion').value = '';
-  document.getElementById('prodProveedor').value = '';
+  document.getElementById('prodDetalle').value = '';
   document.getElementById('prodRubro').value = '';
   document.getElementById('prodCosto').value = '';
   document.getElementById('prodVenta').value = '';
@@ -12081,7 +12094,7 @@ function editProduct(id){
   document.getElementById('prodCodigo').value = p.codigo || '';
   document.getElementById('prodCodBarra').value = p.codBarra || '';
   document.getElementById('prodDescripcion').value = p.descripcion || '';
-  document.getElementById('prodProveedor').value = p.proveedor || '';
+  document.getElementById('prodDetalle').value = p.detalle || '';
   document.getElementById('prodRubro').value = p.rubro || '';
   document.getElementById('prodCosto').value = p.precioCosto || '';
   document.getElementById('prodVenta').value = p.precioVenta || '';
@@ -12113,6 +12126,43 @@ function editProduct(id){
   autoCollapseSidebar();
 }
 
+async function prodGenerarDescripcionIA(){
+  var nombre = document.getElementById('prodDescripcion').value.trim();
+  if(!nombre){ return showAlert('prodAlert','Primero escribí la descripción/nombre del producto (ej. "Taladro inalámbrico 18V").'); }
+  var endpoint = (typeof iaEndpoint === 'function') ? iaEndpoint() : '';
+  if(!endpoint){
+    if(typeof toast === 'function') toast('Primero configurá la IA (en Asistente IA → Configurar)', 'error');
+    if(typeof iaConfig === 'function') iaConfig();
+    return;
+  }
+  var rubro = document.getElementById('prodRubro').value.trim();
+  var prov  = document.getElementById('prodProveedor').value.trim();
+  var btn = document.getElementById('prodIaBtn');
+  var area = document.getElementById('prodDetalle');
+  if(btn){ btn.disabled = true; btn.dataset.txt = btn.innerHTML; btn.innerHTML = 'Generando&hellip;'; }
+  hideAlerts();
+  var prompt = 'Escribí una descripción de venta para una tienda online, sobre este producto de ferretería/comercio. ' +
+    'Reglas: 2 a 4 oraciones, en español rioplatense neutro, texto corrido (sin títulos, sin viñetas, sin emojis). ' +
+    'No inventes características técnicas que no se deduzcan del nombre. Tono claro y atractivo para el comprador.\n\n' +
+    'Producto: ' + nombre + (rubro ? ('\nRubro: ' + rubro) : '') + (prov ? ('\nMarca/Proveedor: ' + prov) : '');
+  try{
+    var resp = await fetch(endpoint, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ mode:'consultas', messages:[{ role:'user', content: prompt }] })
+    });
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var texto = (data.reply || data.text || '').trim();
+    if(!texto) throw new Error('La IA no devolvió texto.');
+    if(area){ area.value = texto; }
+    if(typeof toast === 'function') toast('Descripción generada — revisala y editá si querés', 'success');
+  }catch(err){
+    showAlert('prodAlert','No pude generar la descripción: ' + (err.message || err) + '. Revisá la conexión con la IA.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.txt || '&#10024; Generar con IA'; }
+  }
+}
+
 async function saveProduct(){
   var codigo      = document.getElementById('prodCodigo').value.trim();
   var descripcion = document.getElementById('prodDescripcion').value.trim();
@@ -12125,6 +12175,7 @@ async function saveProduct(){
     codBarra: document.getElementById('prodCodBarra').value.trim(),
     barcodeTipo: document.getElementById('prodBarcodeTipo').value,
     descripcion: descripcion,
+    detalle: document.getElementById('prodDetalle').value.trim(),
     proveedor: document.getElementById('prodProveedor').value.trim(),
     rubro: document.getElementById('prodRubro').value.trim(),
     precioCosto: Number(document.getElementById('prodCosto').value) || 0,
