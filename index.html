@@ -5261,6 +5261,7 @@
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
             <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
+            <button class="btn btn-line btn-sm" onclick="reconstruirBaseLocal()" title="Si ves productos raros o faltantes, esto baja todo de nuevo desde la nube">&#128260; Reconstruir base</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -9827,12 +9828,13 @@ async function guardarPublicarTienda(){
     var items = [], MAX = 5000;
     for(var i = 0; i < lista.length && items.length < MAX; i++){
       var pr = lista[i];
-      if(!(Number(pr.precioVenta) > 0)) continue; // solo con precio de venta
+      if(!((pr.descripcion || '').trim())) continue; // necesita al menos un nombre
       if(rubrosVisibles && rubrosVisibles.indexOf(pr.rubro || '') < 0) continue; // filtro por rubro
+      var precio = Number(pr.precioVenta) || 0;
       items.push({
         c: pr.codigo || '',
         n: pr.descripcion || 'Producto',
-        p: mostrarPrecio ? (Number(pr.precioVenta) || 0) : 0, // si ocultamos precio, no lo exponemos
+        p: (mostrarPrecio && precio > 0) ? precio : 0, // 0 → se muestra "Consultar"
         f: pr.fotoUrl || '',
         r: pr.rubro || '',
         pv: pr.proveedor || '',
@@ -10022,9 +10024,9 @@ async function rbRecargarNube(){
   var prog = document.getElementById('iaRubrosProgress');
   if(prog) prog.innerHTML = 'Recargando productos desde la nube…';
   try{
-    await idbSetMeta(currentEmpresaId, { ultSync: null, totalDocs: 0, updatedAt: new Date().toISOString() });
-    await sincronizarProductos(currentEmpresaId);
-    if(prog) prog.innerHTML = '&#9989; Productos recargados. Si ya habías asignado rubros, ya están acá. Ahora volvé a <b>publicar</b> (paso 5).';
+    var todos = await bajarTodosProductosNube(currentEmpresaId);
+    await aplicarReconstruccion(currentEmpresaId, todos);
+    if(prog) prog.innerHTML = '&#9989; Productos recargados (' + todos.length + '). Ahora volvé a <b>publicar</b> (paso 5).';
   }catch(e){ if(prog) prog.innerHTML = 'No se pudo recargar: ' + eH(e.message || String(e)); return; }
   var box2 = document.getElementById('twRubrosBox'); if(box2) box2.removeAttribute('data-render');
   if(typeof twRenderRubros === 'function') twRenderRubros();
@@ -10333,7 +10335,7 @@ function sfRenderGrid(){
     var thumb = it.f
       ? '<img src="' + sfEsc(it.f) + '" alt="" loading="lazy">'
       : '<span class="sf-noimg">&#128230;</span>';
-    var precioHtml = verPrecio
+    var precioHtml = (verPrecio && it.p > 0)
       ? '<div class="sf-pprice">' + sfPeso(it.p) + '</div>'
       : '<div class="sf-pprice sf-consultar">Consultar</div>';
     var stockHtml = verStock ? ('<div class="sf-pstock">' + (Number(it.s) > 0 ? ('Stock: ' + it.s) : 'Sin stock') + '</div>') : '';
@@ -10370,15 +10372,17 @@ function sfQty(idx, delta){
 function sfRenderCart(){
   var cont = document.getElementById('sfCartItems'), totalEl = document.getElementById('sfTotal'), countEl = document.getElementById('sfCount');
   var verPrecio = (_sfData.mostrarPrecio !== false);
-  var total = 0, count = 0;
-  _sfCart.forEach(function(c){ total += (c.item.p || 0) * c.qty; count += c.qty; });
+  var total = 0, count = 0, hayConsultar = false;
+  _sfCart.forEach(function(c){ total += (c.item.p || 0) * c.qty; count += c.qty; if(!(c.item.p > 0)) hayConsultar = true; });
   if(countEl) countEl.textContent = count;
-  if(totalEl) totalEl.textContent = verPrecio ? sfPeso(total) : 'A consultar';
+  if(totalEl) totalEl.textContent = verPrecio ? (sfPeso(total) + (hayConsultar ? ' + a consultar' : '')) : 'A consultar';
   if(cont){
     if(!_sfCart.length){ cont.innerHTML = '<div class="sf-empty" style="padding:40px 0">Tu pedido está vacío.</div>'; }
     else {
       cont.innerHTML = _sfCart.map(function(c){
-        var sub = verPrecio ? ('<br><small style="color:#888">' + sfPeso(c.item.p) + '</small>') : '';
+        var sub = verPrecio
+          ? ('<br><small style="color:#888">' + (c.item.p > 0 ? sfPeso(c.item.p) : 'a consultar') + '</small>')
+          : '';
         return '<div class="sf-citem">' +
           '<div class="sf-citem-n">' + sfEsc(c.item.n) + sub + '</div>' +
           '<div class="sf-qty"><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',-1)">&minus;</button>' +
@@ -10396,9 +10400,13 @@ function sfCheckout(){
   var wa = (_sfData && _sfData.whatsapp) ? String(_sfData.whatsapp).replace(/[^0-9]/g, '') : '';
   var msg;
   if(verPrecio){
-    var lineas = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n + ' — ' + sfPeso(c.item.p * c.qty); });
-    var total = _sfCart.reduce(function(s, c){ return s + c.item.p * c.qty; }, 0);
-    msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + '*';
+    var hayC = false;
+    var lineas = _sfCart.map(function(c){
+      if(c.item.p > 0){ return '• ' + c.qty + 'x ' + c.item.n + ' — ' + sfPeso(c.item.p * c.qty); }
+      hayC = true; return '• ' + c.qty + 'x ' + c.item.n + ' (a consultar)';
+    });
+    var total = _sfCart.reduce(function(s, c){ return s + (c.item.p > 0 ? c.item.p * c.qty : 0); }, 0);
+    msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + (hayC ? ' + a consultar' : '') + '*';
   } else {
     var lineas2 = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n; });
     msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero consultar el precio de estos productos:\n\n' + lineas2.join('\n');
@@ -11910,6 +11918,54 @@ async function idbLimpiarEmpresa(empresaId){
   });
 }
 
+// Baja TODOS los productos desde la nube por documentId (seguro, no depende de updatedAt).
+async function bajarTodosProductosNube(empresaId){
+  var todos = [], cursor = null, more = true;
+  while(more){
+    var q = db.collection('empresas').doc(empresaId).collection('productos')
+      .orderBy(firebase.firestore.FieldPath.documentId()).limit(2000);
+    if(cursor) q = q.startAfter(cursor);
+    var snap = await q.get();
+    if(snap.empty){ break; }
+    snap.forEach(function(d){ var p = d.data(); p._id = d.id; todos.push(p); });
+    cursor = snap.docs[snap.docs.length - 1].id;
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todos.length + ')');
+    if(snap.docs.length < 2000) more = false;
+  }
+  return todos;
+}
+// Reemplaza la base local por la lista bajada (memoria + IndexedDB + meta).
+async function aplicarReconstruccion(empresaId, todos){
+  productos = todos;
+  productosFiltered = productos.slice();
+  await idbLimpiarEmpresa(empresaId);
+  if(todos.length) await idbGuardarBatch(empresaId, todos);
+  await idbSetMeta(empresaId, { ultSync: new Date().toISOString(), totalDocs: todos.length, updatedAt: new Date().toISOString() });
+  if(typeof renderProductos === 'function') renderProductos();
+  if(typeof actualizarStats === 'function') actualizarStats();
+  if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+}
+
+// Reconstrucción manual (botón "Reconstruir base"). Lo de fondo lo hace solo el sync.
+async function reconstruirBaseLocal(){
+  if(!currentEmpresaId) return;
+  var ok = (typeof confirmComercia === 'function')
+    ? await confirmComercia('Voy a reconstruir la base de productos bajando TODO de nuevo desde la nube. Tus datos en la nube NO se tocan. ¿Dale?')
+    : confirm('¿Reconstruir la base de productos desde la nube?');
+  if(!ok) return;
+  if(typeof toast === 'function') toast('Reconstruyendo base de productos…', 'info');
+  mostrarSyncEstado('sincronizando');
+  try{
+    var todos = await bajarTodosProductosNube(currentEmpresaId);
+    await aplicarReconstruccion(currentEmpresaId, todos);
+    mostrarSyncEstado('ok');
+    if(typeof toast === 'function') toast('Listo: ' + todos.length + ' productos ✓', 'success');
+  }catch(e){
+    mostrarSyncEstado('error');
+    if(typeof toast === 'function') toast('Error al reconstruir: ' + (e.message || e), 'error');
+  }
+}
+
 // ═══════════════════════════════════════════════════════
 // INDICADOR DE SYNC EN EL UI
 // ═══════════════════════════════════════════════════════
@@ -12001,27 +12057,31 @@ async function sincronizarProductos(empresaId){
       poblarFiltroProveedores();
     }
 
-    if(actualizados === 0 && totalConocido > 0){
-      // Sync ya al día
-    } else {
-      try{
-        var aggSnap = await db.collection('empresas').doc(empresaId).collection('productos').count().get();
-        var totalFirestore = aggSnap.data().count;
-        if(totalFirestore < productos.length){
-          await detectarBorrados(empresaId);
-        }
-        await idbSetMeta(empresaId, {
-          ultSync: lastUpdatedAt || new Date().toISOString(),
-          totalDocs: totalFirestore,
-          updatedAt: new Date().toISOString()
-        });
-      }catch(e){
-        await idbSetMeta(empresaId, {
-          ultSync: lastUpdatedAt || new Date().toISOString(),
-          totalDocs: productos.length,
-          updatedAt: new Date().toISOString()
-        });
+    // Chequeo de integridad SIEMPRE (1 lectura barata): la cantidad local debe coincidir con la nube.
+    try{
+      var aggSnap = await db.collection('empresas').doc(empresaId).collection('productos').count().get();
+      var totalFirestore = aggSnap.data().count;
+      if(totalFirestore > productos.length){
+        // Faltan productos en local → AUTO-REPARACIÓN: bajar todo de forma segura.
+        var todos = await bajarTodosProductosNube(empresaId);
+        await aplicarReconstruccion(empresaId, todos);
+        mostrarSyncEstado('ok');
+        return;
       }
+      if(totalFirestore < productos.length){
+        await detectarBorrados(empresaId);
+      }
+      await idbSetMeta(empresaId, {
+        ultSync: lastUpdatedAt || (meta && meta.ultSync) || new Date().toISOString(),
+        totalDocs: totalFirestore,
+        updatedAt: new Date().toISOString()
+      });
+    }catch(e){
+      await idbSetMeta(empresaId, {
+        ultSync: lastUpdatedAt || (meta && meta.ultSync) || new Date().toISOString(),
+        totalDocs: productos.length,
+        updatedAt: new Date().toISOString()
+      });
     }
 
     mostrarSyncEstado('ok');
