@@ -12198,7 +12198,61 @@ async function buscarProductosServidor(query, max){
   return lista.slice(0, max);
 }
 
-// Deja todos los productos "buscables" (palabras clave). RESUMIBLE: guarda el avance
+// Trae productos de un proveedor desde el servidor (celular).
+async function buscarProductosPorProveedorServidor(prov, max){
+  if(!currentEmpresaId) return [];
+  max = max || 200;
+  var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+  var out = [];
+  try{
+    var q = (prov === '(Sin proveedor)')
+      ? col.where('proveedor', '==', '').limit(max)
+      : col.where('proveedor', '==', prov).limit(max);
+    var snap = await q.get();
+    snap.forEach(function(d){ var p = d.data(); p._id = d.id; out.push(p); });
+  }catch(e){ _lastBusqError = 'prov: ' + ((e && (e.code || e.message)) || 'error'); }
+  return out;
+}
+
+// Fusiona productos traídos del servidor en el array local (para que el resto del
+// código —agregar al carrito, editar— los encuentre). Sin duplicar.
+function vMergeProductos(arr){
+  if(!arr || !arr.length) return;
+  var idx = {}; for(var i = 0; i < productos.length; i++) idx[productos[i]._id] = i;
+  arr.forEach(function(p){
+    if(idx[p._id] !== undefined) productos[idx[p._id]] = p;
+    else { productos.push(p); idx[p._id] = productos.length - 1; }
+  });
+}
+
+// Lista de proveedores (la arma la preparación). Se cachea.
+var _proveedoresServidor = null;
+async function cargarProveedoresServidor(){
+  if(_proveedoresServidor) return _proveedoresServidor;
+  try{
+    var d = await db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('prepBusqueda').get();
+    _proveedoresServidor = (d.exists && Array.isArray(d.data().proveedores)) ? d.data().proveedores : [];
+  }catch(e){ _proveedoresServidor = []; }
+  return _proveedoresServidor;
+}
+
+// Junta la lista de proveedores (solo lectura) y la guarda en el doc de preparación.
+async function recolectarProveedores(metaRef){
+  var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+  var provSet = {}, cursor = null, seguir = true;
+  while(seguir){
+    var q = col.orderBy(firebase.firestore.FieldPath.documentId()).limit(2000);
+    if(cursor) q = q.startAfter(cursor);
+    var snap = await q.get();
+    if(snap.empty) break;
+    snap.forEach(function(d){ var pr = ((d.data().proveedor) || '').trim(); if(pr) provSet[pr] = 1; });
+    cursor = snap.docs[snap.docs.length - 1].id;
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(proveedores)');
+    if(snap.size < 2000) seguir = false;
+  }
+  await metaRef.set({ proveedores: Object.keys(provSet).sort(), updatedAt: new Date().toISOString() }, { merge: true });
+  _proveedoresServidor = null;
+}
 // a cada paso, así si se corta retoma solo donde quedó. Con opts.auto corre en silencio.
 var _prepEnCurso = false;
 async function prepararBusquedaServidor(opts){
@@ -12218,12 +12272,17 @@ async function prepararBusquedaServidor(opts){
     var ms = await metaRef.get();
     var meta = ms.exists ? ms.data() : {};
     if(meta.done && !opts.forzar){
+      // Ya está lista la búsqueda. Si falta la lista de proveedores, la armamos (solo lectura).
+      if(!meta.proveedores || !meta.proveedores.length){
+        try{ await recolectarProveedores(metaRef); }catch(e){}
+      }
       if(!opts.auto && typeof toast === 'function') toast('La búsqueda ya está preparada ✓', 'success');
       if(btn){ btn.disabled = false; btn.textContent = '🔎 Búsqueda lista ✓'; }
       _prepEnCurso = false; return;
     }
     var cursor = meta.cursor || null;
     var hechos = meta.hechos || 0;
+    var provSet = {}; (meta.proveedores || []).forEach(function(x){ provSet[x] = 1; });
     var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
     var seguir = true;
     if(!opts.auto && typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + hechos + ')');
@@ -12235,6 +12294,7 @@ async function prepararBusquedaServidor(opts){
       var batch = db.batch();
       snap.forEach(function(d){
         var p = d.data();
+        var prov = (p.proveedor || '').trim(); if(prov) provSet[prov] = 1;
         batch.update(d.ref, {
           nl: _sfNorm(p.descripcion || ''),
           tok: _sfTokens((p.descripcion || '') + ' ' + (p.rubro || '') + ' ' + (p.proveedor || '') + ' ' + (p.codigo || ''))
@@ -12244,12 +12304,12 @@ async function prepararBusquedaServidor(opts){
       hechos += snap.size;
       cursor = snap.docs[snap.docs.length - 1].id;
       // Guardamos el AVANCE a cada paso → si se corta, retoma acá.
-      await metaRef.set({ cursor: cursor, hechos: hechos, done: false, updatedAt: new Date().toISOString() }, { merge: true });
+      await metaRef.set({ cursor: cursor, hechos: hechos, done: false, proveedores: Object.keys(provSet), updatedAt: new Date().toISOString() }, { merge: true });
       if(btn && !opts.auto) btn.textContent = 'Preparando… ' + hechos;
       if(!opts.auto && typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + hechos + ')');
       if(snap.size < 450) seguir = false;
     }
-    await metaRef.set({ done: true, hechos: hechos, updatedAt: new Date().toISOString() }, { merge: true });
+    await metaRef.set({ done: true, hechos: hechos, proveedores: Object.keys(provSet).sort(), updatedAt: new Date().toISOString() }, { merge: true });
     if(!opts.auto){
       if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
       if(typeof toast === 'function') toast('Listo: ' + hechos + ' productos preparados ✓', 'success');
@@ -16533,6 +16593,7 @@ var _vProvFiltro = '';          // proveedor seleccionado en sidebar
 var _vProvSearchQuery = '';     // texto del filtro de proveedores
 var _vSearchQuery = '';         // texto del buscador de productos
 var _vGridResults = [];         // resultados filtrados actuales del grid
+var _vBypassServidor = false;   // 📱 evita recursión al rendir tras traer del servidor
 var vGridPage = 0;
 var vGridPageSize = 40;
 
@@ -16738,6 +16799,17 @@ function actualizarTituloCarrito(){
 function poblarSelectorProveedorVentas(){
   var sel = document.getElementById('vProvSelect');
   if(!sel) return;
+  if(MODO_LIVIANO){
+    cargarProveedoresServidor().then(function(provs){
+      var html = '<option value="">Todos los proveedores</option>';
+      (provs || []).forEach(function(prov){
+        var selected = (_vProvFiltro === prov) ? 'selected' : '';
+        html += '<option value="' + eH(prov) + '" ' + selected + '>' + eH(prov) + '</option>';
+      });
+      sel.innerHTML = html;
+    });
+    return;
+  }
   // Contar productos por proveedor (solo con precio de venta)
   var provCounts = {};
   var totalConPrecio = 0;
@@ -16869,7 +16941,34 @@ function getProductosFiltrados(){
   return exact.concat(starts).concat(contains);
 }
 
+// 📱 Celular: trae los productos del grid de Ventas desde el servidor.
+async function vCargarGridServidor(){
+  var grid = document.getElementById('vGrid');
+  var pager = document.getElementById('vGridPager');
+  var info = document.getElementById('vGridInfoText');
+  var q = (_vSearchQuery || '').trim();
+  var prov = _vProvFiltro || '';
+  if(!q && !prov){
+    _vGridResults = [];
+    if(grid) grid.innerHTML = '<div class="vgrid-empty"><div class="vgrid-empty-icon">&#128269;</div>' +
+      '<div class="vgrid-empty-title">Buscá un producto</div>' +
+      '<div class="vgrid-empty-desc">Escribí un código o nombre, o elegí un proveedor.</div></div>';
+    if(pager) pager.style.display = 'none';
+    if(info) info.textContent = '';
+    return;
+  }
+  if(grid) grid.innerHTML = '<div class="vgrid-empty"><div class="vgrid-empty-title">Buscando…</div></div>';
+  var res = [];
+  try{
+    if(q) res = await buscarProductosServidor(q, 150);
+    else res = await buscarProductosPorProveedorServidor(prov, 200);
+  }catch(e){}
+  vMergeProductos(res);
+  _vBypassServidor = true;
+  renderGridVentas();
+}
 function renderGridVentas(){
+  _vBypassServidor = false;
   var grid = document.getElementById('vGrid');
   var info = document.getElementById('vGridInfoText');
   var pager = document.getElementById('vGridPager');
