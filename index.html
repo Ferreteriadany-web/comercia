@@ -12146,25 +12146,40 @@ async function buscarProductosServidor(query, max){
   return lista.slice(0, max);
 }
 
-// Migración de UNA sola vez: deja todos los productos existentes "buscables"
-// (les agrega palabras clave). Conviene correrla en la compu.
-async function prepararBusquedaServidor(){
-  if(!currentEmpresaId) return;
-  var ok = (typeof confirmComercia === 'function')
-    ? await confirmComercia('Voy a preparar tus productos para que se puedan buscar desde el celular.\n\nTarda unos minutos y es una sola vez. Tus datos no se tocan. ¿Dale?')
-    : confirm('¿Preparar búsqueda?');
-  if(!ok) return;
+// Deja todos los productos "buscables" (palabras clave). RESUMIBLE: guarda el avance
+// a cada paso, así si se corta retoma solo donde quedó. Con opts.auto corre en silencio.
+var _prepEnCurso = false;
+async function prepararBusquedaServidor(opts){
+  opts = opts || {};
+  if(!currentEmpresaId || _prepEnCurso) return;
+  if(!opts.auto){
+    var ok = (typeof confirmComercia === 'function')
+      ? await confirmComercia('Voy a preparar tus productos para que se puedan buscar.\n\nSe puede cortar y retomar sin problema. ¿Dale?')
+      : confirm('¿Preparar búsqueda?');
+    if(!ok) return;
+  }
+  _prepEnCurso = true;
   var btn = document.getElementById('btnPrepBusqueda');
-  if(btn) btn.disabled = true;
-  if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando');
+  if(btn && !opts.auto) btn.disabled = true;
+  var metaRef = db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('prepBusqueda');
   try{
+    var ms = await metaRef.get();
+    var meta = ms.exists ? ms.data() : {};
+    if(meta.done && !opts.forzar){
+      if(!opts.auto && typeof toast === 'function') toast('La búsqueda ya está preparada ✓', 'success');
+      if(btn){ btn.disabled = false; btn.textContent = '🔎 Búsqueda lista ✓'; }
+      _prepEnCurso = false; return;
+    }
+    var cursor = meta.cursor || null;
+    var hechos = meta.hechos || 0;
     var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
-    var cursor = null, more = true, hechos = 0;
-    while(more){
+    var seguir = true;
+    if(!opts.auto && typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + hechos + ')');
+    while(seguir){
       var q = col.orderBy(firebase.firestore.FieldPath.documentId()).limit(450);
       if(cursor) q = q.startAfter(cursor);
       var snap = await q.get();
-      if(snap.empty) break;
+      if(snap.empty){ seguir = false; break; }
       var batch = db.batch();
       snap.forEach(function(d){
         var p = d.data();
@@ -12175,18 +12190,29 @@ async function prepararBusquedaServidor(){
       });
       await batch.commit();
       hechos += snap.size;
-      if(btn) btn.textContent = 'Preparando… ' + hechos;
-      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + hechos + ')');
       cursor = snap.docs[snap.docs.length - 1].id;
-      if(snap.size < 450) more = false;
+      // Guardamos el AVANCE a cada paso → si se corta, retoma acá.
+      await metaRef.set({ cursor: cursor, hechos: hechos, done: false, updatedAt: new Date().toISOString() }, { merge: true });
+      if(btn && !opts.auto) btn.textContent = 'Preparando… ' + hechos;
+      if(!opts.auto && typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + hechos + ')');
+      if(snap.size < 450) seguir = false;
     }
-    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
-    if(typeof toast === 'function') toast('Listo: ' + hechos + ' productos preparados para buscar ✓', 'success');
+    await metaRef.set({ done: true, hechos: hechos, updatedAt: new Date().toISOString() }, { merge: true });
+    if(!opts.auto){
+      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+      if(typeof toast === 'function') toast('Listo: ' + hechos + ' productos preparados ✓', 'success');
+    }
+    if(btn){ btn.textContent = '🔎 Búsqueda lista ✓'; }
   }catch(e){
-    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
-    if(typeof toast === 'function') toast('Error al preparar: ' + (e.message || e), 'error');
-  }finally{
+    if(!opts.auto){
+      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
+      if(typeof toast === 'function') toast('Se cortó, pero guardé el avance. Tocá de nuevo para continuar.', 'error');
+    }
+    console.error('prepararBusqueda:', e);
     if(btn){ btn.disabled = false; btn.textContent = '🔎 Preparar búsqueda'; }
+  }finally{
+    _prepEnCurso = false;
+    if(btn && !opts.auto && btn.textContent.indexOf('lista') < 0) btn.disabled = false;
   }
 }
 
@@ -12374,6 +12400,9 @@ async function cargarProductos(){
     poblarFiltroProveedores();
 
     sincronizarProductos(currentEmpresaId);
+    // En la compu: completar la preparación de búsqueda en segundo plano (resumible).
+    // Si ya está lista, no hace nada. Si quedó a medias, la termina sola.
+    setTimeout(function(){ if(typeof prepararBusquedaServidor === 'function') prepararBusquedaServidor({ auto: true }); }, 5000);
   }catch(err){
     console.error('Error cargando productos:', err);
     toast('Error al cargar productos','error');
