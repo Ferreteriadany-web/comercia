@@ -3909,9 +3909,46 @@
     .main-title{font-size:17px}
   }
 
+  /* Barra de pestañas inferior: oculta en PC, visible solo en celular */
+  .mobile-tabbar{display:none}
+
   /* MOBILE REAL (≤ 768px) */
   @media (max-width:768px){
     .mobile-menu-btn{display:flex}
+
+    /* Barra de pestañas inferior estilo app */
+    .mobile-tabbar{
+      display:flex;
+      position:fixed;
+      left:0; right:0; bottom:0;
+      height:60px;
+      padding-bottom:env(safe-area-inset-bottom, 0);
+      background:var(--card, #1c1c1e);
+      border-top:1px solid rgba(255,255,255,.08);
+      z-index:950;
+      box-shadow:0 -4px 20px rgba(0,0,0,.25);
+    }
+    .mtab{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:3px;
+      padding:7px 2px;
+      font-size:10px;
+      font-weight:600;
+      color:var(--text-muted, #9aa);
+      text-decoration:none;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .mtab i{font-size:21px;line-height:1}
+    .mtab.active{color:var(--accent, #f97316)}
+    .mtab:active{transform:scale(.94)}
+    /* Espacio para que el contenido no quede tapado por la barra */
+    .main-body{padding-bottom:74px !important}
+    .app-shell{padding-bottom:0}
 
     /* Sidebar como drawer deslizante */
     .sidebar{
@@ -7556,6 +7593,14 @@
       </div>
 
     </main>
+    <!-- Barra de pestañas inferior (solo celular) -->
+    <nav class="mobile-tabbar" id="mobileTabbar" aria-label="Navegación rápida">
+      <a class="mtab" data-module="ventas" onclick="navTo('ventas')"><i class="ti ti-cash-register"></i><span>Ventas</span></a>
+      <a class="mtab" data-module="presupuestos" onclick="navTo('presupuestos')"><i class="ti ti-file-text"></i><span>Presup.</span></a>
+      <a class="mtab" data-module="entradaStock" onclick="navTo('entradaStock')"><i class="ti ti-truck-delivery"></i><span>Compras</span></a>
+      <a class="mtab" data-module="productos" onclick="navTo('productos')"><i class="ti ti-package"></i><span>Productos</span></a>
+      <a class="mtab" onclick="toggleMobileSidebar()"><i class="ti ti-menu-2"></i><span>Más</span></a>
+    </nav>
   </div>
 </div>
 
@@ -9566,7 +9611,7 @@ function navTo(modulo){
     mostrarUpsellPro(MODULO_FEATURE[modulo]);
     return;
   }
-  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  document.querySelectorAll('.nav-item, .mtab').forEach(function(n){ n.classList.remove('active'); });
   document.querySelectorAll('[data-module="'+modulo+'"]').forEach(function(n){ n.classList.add('active'); });
   document.querySelectorAll('.module').forEach(function(m){ m.classList.remove('active'); });
   var target = document.getElementById('module'+modulo.charAt(0).toUpperCase()+modulo.slice(1));
@@ -12118,21 +12163,28 @@ async function buscarProductosServidor(query, max){
     var byCode = await col.where('codigo', '==', query).limit(5).get();
     byCode.forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
   }catch(e){ _lastBusqError = 'codigo: ' + ((e && (e.code || e.message)) || 'error'); }
-  // 2) Palabras clave (nombre/rubro/proveedor), ordenado por relevancia
+  // 2) Palabras clave: pide que estén TODAS las palabras (no cualquiera).
+  //    Buscamos por la palabra más específica (la más larga) y filtramos el resto.
   try{
     var toks = _sfTokens(query).slice(0, 10);
-    if(toks.length){
-      var byTok = await col.where('tok', 'array-contains-any', toks).limit(60).get();
-      var tokSet = {}; toks.forEach(function(t){ tokSet[t] = 1; });
-      var arr = [];
-      byTok.forEach(function(d){
+    if(toks.length === 1){
+      var snap1 = await col.where('tok', 'array-contains', toks[0]).limit(150).get();
+      snap1.forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
+    } else if(toks.length > 1){
+      // ancla = el término más largo (suele ser el más específico, ej. "redeco")
+      var ancla = toks.slice().sort(function(a, b){ return b.length - a.length; })[0];
+      var snapA = await col.where('tok', 'array-contains', ancla).limit(300).get();
+      var conTodos = [], casi = [];
+      snapA.forEach(function(d){
         if(vistos[d.id]) return;
-        var p = d.data(); p._id = d.id; var sc = 0;
-        (p.tok || []).forEach(function(t){ if(tokSet[t]) sc++; });
-        arr.push({ sc: sc, p: p });
+        var p = d.data(); p._id = d.id;
+        var tset = {}; (p.tok || []).forEach(function(t){ tset[t] = 1; });
+        var faltan = 0; toks.forEach(function(t){ if(!tset[t]) faltan++; });
+        if(faltan === 0) conTodos.push(p);
+        else if(faltan === 1) casi.push(p);
       });
-      arr.sort(function(a, b){ return b.sc - a.sc; });
-      arr.forEach(function(o){ if(!vistos[o.p._id]){ vistos[o.p._id] = 1; lista.push(o.p); } });
+      conTodos.forEach(function(p){ if(!vistos[p._id]){ vistos[p._id] = 1; lista.push(p); } });
+      if(lista.length < max){ casi.forEach(function(p){ if(!vistos[p._id]){ vistos[p._id] = 1; lista.push(p); } }); }
     }
   }catch(e){ _lastBusqError = 'tok: ' + ((e && (e.code || e.message)) || 'error'); console.error('buscarProductosServidor tok:', e); }
   // 3) Respaldo: nombre que empieza con lo buscado (usa el campo 'nl')
@@ -12578,7 +12630,7 @@ async function showProdDropdownServidor(query, dd){
   dd.innerHTML = '<div class="dd-info"><span>Buscando…</span></div>';
   dd.classList.add('show');
   var res = [];
-  try{ res = await buscarProductosServidor(query, 50); }catch(e){}
+  try{ res = await buscarProductosServidor(query, 150); }catch(e){}
   if(mi !== _prodBuscarToken) return; // ya hay una búsqueda más nueva
   productos = res;                    // para que editProduct() y la tabla los encuentren
   productosFiltered = res.slice();
