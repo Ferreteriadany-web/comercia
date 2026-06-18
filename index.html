@@ -5306,6 +5306,7 @@
               <button class="search-scan-btn" onclick="scanParaProductos()" title="Escanear código con cámara">&#128247;</button>
               <div class="search-dropdown" id="prodDropdown"></div>
             </div>
+            <button id="prodSinPrecioBtn" class="btn btn-line btn-sm" onclick="prodToggleSinPrecio()" title="Mostrar solo productos sin precio de venta" style="white-space:nowrap">&#128176; Sin precio</button>
           </div>
 
           <!-- Barra de selección múltiple -->
@@ -9207,6 +9208,7 @@ var prodPage = 0;
 var prodPageSize = 50;
 var prodSearchTimer = null;
 var prodFiltroStockBajo = false;
+var prodFiltroSinPrecio = false;
 var _stockBajoAvisado = false;
 var _prodStockOriginal = null;
 
@@ -10158,6 +10160,12 @@ function injectStorefrontStyles(){
     '.sf-ainput{display:flex;gap:8px;padding:12px;border-top:1px solid #eee;background:#fff}',
     '.sf-ainput input{flex:1;border:1px solid #ddd;border-radius:10px;padding:11px 13px;font-size:14px;outline:none}',
     '.sf-ainput button{background:var(--sf-accent);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:700;cursor:pointer}',
+    '.sf-ainput .sf-acam{background:#f0f0f0;color:#555;padding:0 13px;font-size:17px;flex-shrink:0}',
+    '.sf-apreview{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid #eee;background:#fafafa}',
+    '.sf-apreview img{width:46px;height:46px;object-fit:cover;border-radius:8px;border:1px solid #ddd}',
+    '.sf-apreview span{flex:1;font-size:13px;color:#666}',
+    '.sf-apreview button{background:none;border:none;font-size:20px;color:#999;cursor:pointer;line-height:1;padding:0 4px}',
+    '.sf-aimg{max-width:180px;max-height:200px;border-radius:10px;display:block;margin-bottom:4px}',
     '.sf-atyping{font-size:13px;color:#999;align-self:flex-start;padding:2px 6px}',
     '.sf-achips{display:flex;flex-wrap:wrap;gap:7px;align-self:flex-start;max-width:92%;margin-top:2px}',
     '.sf-achip{background:#fff;border:1px solid var(--sf-accent);color:var(--sf-accent);border-radius:16px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer}',
@@ -10254,7 +10262,12 @@ function renderStorefront(){
     '<div class="sf-asesor" id="sfAsesorPanel" style="--sf-accent:' + sfEsc(color) + '">' +
       '<div class="sf-ahead"><span>&#128172; ' + sfEsc(_sfData.asesorNombre || 'Asesor') + (_sfData.nombre ? (' &middot; ' + sfEsc(_sfData.nombre)) : '') + '</span><button class="sf-x" onclick="sfAsesorCerrar()">&times;</button></div>' +
       '<div class="sf-amsgs" id="sfAsesorMsgs"></div>' +
-      '<div class="sf-ainput"><input id="sfAsesorInput" placeholder="Escribí lo que buscás…" onkeydown="if(event.key===&#39;Enter&#39;)sfAsesorEnviar()" autocomplete="off"><button onclick="sfAsesorEnviar()">Enviar</button></div>' +
+      '<div class="sf-apreview" id="sfAsesorPreview" style="display:none"></div>' +
+      '<div class="sf-ainput">' +
+        '<input type="file" id="sfAsesorFile" accept="image/*" capture="environment" style="display:none" onchange="sfAsesorFoto(event)">' +
+        '<button class="sf-acam" onclick="document.getElementById(&#39;sfAsesorFile&#39;).click()" title="Enviar una foto">&#128247;</button>' +
+        '<input id="sfAsesorInput" placeholder="Escribí lo que buscás…" onkeydown="if(event.key===&#39;Enter&#39;)sfAsesorEnviar()" autocomplete="off"><button onclick="sfAsesorEnviar()">Enviar</button>' +
+      '</div>' +
     '</div>';
   root.innerHTML = html;
   var bc = document.getElementById('sfBackCats'); if(bc) bc.style.display = _sfRubros.length ? '' : 'none';
@@ -10416,7 +10429,38 @@ function sfCheckout(){
 }
 
 // ── Asesor IA de la tienda (vendedor virtual para el cliente) ──
-var _sfAsesorMsgs = [], _sfAsesorCargando = false;
+var _sfAsesorMsgs = [], _sfAsesorCargando = false, _sfAsesorImg = null;
+// Lee una foto, la achica (máx 1024px) y la deja lista para enviar.
+function sfAsesorFoto(ev){
+  var f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+  if(!f) return;
+  if(f.size > 15 * 1024 * 1024){ alert('La foto es muy grande. Probá con otra.'); return; }
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var img = new Image();
+    img.onload = function(){
+      var max = 1024, w = img.width, h = img.height;
+      if(w > h && w > max){ h = Math.round(h * max / w); w = max; }
+      else if(h >= w && h > max){ w = Math.round(w * max / h); h = max; }
+      var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      var durl = cv.toDataURL('image/jpeg', 0.82);
+      _sfAsesorImg = { media_type: 'image/jpeg', data: durl.split(',')[1], dataUrl: durl };
+      sfAsesorPreview();
+    };
+    img.onerror = function(){ alert('No pude leer la foto. Probá con otra.'); };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+function sfAsesorPreview(){
+  var p = document.getElementById('sfAsesorPreview'); if(!p) return;
+  if(_sfAsesorImg){
+    p.style.display = '';
+    p.innerHTML = '<img src="' + _sfAsesorImg.dataUrl + '" alt="foto"><span>Foto lista para enviar</span><button onclick="sfAsesorQuitarFoto()" title="Quitar">&times;</button>';
+  } else { p.style.display = 'none'; p.innerHTML = ''; }
+}
+function sfAsesorQuitarFoto(){ _sfAsesorImg = null; sfAsesorPreview(); }
 function sfAsesorAbrir(){
   var bg = document.getElementById('sfAsesorBg'), p = document.getElementById('sfAsesorPanel');
   if(bg) bg.classList.add('open'); if(p) p.classList.add('open');
@@ -10441,7 +10485,11 @@ function sfAsesorCerrar(){
 function sfAsesorRender(){
   var c = document.getElementById('sfAsesorMsgs'); if(!c) return;
   var html = _sfAsesorMsgs.map(function(m){
-    if(m.role === 'user') return '<div class="sf-abubble sf-auser">' + sfEsc(m.content) + '</div>';
+    if(m.role === 'user'){
+      var foto = m.imgUrl ? ('<img src="' + m.imgUrl + '" class="sf-aimg" alt="foto">') : '';
+      var t = m.content ? ('<div>' + sfEsc(m.content) + '</div>') : '';
+      return '<div class="sf-abubble sf-auser">' + foto + t + '</div>';
+    }
     var bub = '<div class="sf-abubble sf-abot">' + sfEsc(m.content) + '</div>';
     if(m.productos && m.productos.length){
       bub += '<div class="sf-arec">' + m.productos.map(function(pr){
@@ -10501,15 +10549,19 @@ function sfAsesorProductosEnReply(reply, candidatos){
 }
 async function sfAsesorEnviar(){
   var inp = document.getElementById('sfAsesorInput'); if(!inp) return;
-  var txt = inp.value.trim(); if(!txt || _sfAsesorCargando) return;
+  var txt = inp.value.trim();
+  if((!txt && !_sfAsesorImg) || _sfAsesorCargando) return;
   inp.value = '';
-  _sfAsesorMsgs.push({ role: 'user', content: txt });
+  var msg = { role: 'user', content: txt };
+  if(_sfAsesorImg){ msg.img = { media_type: _sfAsesorImg.media_type, data: _sfAsesorImg.data }; msg.imgUrl = _sfAsesorImg.dataUrl; }
+  _sfAsesorMsgs.push(msg);
+  _sfAsesorImg = null; sfAsesorPreview();
   _sfAsesorCargando = true; sfAsesorRender();
   var candidatos = sfAsesorCandidatos();
   try{
     var res = await functions.httpsCallable('tiendaAsesorIA')({
       empresaId: window._sfId || '',
-      messages: _sfAsesorMsgs.map(function(m){ return { role: m.role, content: m.content }; }),
+      messages: _sfAsesorMsgs.map(function(m, i, arr){ var o = { role: m.role, content: m.content }; if(m.img && i === arr.length - 1) o.img = m.img; return o; }),
       candidatos: candidatos,
       rubros: _sfRubros || []
     });
@@ -12390,7 +12442,9 @@ function renderProductos(){
   var lista = prodListaVisible();
 
   if(lista.length === 0){
-    var emptyMsg = prodFiltroStockBajo
+    var emptyMsg = prodFiltroSinPrecio
+      ? '<div class="empty-table-icon">&#9989;</div><div class="empty-table-title">Todos con precio</div><div class="empty-table-desc">No hay productos sin precio de venta en el filtro actual.</div>'
+      : prodFiltroStockBajo
       ? '<div class="empty-table-icon">&#9989;</div><div class="empty-table-title">Sin stock bajo</div><div class="empty-table-desc">Ningún producto del filtro actual está en o por debajo de su mínimo.</div>'
       : '<div class="empty-table-icon">&#128269;</div><div class="empty-table-title">Sin resultados</div><div class="empty-table-desc">Probá con otra búsqueda.</div>';
     tbody.innerHTML = '<tr><td colspan="9" class="empty-table">'+emptyMsg+'</td></tr>';
@@ -12466,7 +12520,10 @@ function contarStockBajo(){
 // La lista que se muestra en la tabla: el resultado de búsqueda, y si
 // el filtro de stock bajo está activo, solo los que están en alerta.
 function prodListaVisible(){
-  return prodFiltroStockBajo ? productosFiltered.filter(esStockBajo) : productosFiltered;
+  var base = productosFiltered;
+  if(prodFiltroStockBajo) base = base.filter(esStockBajo);
+  if(prodFiltroSinPrecio) base = base.filter(function(p){ return !(Number(p.precioVenta) > 0); });
+  return base;
 }
 
 // HTML de la celda de stock (con badge rojo si está bajo).
@@ -12558,6 +12615,15 @@ function prodToggleStockBajo(){
   prodFiltroStockBajo = !prodFiltroStockBajo;
   var card = document.getElementById('statStockBajoCard');
   if(card) card.classList.toggle('activo', prodFiltroStockBajo);
+  prodPage = 0;
+  renderProductos();
+}
+
+// Toggle del filtro "solo sin precio" (botón en la barra de Productos).
+function prodToggleSinPrecio(){
+  prodFiltroSinPrecio = !prodFiltroSinPrecio;
+  var b = document.getElementById('prodSinPrecioBtn');
+  if(b){ b.classList.toggle('btn-primary', prodFiltroSinPrecio); b.classList.toggle('btn-line', !prodFiltroSinPrecio); }
   prodPage = 0;
   renderProductos();
 }
