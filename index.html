@@ -4960,7 +4960,7 @@
           <li><span class="pf-ck">&#10003;</span> Reportes y Facturación AFIP</li>
           <li><span class="pf-ck">&#10003;</span> 3 dispositivos a la vez</li>
           <li class="off"><span class="pf-ck">&#10007;</span> Asistente IA (consultas)</li>
-          <li class="off"><span class="pf-ck">&#10007;</span> Tienda Online</li>
+          <li class="off"><span class="pf-ck">&#10007;</span> Presupuesto Online</li>
         </ul>
         <button class="btn btn-line" onclick="openRegister()">Probar gratis</button>
       </div>
@@ -4972,7 +4972,7 @@
         <ul class="price-feats">
           <li><span class="pf-ck">&#10003;</span> Todo lo del plan Básico</li>
           <li><span class="pf-ck">&#10003;</span> Asistente IA: consultas y comparador de precios</li>
-          <li><span class="pf-ck">&#10003;</span> Tienda Online integrada</li>
+          <li><span class="pf-ck">&#10003;</span> Presupuesto Online integrado</li>
           <li><span class="pf-ck">&#10003;</span> Sumás dispositivos cuando quieras</li>
         </ul>
         <button class="btn btn-primary" onclick="openRegister()">Probar gratis</button>
@@ -5154,7 +5154,7 @@
           <span class="nav-item-icon"><i class="ti ti-robot"></i></span><span>Asistente IA</span>
         </a>
         <a class="nav-item" data-module="tienda" onclick="navTo('tienda')">
-          <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Tienda Online</span>
+          <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Presupuesto Online</span>
         </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
@@ -7236,13 +7236,13 @@
 
       <div class="module" id="moduleTienda">
         <header class="main-header">
-          <h1 class="main-title">Tienda Online</h1>
+          <h1 class="main-title">Presupuesto Online</h1>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="verTienda()">&#128065; Ver tienda</button>
             <button class="btn btn-primary btn-sm" id="tiendaBtnPublicar" onclick="guardarPublicarTienda()">&#128722; Guardar y publicar</button>
           </div>
         </header>
-        <details class="ayuda-mod"><summary><span class="ay-ico">&#128722;</span><span>¿Cómo funciona la Tienda Online?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Una <b>vitrina pública</b> de tu catálogo para que tus clientes vean y te pidan.<ul><li>Activá la tienda, poné tu <b>WhatsApp</b> y tocá <b>Guardar y publicar</b>.</li><li>Se publican tus productos con <b>precio de venta y foto</b> (nunca el costo).</li><li>Compartí el <b>link</b> por WhatsApp o Instagram. Los pedidos te llegan por WhatsApp.</li><li>Cada vez que cambies precios o productos, volvé a <b>publicar</b> para actualizar la tienda.</li></ul></div></details>
+        <details class="ayuda-mod"><summary><span class="ay-ico">&#128722;</span><span>¿Cómo funciona el Presupuesto Online?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Una <b>vitrina pública</b> de tu catálogo para que tus clientes vean y te pidan.<ul><li>Activá la tienda, poné tu <b>WhatsApp</b> y tocá <b>Guardar y publicar</b>.</li><li>Se publican tus productos con <b>precio de venta y foto</b> (nunca el costo).</li><li>Compartí el <b>link</b> por WhatsApp o Instagram. Los pedidos te llegan por WhatsApp.</li><li>Cada vez que cambies precios o productos, volvé a <b>publicar</b> para actualizar la tienda.</li></ul></div></details>
         <div class="main-body">
           <div class="alert error" id="tiendaAlert"></div>
           <style>
@@ -7263,9 +7263,9 @@
             <div class="tw-progress" id="twProgress"></div>
             <div style="padding:22px 24px">
               <div class="tw-step" data-step="1">
-                <div class="tw-q">1 · ¿Activamos tu tienda online? &#128717;&#65039;</div>
+                <div class="tw-q">1 · ¿Activamos tu presupuesto online? &#128717;&#65039;</div>
                 <p class="tw-help">Con la tienda activa, tus clientes la pueden ver con el link de abajo.</p>
-                <label class="tw-switch"><input type="checkbox" id="tiendaActiva"> <span>Sí, tienda online activa</span></label>
+                <label class="tw-switch"><input type="checkbox" id="tiendaActiva"> <span>Sí, presupuesto online activo</span></label>
                 <div class="form-group" style="margin-top:14px">
                   <label class="form-label">Link de tu tienda (para compartir)</label>
                   <div style="display:flex;gap:8px">
@@ -7283,6 +7283,11 @@
                 <div class="tw-q" style="font-size:14px;margin-top:18px">Mensaje de bienvenida (opcional)</div>
                 <div class="form-group">
                   <input class="form-input" type="text" id="tiendaBienvenida" placeholder="Ej: ¡Bienvenido! Hacé tu pedido y te lo preparamos." autocomplete="off">
+                </div>
+                <div class="tw-q" style="font-size:14px;margin-top:18px">Nombre del asesor &#129302; (tu vendedor virtual)</div>
+                <p class="tw-help">Así se presenta con tus clientes. Si lo dejás vacío, va a decir "tu asesor".</p>
+                <div class="form-group">
+                  <input class="form-input" type="text" id="tiendaAsesorNombre" placeholder="Ej: Marcos, Dany, Sofía…" autocomplete="off">
                 </div>
               </div>
               <div class="tw-step" data-step="3" hidden>
@@ -7741,9 +7746,9 @@
     </div>
 
     <!-- DESCRIPCIÓN PARA LA TIENDA ONLINE -->
-    <div class="form-section-title">Descripción para la tienda online</div>
+    <div class="form-section-title">Descripción para el presupuesto online</div>
     <div class="form-group" style="margin-bottom:6px">
-      <textarea class="form-input" id="prodDetalle" rows="3" placeholder="Lo que verán tus clientes en la ficha del producto (tienda online y vitrina de WhatsApp)." style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.45"></textarea>
+      <textarea class="form-input" id="prodDetalle" rows="3" placeholder="Lo que verán tus clientes en la ficha del producto (presupuesto online y vitrina de WhatsApp)." style="resize:vertical;min-height:72px;font-family:inherit;line-height:1.45"></textarea>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
       <span class="prod-foto-hint" style="margin:0">Opcional. Se sincroniza a Tienda Nube y a tu vitrina.</span>
@@ -8584,7 +8589,7 @@
     <p class="modal-subtitle" id="upsellTexto" style="line-height:1.5"></p>
     <ul style="font-size:13px;color:var(--text-soft,var(--text-mute));line-height:1.9;margin:6px 0 16px;padding-left:18px">
       <li>&#129302; Asistente IA (consultas y comparador de proveedores)</li>
-      <li>&#128722; Tienda Online integrada</li>
+      <li>&#128722; Presupuesto Online integrado</li>
     </ul>
     <div style="display:flex;gap:10px">
       <button class="btn btn-ghost" onclick="closeModals()" style="flex:1">Ahora no</button>
@@ -9541,7 +9546,7 @@ function navTo(modulo){
     toast('No tenés permiso para acceder a esta sección', 'error');
     return;
   }
-  // Control de plan: funciones Pro (Asistente IA, Tienda Online, etc.)
+  // Control de plan: funciones Pro (Asistente IA, Presupuesto Online, etc.)
   if(typeof moduloRequierePlan === 'function' && moduloRequierePlan(modulo)){
     mostrarUpsellPro(MODULO_FEATURE[modulo]);
     return;
@@ -9705,7 +9710,7 @@ function aplicarPlanUI(){
 }
 
 function mostrarUpsellPro(feature){
-  var nombres = { asistenteIA:'las consultas y el comparador del Asistente IA', tiendaOnline:'la Tienda Online' };
+  var nombres = { asistenteIA:'las consultas y el comparador del Asistente IA', tiendaOnline:'el Presupuesto Online' };
   var cual = nombres[feature] || 'esta función';
   var t = document.getElementById('upsellTexto');
   if(t) t.innerHTML = 'El acceso a <b>'+cual+'</b> es parte del plan <b>Pro</b>. Mejorá tu plan para desbloquearlo.';
@@ -9771,6 +9776,7 @@ async function initTienda(){
     var a = document.getElementById('tiendaActiva'); if(a) a.checked = !!x.activa;
     var w = document.getElementById('tiendaWhatsapp'); if(w) w.value = x.whatsapp || '';
     var b = document.getElementById('tiendaBienvenida'); if(b) b.value = x.bienvenida || '';
+    var an = document.getElementById('tiendaAsesorNombre'); if(an) an.value = x.asesorNombre || '';
     // rubros
     if(Array.isArray(x.rubrosVisibles)){
       window._twRubrosPrev = x.rubrosVisibles;
@@ -9823,6 +9829,7 @@ async function guardarPublicarTienda(){
         p: mostrarPrecio ? (Number(pr.precioVenta) || 0) : 0, // si ocultamos precio, no lo exponemos
         f: pr.fotoUrl || '',
         r: pr.rubro || '',
+        pv: pr.proveedor || '',
         s: Number(pr.stock) || 0,
         d: (pr.detalle || '').slice(0, 600)
       });
@@ -9846,6 +9853,7 @@ async function guardarPublicarTienda(){
       color: currentEmpresa ? (currentEmpresa.color || currentEmpresa.colorPrimario || '') : '',
       whatsapp: wa,
       bienvenida: (document.getElementById('tiendaBienvenida').value || '').trim(),
+      asesorNombre: (document.getElementById('tiendaAsesorNombre').value || '').trim(),
       rubrosVisibles: rubrosVisibles ? rubrosVisibles : firebase.firestore.FieldValue.delete(),
       mostrarPrecio: mostrarPrecio,
       mostrarStock: mostrarStock,
@@ -10017,7 +10025,7 @@ async function rbRecargarNube(){
   iaRubrosPrep();
 }
 
-// ── Asistente guiado de la Tienda Online ──
+// ── Asistente guiado de el Presupuesto Online ──
 var twStep = 1; var TW_TOTAL = 5;
 function twPaso(dir){
   var n = twStep + dir;
@@ -10142,6 +10150,8 @@ function injectStorefrontStyles(){
     '.sf-ainput input{flex:1;border:1px solid #ddd;border-radius:10px;padding:11px 13px;font-size:14px;outline:none}',
     '.sf-ainput button{background:var(--sf-accent);color:#fff;border:none;border-radius:10px;padding:0 16px;font-weight:700;cursor:pointer}',
     '.sf-atyping{font-size:13px;color:#999;align-self:flex-start;padding:2px 6px}',
+    '.sf-achips{display:flex;flex-wrap:wrap;gap:7px;align-self:flex-start;max-width:92%;margin-top:2px}',
+    '.sf-achip{background:#fff;border:1px solid var(--sf-accent);color:var(--sf-accent);border-radius:16px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer}',
     '.sf-pprice{font-size:16px;font-weight:800;color:#1a1a2e;margin-top:auto}',
     '.sf-add{border:none;background:var(--sf-accent);color:#fff;border-radius:9px;padding:8px;font-weight:700;font-size:13px;cursor:pointer;margin-top:4px}',
     '.sf-empty{text-align:center;color:#999;padding:50px 20px}',
@@ -10233,7 +10243,7 @@ function renderStorefront(){
     '<button class="sf-asesor-fab" id="sfAsesorFab" onclick="sfAsesorAbrir()" style="--sf-accent:' + sfEsc(color) + '">&#128172; ¿Te ayudo a elegir?</button>' +
     '<div class="sf-asesor-bg" id="sfAsesorBg" onclick="sfAsesorCerrar()"></div>' +
     '<div class="sf-asesor" id="sfAsesorPanel" style="--sf-accent:' + sfEsc(color) + '">' +
-      '<div class="sf-ahead"><span>&#128736;&#65039; Asesor de ' + sfEsc(_sfData.nombre || 'la tienda') + '</span><button class="sf-x" onclick="sfAsesorCerrar()">&times;</button></div>' +
+      '<div class="sf-ahead"><span>&#128172; ' + sfEsc(_sfData.asesorNombre || 'Asesor') + (_sfData.nombre ? (' &middot; ' + sfEsc(_sfData.nombre)) : '') + '</span><button class="sf-x" onclick="sfAsesorCerrar()">&times;</button></div>' +
       '<div class="sf-amsgs" id="sfAsesorMsgs"></div>' +
       '<div class="sf-ainput"><input id="sfAsesorInput" placeholder="Escribí lo que buscás…" onkeydown="if(event.key===&#39;Enter&#39;)sfAsesorEnviar()" autocomplete="off"><button onclick="sfAsesorEnviar()">Enviar</button></div>' +
     '</div>';
@@ -10244,6 +10254,7 @@ function renderStorefront(){
   sfRenderGrid();
   sfRenderCart();
   if(!_sfRubros.length) sfMostrarShop(); // sin categorías → directo al catálogo
+  setTimeout(function(){ if(typeof sfAsesorAbrir === 'function') sfAsesorAbrir(); }, 350); // la tienda arranca como una charla
 }
 
 function sfRenderRubros(){
@@ -10395,10 +10406,18 @@ function sfAsesorAbrir(){
   var bg = document.getElementById('sfAsesorBg'), p = document.getElementById('sfAsesorPanel');
   if(bg) bg.classList.add('open'); if(p) p.classList.add('open');
   if(!_sfAsesorMsgs.length){
-    _sfAsesorMsgs.push({ role: 'assistant', content: '¡Hola! 👋 Soy el asesor de ' + (_sfData.nombre || 'la tienda') + '. Contame qué estás buscando o para qué lo necesitás, y te ayudo a encontrar el producto justo.' });
+    var nom = (_sfData.asesorNombre || 'tu asesor');
+    var saludo = (_sfData.bienvenida && _sfData.bienvenida.trim())
+      ? _sfData.bienvenida.trim()
+      : ('¡Hola! 👋 Soy ' + nom + ' de ' + (_sfData.nombre || 'la ferretería') + '. Contame qué estás buscando o para qué lo necesitás y te ayudo a encontrar lo mejor para vos. 😊');
+    _sfAsesorMsgs.push({ role: 'assistant', content: saludo });
     sfAsesorRender();
   }
   var inp = document.getElementById('sfAsesorInput'); if(inp) setTimeout(function(){ inp.focus(); }, 200);
+}
+function sfAsesorChip(t){
+  var inp = document.getElementById('sfAsesorInput'); if(inp) inp.value = t;
+  sfAsesorEnviar();
 }
 function sfAsesorCerrar(){
   var bg = document.getElementById('sfAsesorBg'), p = document.getElementById('sfAsesorPanel');
@@ -10419,6 +10438,13 @@ function sfAsesorRender(){
     }
     return bub;
   }).join('');
+  if(_sfAsesorMsgs.length === 1 && !_sfAsesorCargando){
+    var chips = (_sfRubros || []).slice(0, 3).map(function(r){ return 'Busco ' + r; });
+    chips.push('No sé bien, ayudame a elegir');
+    html += '<div class="sf-achips">' + chips.map(function(t){
+      return '<button class="sf-achip" onclick="sfAsesorChip(\'' + t.replace(/'/g, "\\'") + '\')">' + sfEsc(t) + '</button>';
+    }).join('') + '</div>';
+  }
   if(_sfAsesorCargando) html += '<div class="sf-atyping">escribiendo…</div>';
   c.innerHTML = html;
   c.scrollTop = c.scrollHeight;
@@ -10437,12 +10463,12 @@ function sfAsesorCandidatos(){
   if(!words.length) return [];
   var items = _sfData.items || [], scored = [];
   items.forEach(function(it){
-    var hay = ((it.n || '') + ' ' + (it.r || '') + ' ' + (it.d || '')).toLowerCase();
+    var hay = ((it.n || '') + ' ' + (it.r || '') + ' ' + (it.pv || '') + ' ' + (it.d || '')).toLowerCase();
     var sc = 0; words.forEach(function(w){ if(hay.indexOf(w) >= 0) sc++; });
     if(sc > 0) scored.push({ it: it, sc: sc });
   });
   scored.sort(function(a, b){ return b.sc - a.sc; });
-  return scored.slice(0, 30).map(function(s){ return { n: s.it.n, c: s.it.c, p: s.it.p, r: s.it.r }; });
+  return scored.slice(0, 30).map(function(s){ return { n: s.it.n, c: s.it.c, p: s.it.p, r: s.it.r, pv: s.it.pv }; });
 }
 function sfAsesorProductosEnReply(reply, candidatos){
   var low = (reply || '').toLowerCase(), matches = [];
@@ -10510,7 +10536,7 @@ function renderPlan(){
     sub.textContent = cort ? 'Cuenta de cortesía: acceso total sin cargo.'
       : esPremium ? 'Tenés el plan Premium: todas las funciones y nosotros te mantenemos las listas al día.'
       : esPro ? 'Tenés el plan Pro, con todas las funciones del software.'
-      : 'Tenés el plan Básico. Pasá a Pro o Premium para sumar el Asistente IA, la Tienda Online y más.';
+      : 'Tenés el plan Básico. Pasá a Pro o Premium para sumar el Asistente IA, el Presupuesto Online y más.';
   }
   if(comp){
     var precioTxt = function(pl){ var v = PRECIOS_PLAN[pl]; return (v != null && v !== '') ? ('$' + v + ' /mes') : 'a definir'; };
@@ -10521,7 +10547,7 @@ function renderPlan(){
       ['Reportes y Facturación AFIP', true, true, true],
       ['Asistente IA &mdash; ayuda del sistema', true, true, true],
       ['Asistente IA &mdash; consultas y comparador', false, true, true],
-      ['Tienda Online', false, true, true],
+      ['Presupuesto Online', false, true, true],
       ['<b>Te actualizamos las listas de proveedores</b>', false, false, true]
     ];
     var colBas = (p === 'basico' && !cort) ? 'var(--accent)' : 'var(--text)';
