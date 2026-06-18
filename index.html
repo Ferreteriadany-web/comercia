@@ -11157,13 +11157,17 @@ function esBuscarProducto(codigo){
 function esEndsWith(s, suf){ return s.indexOf(suf, s.length - suf.length) !== -1; }
 
 // Agrega/actualiza una fila por código + cantidad
-function esAgregarFila(codigo, cantidad, descripcionOCR, precioUnit){
+async function esAgregarFila(codigo, cantidad, descripcionOCR, precioUnit){
   codigo = String(codigo || '').trim();
   if(!codigo) return;
   cantidad = Number(cantidad) || 0;
   // ¿ya está en la lista? sumar
   var existente = esState.filas.find(function(f){ return f.codigo.toLowerCase() === codigo.toLowerCase(); });
   if(existente){ existente.cantidad += (cantidad || 1); esRender(); return; }
+  // 📱 Celular: traemos el producto del servidor para poder enlazarlo
+  if(MODO_LIVIANO && typeof buscarProductosServidor === 'function'){
+    try{ var rr = await buscarProductosServidor(codigo, 5); if(typeof vMergeProductos === 'function') vMergeProductos(rr); }catch(e){}
+  }
   var prod = esBuscarProducto(codigo);
   esState.filas.push({
     codigo: codigo,
@@ -11289,7 +11293,9 @@ async function esAgregarManual(){
 }
 
 // ─── Buscador de productos (reponer existentes) ───
+var _esPickToken = 0;
 function esPickerBuscar(){
+  if(MODO_LIVIANO){ esPickerBuscarServidor(); return; } // 📱 buscar en servidor
   var inp = document.getElementById('esPickerInput');
   var drop = document.getElementById('esPickerDrop');
   if(!inp || !drop) return;
@@ -11304,13 +11310,31 @@ function esPickerBuscar(){
     if(qn && (c.replace(/^0+/, '').indexOf(qn) >= 0 || b.replace(/^0+/, '').indexOf(qn) >= 0)) return true;
     return false;
   }).slice(0, 8);
+  esPickerPintar(res, drop);
+}
+// 📱 Celular: busca en el servidor, fusiona y muestra el desplegable.
+async function esPickerBuscarServidor(){
+  var inp = document.getElementById('esPickerInput');
+  var drop = document.getElementById('esPickerDrop');
+  if(!inp || !drop) return;
+  var q = (inp.value || '').trim();
+  if(!q){ drop.style.display = 'none'; drop.innerHTML = ''; return; }
+  var tok = ++_esPickToken;
+  drop.style.display = 'block';
+  drop.innerHTML = '<div class="es-pick-item es-pick-empty">Buscando…</div>';
+  var res = []; try{ res = await buscarProductosServidor(q, 20); }catch(e){}
+  if(tok !== _esPickToken) return; // llegó otra búsqueda más nueva
+  if(typeof vMergeProductos === 'function') vMergeProductos(res);
+  esPickerPintar(res, drop);
+}
+function esPickerPintar(res, drop){
   if(res.length === 0){
     drop.innerHTML = '<div class="es-pick-item es-pick-empty">Sin resultados. ¿Es un producto nuevo? <a href="#" onclick="esAbrirNuevoModal();return false;">Crealo acá</a></div>';
   } else {
     drop.innerHTML = res.map(function(p){
       return '<div class="es-pick-item" onmousedown="esPickerElegir(\'' + escapeQ(p._id) + '\')">' +
         '<div class="es-pick-desc">' + eH(p.descripcion || p.nombre || '(sin nombre)') + '</div>' +
-        '<div class="es-pick-meta">' + eH(p.codigo || '') + (p.codBarra ? (' · ' + eH(p.codBarra)) : '') + ' · stock ' + (Number(p.stock) || 0) + '</div>' +
+        '<div class="es-pick-meta">' + eH(p.codigo || '') + (p.proveedor ? (' · ' + eH(p.proveedor)) : '') + (p.codBarra ? (' · ' + eH(p.codBarra)) : '') + ' · stock ' + (Number(p.stock) || 0) + '</div>' +
       '</div>';
     }).join('');
   }
@@ -27525,10 +27549,16 @@ async function lpCargarHistorial(){
   }
   function cpLlenarProveedores(){
     var dl = document.getElementById('cpProveedoresList'); if(!dl) return;
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    if(MODO_LIVIANO && typeof cargarProveedoresServidor === 'function'){
+      cargarProveedoresServidor().then(function(names){
+        dl.innerHTML = (names || []).map(function(n){ return '<option value="' + esc(n) + '"></option>'; }).join('');
+      });
+      return;
+    }
     var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
     var set = {};
     for(var i = 0; i < arr.length; i++){ var pv = (arr[i].proveedor||'').trim(); if(pv) set[pv] = 1; }
-    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
     var names = Object.keys(set).sort(function(a, b){ return a.localeCompare(b, 'es'); });
     dl.innerHTML = names.map(function(n){ return '<option value="' + esc(n) + '"></option>'; }).join('');
   }
@@ -27536,6 +27566,8 @@ async function lpCargarHistorial(){
   function cpFiltrarD(){ clearTimeout(cpTimer); cpTimer = setTimeout(cpFiltrar, 200); }
 
   function cpFiltrar(){
+    if(MODO_LIVIANO && !cpState._bypass){ cpFiltrarServidor(); return; } // 📱 buscar en servidor
+    cpState._bypass = false;
     var arr = (typeof productos !== 'undefined' && productos) ? productos : [];
     var fCod = _cpNorm(_cpVal('cpCodigo')).trim();
     var fProv = _cpNorm(_cpVal('cpProveedor')).trim();
@@ -27556,6 +27588,23 @@ async function lpCargarHistorial(){
     cpState.filtered = res;
     cpState.page = 1;
     cpOrdenar();
+  }
+
+  // 📱 Celular: trae los productos del servidor según lo que se escribió, los fusiona y filtra.
+  async function cpFiltrarServidor(){
+    var cod = _cpVal('cpCodigo').trim();
+    var prod = _cpVal('cpProducto').trim();
+    var prov = _cpVal('cpProveedor').trim();
+    var q = prod || cod || prov;
+    if(!q){ cpState.filtered = []; cpState.page = 1; cpRender(); return; }
+    var res = [];
+    try{
+      if(prov && !cod && !prod) res = await buscarProductosPorProveedorServidor(prov, 300);
+      else res = await buscarProductosServidor(q, 200);
+    }catch(e){}
+    if(typeof vMergeProductos === 'function') vMergeProductos(res);
+    cpState._bypass = true;
+    cpFiltrar();
   }
 
   function cpSort(col){
