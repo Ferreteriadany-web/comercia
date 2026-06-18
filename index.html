@@ -5262,6 +5262,7 @@
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
             <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
             <button class="btn btn-line btn-sm" onclick="reconstruirBaseLocal()" title="Si ves productos raros o faltantes, esto baja todo de nuevo desde la nube">&#128260; Reconstruir base</button>
+            <button id="btnPrepBusqueda" class="btn btn-line btn-sm" onclick="prepararBusquedaServidor()" title="Una sola vez (en la compu): deja todos tus productos buscables desde el celular">&#128269; Preparar búsqueda</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -9209,6 +9210,12 @@ var prodPageSize = 50;
 var prodSearchTimer = null;
 var prodFiltroStockBajo = false;
 var prodFiltroSinPrecio = false;
+// 📱 Modo liviano: SOLO en celulares/tablets reales (por tipo de dispositivo, nunca por
+// el tamaño de la ventana), así ninguna PC entra nunca en este modo.
+var MODO_LIVIANO = (function(){
+  try{ return /Android|iPhone|iPad|iPod|Mobile|Tablet|Opera Mini|IEMobile|BlackBerry/i.test(navigator.userAgent || ''); }
+  catch(e){ return false; }
+})();
 var _stockBajoAvisado = false;
 var _prodStockOriginal = null;
 
@@ -12094,6 +12101,86 @@ async function reconstruirBaseLocal(){
 }
 
 // ═══════════════════════════════════════════════════════
+// BÚSQUEDA EN EL SERVIDOR (para celular: no baja todo el catálogo)
+// ═══════════════════════════════════════════════════════
+// Busca productos directamente en Firestore (por código o palabras clave),
+// sin necesitar la base local completa. Devuelve hasta 'max' resultados.
+async function buscarProductosServidor(query, max){
+  query = (query || '').trim();
+  if(!query || !currentEmpresaId) return [];
+  max = max || 25;
+  var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+  var vistos = {}, lista = [];
+  // 1) Código exacto (lo más común al vender)
+  try{
+    var byCode = await col.where('codigo', '==', query).limit(5).get();
+    byCode.forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
+  }catch(e){}
+  // 2) Palabras clave (nombre/rubro/proveedor), ordenado por relevancia
+  try{
+    var toks = _sfTokens(query).slice(0, 10);
+    if(toks.length){
+      var byTok = await col.where('tok', 'array-contains-any', toks).limit(60).get();
+      var tokSet = {}; toks.forEach(function(t){ tokSet[t] = 1; });
+      var arr = [];
+      byTok.forEach(function(d){
+        if(vistos[d.id]) return;
+        var p = d.data(); p._id = d.id; var sc = 0;
+        (p.tok || []).forEach(function(t){ if(tokSet[t]) sc++; });
+        arr.push({ sc: sc, p: p });
+      });
+      arr.sort(function(a, b){ return b.sc - a.sc; });
+      arr.forEach(function(o){ if(!vistos[o.p._id]){ vistos[o.p._id] = 1; lista.push(o.p); } });
+    }
+  }catch(e){ console.error('buscarProductosServidor:', e && e.message); }
+  return lista.slice(0, max);
+}
+
+// Migración de UNA sola vez: deja todos los productos existentes "buscables"
+// (les agrega palabras clave). Conviene correrla en la compu.
+async function prepararBusquedaServidor(){
+  if(!currentEmpresaId) return;
+  var ok = (typeof confirmComercia === 'function')
+    ? await confirmComercia('Voy a preparar tus productos para que se puedan buscar desde el celular.\n\nTarda unos minutos y es una sola vez. Tus datos no se tocan. ¿Dale?')
+    : confirm('¿Preparar búsqueda?');
+  if(!ok) return;
+  var btn = document.getElementById('btnPrepBusqueda');
+  if(btn) btn.disabled = true;
+  if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando');
+  try{
+    var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+    var cursor = null, more = true, hechos = 0;
+    while(more){
+      var q = col.orderBy(firebase.firestore.FieldPath.documentId()).limit(450);
+      if(cursor) q = q.startAfter(cursor);
+      var snap = await q.get();
+      if(snap.empty) break;
+      var batch = db.batch();
+      snap.forEach(function(d){
+        var p = d.data();
+        batch.update(d.ref, {
+          nl: _sfNorm(p.descripcion || ''),
+          tok: _sfTokens((p.descripcion || '') + ' ' + (p.rubro || '') + ' ' + (p.proveedor || '') + ' ' + (p.codigo || ''))
+        });
+      });
+      await batch.commit();
+      hechos += snap.size;
+      if(btn) btn.textContent = 'Preparando… ' + hechos;
+      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + hechos + ')');
+      cursor = snap.docs[snap.docs.length - 1].id;
+      if(snap.size < 450) more = false;
+    }
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+    if(typeof toast === 'function') toast('Listo: ' + hechos + ' productos preparados para buscar ✓', 'success');
+  }catch(e){
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
+    if(typeof toast === 'function') toast('Error al preparar: ' + (e.message || e), 'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '🔎 Preparar búsqueda'; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // INDICADOR DE SYNC EN EL UI
 // ═══════════════════════════════════════════════════════
 function mostrarSyncEstado(estado, detalle){
@@ -12255,6 +12342,18 @@ async function detectarBorrados(empresaId){
 // ═══════════════════════════════════════════════════════
 async function cargarProductos(){
   if(!currentEmpresaId) return;
+  if(MODO_LIVIANO){
+    // 📱 Celular: NO bajamos el catálogo completo (no entra en memoria y cuelga la app).
+    // Trabajamos buscando en el servidor a medida que hace falta.
+    productos = [];
+    productosFiltered = [];
+    prodPage = 0;
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
+    if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+    return;
+  }
+  // ===== Escritorio (PC): exactamente igual que siempre =====
   try{
     productos = await idbGetTodos(currentEmpresaId);
     productos.sort(function(a,b){ return (a.descripcion||'').localeCompare(b.descripcion||''); });
@@ -12385,6 +12484,7 @@ function showProdDropdown(query){
     renderProductos();
     return;
   }
+  if(MODO_LIVIANO){ showProdDropdownServidor(query, dd); return; } // 📱 celular → servidor
   var results = smartSearch(query);
   if(results.length === 0){
     dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>'+eH(query)+'</strong>"</div>';
@@ -12430,6 +12530,44 @@ function showProdDropdown(query){
   productosFiltered = filtrarTodosProductos(query);
   prodPage = 0;
   renderProductos();
+}
+
+// 📱 Búsqueda de productos en el SERVIDOR (celular), sin base local completa.
+var _prodBuscarToken = 0;
+async function showProdDropdownServidor(query, dd){
+  var mi = ++_prodBuscarToken;
+  dd.innerHTML = '<div class="dd-info"><span>Buscando…</span></div>';
+  dd.classList.add('show');
+  var res = [];
+  try{ res = await buscarProductosServidor(query, 50); }catch(e){}
+  if(mi !== _prodBuscarToken) return; // ya hay una búsqueda más nueva
+  productos = res;                    // para que editProduct() y la tabla los encuentren
+  productosFiltered = res.slice();
+  prodPage = 0;
+  if(typeof renderProductos === 'function') renderProductos();
+  if(!res.length){
+    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>' + eH(query) + '</strong>"</div>';
+    dd.classList.add('show');
+    return;
+  }
+  var html = '<div class="dd-info"><span>' + res.length + ' resultado' + (res.length !== 1 ? 's' : '') + '</span></div>';
+  res.slice(0, 30).forEach(function(p, i){
+    var meta = '';
+    if(p.precioCosto || p.precioVenta || p.rubro){
+      meta = '<div class="dd-item-meta">';
+      if(p.precioCosto) meta += '<span class="dd-meta-costo">Costo: ' + fmtPeso(p.precioCosto) + '</span>';
+      if(p.precioVenta) meta += '<span class="dd-meta-venta">Venta: ' + fmtPeso(p.precioVenta) + '</span>';
+      if(p.rubro) meta += '<span class="dd-meta-rubro">' + eH(p.rubro) + '</span>';
+      meta += '</div>';
+    }
+    html += '<div class="dd-item" id="ddi' + i + '" data-id="' + escapeQ(p._id) + '" onclick="selectDdItem(' + i + ')">' +
+      '<div class="dd-item-row1"><span class="dd-item-code">' + eH(p.codigo || '') + '</span>' +
+      '<span class="dd-item-prov">' + eH((p.proveedor || '').substring(0, 40)) + '</span></div>' +
+      '<div class="dd-item-desc">' + eH((p.descripcion || '').substring(0, 90)) + '</div>' + meta + '</div>';
+  });
+  dd.innerHTML = html;
+  dd.classList.add('show');
+  _ddProdSel = -1;
 }
 
 // Filtra TODOS los productos que coinciden con la búsqueda (sin tope de 30).
@@ -13009,6 +13147,8 @@ async function saveProduct(){
     unidadesPorBulto: Number(document.getElementById('prodUnidadesBulto').value) || 0,
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
     fotoPath: document.getElementById('prodFotoPath').value || '',
+    nl: _sfNorm(descripcion),
+    tok: _sfTokens(descripcion + ' ' + document.getElementById('prodRubro').value + ' ' + document.getElementById('prodProveedor').value + ' ' + codigo),
     updatedAt: new Date().toISOString()
   };
 
