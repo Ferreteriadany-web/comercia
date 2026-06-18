@@ -5392,6 +5392,9 @@
                 <button class="page-btn" id="prodNextBtn" onclick="prodNextPage()">Siguiente &rarr;</button>
               </div>
             </div>
+            <div id="prodVerMasWrap" style="display:none;text-align:center;padding:12px 0">
+              <button class="btn btn-line btn-sm" id="prodVerMasBtn" onclick="prodCargarPaginaServidor(false)" style="width:100%;max-width:340px">&#11015;&#65039; Ver más productos</button>
+            </div>
           </div>
         </div>
       </div>
@@ -9634,6 +9637,7 @@ function navTo(modulo){
   if(modulo==='ia') initIA();
   if(modulo==='tienda') initTienda();
   if(modulo==='consultaPrecios') initConsultaPrecios();
+  if(modulo==='productos') initProductosMobile();
   // En mobile, cerrar sidebar al navegar
   if(window.innerWidth <= 768){
     if(typeof closeMobileSidebar === 'function') closeMobileSidebar();
@@ -12638,14 +12642,46 @@ async function detectarBorrados(empresaId){
 async function cargarProductos(){
   if(!currentEmpresaId) return;
   if(MODO_LIVIANO){
-    // 📱 Celular: NO bajamos el catálogo completo (no entra en memoria y cuelga la app).
-    // Trabajamos buscando en el servidor a medida que hace falta.
-    productos = [];
-    productosFiltered = [];
-    prodPage = 0;
-    if(typeof renderProductos === 'function') renderProductos();
-    if(typeof actualizarStats === 'function') actualizarStats();
-    if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+    // 📱 Celular: cargar TODO el catálogo y trabajar LOCAL, igual que la compu.
+    //    Si ya está en caché, instantáneo. La primera vez lo baja con progreso.
+    try{
+      var cache = [];
+      try{ cache = await idbGetTodos(currentEmpresaId); }catch(e){}
+      if(!cache || !cache.length){
+        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(cargando catálogo)');
+        var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+        var curP = null, todoP = [], seguirP = true;
+        while(seguirP){
+          var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(3000);
+          if(curP) qP = qP.startAfter(curP);
+          var snapP = await qP.get();
+          if(snapP.empty) break;
+          snapP.forEach(function(d){ var p = d.data(); p._id = d.id; todoP.push(p); });
+          curP = snapP.docs[snapP.docs.length - 1];
+          if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todoP.length.toLocaleString('es-AR') + ')');
+          if(snapP.size < 3000) seguirP = false;
+        }
+        cache = todoP;
+        // Guardar en caché local en segundo plano (no bloquea; si falla, queda en memoria).
+        try{ idbGuardarBatch(currentEmpresaId, cache); }catch(e){}
+      }
+      productos = cache;
+      productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
+      productosFiltered = productos.slice();
+      prodPage = 0;
+      MODO_LIVIANO = false; // de acá en más, el celular funciona IGUAL que la compu
+      if(typeof renderProductos === 'function') renderProductos();
+      if(typeof actualizarStats === 'function') actualizarStats();
+      if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+      var _vmw = document.getElementById('prodVerMasWrap'); if(_vmw) _vmw.style.display = 'none';
+      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+      if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId);
+    }catch(err){
+      console.error('Carga catálogo móvil:', err);
+      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
+      productosFiltered = productos.slice();
+      if(typeof renderProductos === 'function') renderProductos();
+    }
     return;
   }
   // ===== Escritorio (PC): exactamente igual que siempre =====
@@ -12774,6 +12810,7 @@ function showProdDropdown(query){
   var dd = document.getElementById('prodDropdown');
   if(!query.trim()){
     dd.classList.remove('show');
+    if(MODO_LIVIANO){ prodCargarPaginaServidor(true); return; } // 📱 vuelve el listado del servidor
     productosFiltered = productos.slice();
     prodPage = 0;
     renderProductos();
@@ -12831,6 +12868,7 @@ function showProdDropdown(query){
 var _prodBuscarToken = 0;
 async function showProdDropdownServidor(query, dd){
   var mi = ++_prodBuscarToken;
+  var _vm = document.getElementById('prodVerMasWrap'); if(_vm) _vm.style.display = 'none'; // ocultar "Ver más" al buscar
   dd.innerHTML = '<div class="dd-info"><span>Buscando…</span></div>';
   dd.classList.add('show');
   var res = [];
@@ -12930,6 +12968,40 @@ function highlightDdSel(){
 
 function filterProductos(){
   showProdDropdown(document.getElementById('prodSearch').value);
+}
+
+// 📱 Celular: listado de productos por páginas (trae de a 100 del servidor).
+//    En la compu no hace falta (ya está todo cargado).
+var _prodSrvCursor = null, _prodSrvDone = false, _prodSrvCargando = false;
+function initProductosMobile(){
+  if(!MODO_LIVIANO) return;
+  prodCargarPaginaServidor(true);
+}
+async function prodCargarPaginaServidor(reset){
+  if(!currentEmpresaId || _prodSrvCargando) return;
+  if(reset){ _prodSrvCursor = null; _prodSrvDone = false; productos = []; productosFiltered = []; prodPage = 0; }
+  if(_prodSrvDone) return;
+  _prodSrvCargando = true;
+  var vm = document.getElementById('prodVerMasBtn');
+  if(vm){ vm.disabled = true; vm.textContent = 'Cargando…'; }
+  try{
+    var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+    var q = col.orderBy(firebase.firestore.FieldPath.documentId()).limit(100);
+    if(_prodSrvCursor) q = q.startAfter(_prodSrvCursor);
+    var snap = await q.get();
+    var nuevos = [];
+    snap.forEach(function(d){ var p = d.data(); p._id = d.id; nuevos.push(p); });
+    if(nuevos.length) vMergeProductos(nuevos);
+    productosFiltered = productos.slice();
+    if(snap.docs.length) _prodSrvCursor = snap.docs[snap.docs.length - 1];
+    if(snap.docs.length < 100) _prodSrvDone = true;
+    renderProductos();
+    actualizarStats();
+  }catch(e){ console.error('prodCargarPaginaServidor', e); if(typeof toast === 'function') toast('No pude cargar más productos', 'error'); }
+  _prodSrvCargando = false;
+  if(vm){ vm.disabled = false; vm.textContent = '⬇️ Ver más productos'; }
+  var wrap = document.getElementById('prodVerMasWrap');
+  if(wrap) wrap.style.display = (MODO_LIVIANO && !_prodSrvDone && productos.length) ? 'block' : 'none';
 }
 
 function renderProductos(){
