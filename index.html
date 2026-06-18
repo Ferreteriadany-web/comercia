@@ -12040,16 +12040,37 @@ async function bajarTodosProductosNube(empresaId){
   }
   return todos;
 }
-// Reemplaza la base local por la lista bajada (memoria + IndexedDB + meta).
+// Reemplaza la base local por la lista bajada — DE FORMA SEGURA:
+// guarda lo nuevo PRIMERO y solo después borra lo que ya no está. Si algo
+// falla, NO deja la base vacía (no se pierde nada).
 async function aplicarReconstruccion(empresaId, todos){
-  productos = todos;
-  productosFiltered = productos.slice();
-  await idbLimpiarEmpresa(empresaId);
-  if(todos.length) await idbGuardarBatch(empresaId, todos);
-  await idbSetMeta(empresaId, { ultSync: new Date().toISOString(), totalDocs: todos.length, updatedAt: new Date().toISOString() });
-  if(typeof renderProductos === 'function') renderProductos();
-  if(typeof actualizarStats === 'function') actualizarStats();
-  if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+  if(!Array.isArray(todos) || !todos.length){
+    // No bajó nada (error de red o respuesta vacía): no tocamos lo local.
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
+    return;
+  }
+  var prevProductos = productos;   // respaldo en memoria por si algo falla
+  try{
+    // 1) Guardar lo nuevo PRIMERO (sobrescribe por clave). Si falla, no perdimos nada.
+    await idbGuardarBatch(empresaId, todos);
+    // 2) Recién ahora, borrar de IndexedDB los que ya no están en la nube.
+    var vivos = {}; todos.forEach(function(p){ vivos[p._id] = 1; });
+    var viejos = (prevProductos || []).filter(function(p){ return p && !vivos[p._id]; }).map(function(p){ return p._id; });
+    if(viejos.length){ try{ await idbBorrarIds(empresaId, viejos); }catch(e){} }
+    // 3) Memoria + meta + UI
+    productos = todos;
+    productosFiltered = productos.slice();
+    await idbSetMeta(empresaId, { ultSync: new Date().toISOString(), totalDocs: todos.length, updatedAt: new Date().toISOString() });
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
+    if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+  }catch(e){
+    console.error('aplicarReconstruccion falló (NO se borró nada):', e);
+    productos = prevProductos;     // restauramos la memoria
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
+    if(typeof toast === 'function') toast('No pude reconstruir la base del todo, pero no perdiste nada. Reintentá.', 'error');
+    throw e;
+  }
 }
 
 // Reconstrucción manual (botón "Reconstruir base"). Lo de fondo lo hace solo el sync.
