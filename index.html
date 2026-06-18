@@ -5299,7 +5299,7 @@
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
             <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
             <button class="btn btn-line btn-sm" onclick="reconstruirBaseLocal()" title="Si ves productos raros o faltantes, esto baja todo de nuevo desde la nube">&#128260; Reconstruir base</button>
-            <button id="btnPrepBusqueda" class="btn btn-line btn-sm" onclick="prepararBusquedaServidor()" title="Una sola vez (en la compu): deja todos tus productos buscables desde el celular">&#128269; Preparar búsqueda</button>
+            <button id="btnVerifBusq" class="btn btn-line btn-sm" onclick="verificarBusqueda()" title="Muestra cuántos productos están listos para buscar desde el celular">&#128269; Verificar búsqueda</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -12386,8 +12386,8 @@ async function prepararBusquedaServidor(opts){
       if(btn){ btn.disabled = false; btn.textContent = '🔎 Búsqueda lista ✓'; }
       _prepEnCurso = false; return;
     }
-    var cursor = meta.cursor || null;
-    var hechos = meta.hechos || 0;
+    var cursor = opts.forzar ? null : (meta.cursor || null);
+    var hechos = opts.forzar ? 0 : (meta.hechos || 0);
     var provSet = {}; (meta.proveedores || []).forEach(function(x){ provSet[x] = 1; });
     var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
     var seguir = true;
@@ -12431,6 +12431,47 @@ async function prepararBusquedaServidor(opts){
   }finally{
     _prepEnCurso = false;
     if(btn && !opts.auto && btn.textContent.indexOf('lista') < 0) btn.disabled = false;
+  }
+}
+
+// Chequeo de cobertura: cuántos productos están listos para buscar (indexados) vs total.
+// Si faltan, ofrece completar el índice ahí mismo.
+async function verificarBusqueda(){
+  if(!currentEmpresaId) return;
+  var btn = document.getElementById('btnVerifBusq');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Verificando…'; }
+  var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+  var total = null, indexados = null, viaCount = false;
+  try{
+    var ct = await col.count().get(); total = ct.data().count;
+    var ci = await col.where('nl', '>=', '').count().get(); indexados = ci.data().count;
+    viaCount = true;
+  }catch(e){ /* count() no disponible en esta versión del SDK */ }
+  if(!viaCount){
+    try{
+      var ms = await db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('prepBusqueda').get();
+      indexados = (ms.exists && ms.data().hechos) ? ms.data().hechos : 0;
+    }catch(e2){}
+  }
+  if(btn){ btn.disabled = false; btn.textContent = '🔎 Verificar búsqueda'; }
+  var faltan = (total != null && indexados != null) ? Math.max(0, total - indexados) : null;
+  var msg;
+  if(total != null && indexados != null){
+    msg = indexados.toLocaleString('es-AR') + ' de ' + total.toLocaleString('es-AR') + ' productos están listos para buscar desde el celular.';
+    if(faltan > 0){ msg += '\n\nFaltan ' + faltan.toLocaleString('es-AR') + ' por preparar. ¿Los completo ahora? Queda andando en segundo plano y se puede cortar y retomar.'; }
+    else { msg += '\n\n¡Está todo listo! ✓'; }
+  } else if(indexados != null){
+    msg = 'Tenés ' + indexados.toLocaleString('es-AR') + ' productos listos para buscar.\n\n¿Querés completar el índice por las dudas (por si cargaste productos nuevos)?';
+    faltan = 1;
+  } else {
+    msg = 'No pude verificar la cobertura. ¿Corro la preparación por las dudas?';
+    faltan = 1;
+  }
+  if(faltan && faltan > 0){
+    var ok = (typeof confirmComercia === 'function') ? await confirmComercia(msg) : confirm(msg);
+    if(ok) await prepararBusquedaServidor({ forzar: true });
+  } else {
+    if(typeof alertComercia === 'function') alertComercia(msg); else alert(msg);
   }
 }
 
@@ -12618,9 +12659,6 @@ async function cargarProductos(){
     poblarFiltroProveedores();
 
     sincronizarProductos(currentEmpresaId);
-    // En la compu: completar la preparación de búsqueda en segundo plano (resumible).
-    // Si ya está lista, no hace nada. Si quedó a medias, la termina sola.
-    setTimeout(function(){ if(typeof prepararBusquedaServidor === 'function') prepararBusquedaServidor({ auto: true }); }, 5000);
   }catch(err){
     console.error('Error cargando productos:', err);
     toast('Error al cargar productos','error');
@@ -14609,6 +14647,10 @@ async function impAplicarCambios(){
           d.cambios.forEach(function(ch){
             updates[ch.campo] = ch.newValue;
           });
+          // Refrescar índice de búsqueda con los valores nuevos.
+          var _mrg = Object.assign({}, d.existente, updates);
+          updates.nl = _sfNorm(_mrg.descripcion || '');
+          updates.tok = _sfTokensIndex((_mrg.descripcion || '') + ' ' + (_mrg.rubro || '') + ' ' + (_mrg.proveedor || '') + ' ' + (_mrg.codigo || ''));
           var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(d.existente._id);
           batch.update(ref, updates);
           // Actualizar también en memoria/cache
@@ -14645,6 +14687,9 @@ async function impAplicarCambios(){
             updatedAt: new Date().toISOString(),
             creadoEn: new Date().toISOString()
           };
+          // Índice de búsqueda (para que sea buscable desde el celular sin preparar nada).
+          data.nl = _sfNorm(data.descripcion || '');
+          data.tok = _sfTokensIndex((data.descripcion || '') + ' ' + (data.rubro || '') + ' ' + (data.proveedor || '') + ' ' + (data.codigo || ''));
           var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(docId);
           batch.set(ref, data, {merge:true});
           var nuevo = Object.assign({_id: docId}, data);
