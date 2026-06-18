@@ -12246,43 +12246,38 @@ async function buscarProductosServidor(query, max){
   max = max || 25;
   _lastBusqError = '';
   var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
-  var cand = {};
-  function addDoc(d){ if(!cand[d.id]){ var p = d.data(); p._id = d.id; cand[d.id] = p; } }
-  // 1) Código / código de barras exacto (lo más común al vender)
-  try{ (await col.where('codigo', '==', query).limit(5).get()).forEach(addDoc); }
-  catch(e){ _lastBusqError = 'codigo: ' + ((e && (e.code || e.message)) || 'error'); }
-  try{ (await col.where('codBarra', '==', query).limit(5).get()).forEach(addDoc); }catch(e){}
-  // 2) Candidatos por palabra clave: anclo en el PREFIJO de la palabra más específica
-  //    (tolera errores al final: "redeko" ancla en "redek"→ trae "redeco").
+  var vistos = {}, lista = [];
+  // 1) Código exacto (lo más común al vender)
   try{
-    var words = _sfTokens(query);
+    (await col.where('codigo', '==', query).limit(5).get())
+      .forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
+  }catch(e){ _lastBusqError = 'codigo: ' + ((e && (e.code || e.message)) || 'error'); }
+  // 2) Palabras: trae los que tienen alguna palabra y los ordena por cuántas coinciden.
+  try{
+    var words = _sfTokens(query).slice(0, 10);
     if(words.length){
-      var larga = words.slice().sort(function(a, b){ return b.length - a.length; })[0];
-      var anchor = larga.slice(0, Math.min(larga.length, 5));
-      (await col.where('tok', 'array-contains', anchor).limit(400).get()).forEach(addDoc);
-      // Si quedó flaco, amplío con array-contains-any de prefijos (incluye sinónimos).
-      if(Object.keys(cand).length < 8){
-        var slots = _slotsDe(query), vals = {};
-        slots.forEach(function(sl){ sl.forEach(function(w){ vals[w.slice(0, Math.min(w.length, 5))] = 1; }); });
-        var arr = Object.keys(vals).slice(0, 10);
-        if(arr.length) (await col.where('tok', 'array-contains-any', arr).limit(400).get()).forEach(addDoc);
-      }
+      var snap = await col.where('tok', 'array-contains-any', words).limit(300).get();
+      var scored = [];
+      snap.forEach(function(d){
+        if(vistos[d.id]) return;
+        var p = d.data(); p._id = d.id;
+        var hay = _sfNorm((p.descripcion || '') + ' ' + (p.rubro || '') + ' ' + (p.proveedor || '') + ' ' + (p.codigo || ''));
+        var n = 0; words.forEach(function(w){ if(hay.indexOf(w) >= 0) n++; });
+        if(n > 0){ vistos[d.id] = 1; scored.push({ p: p, n: n }); }
+      });
+      scored.sort(function(a, b){ return b.n - a.n; });
+      scored.forEach(function(x){ lista.push(x.p); });
     }
-  }catch(e){ _lastBusqError = 'tok: ' + ((e && (e.code || e.message)) || 'error'); console.error('buscarProductosServidor tok:', e); }
-  // 3) Rankeo por relevancia
-  var candArr = Object.keys(cand).map(function(id){ return cand[id]; });
-  var res = rankearProductos(query, candArr, max);
-  // Respaldo: si no salió nada, nombre que empieza con lo buscado.
-  if(!res.length){
+  }catch(e){ _lastBusqError = 'tok: ' + ((e && (e.code || e.message)) || 'error'); console.error('buscar tok:', e); }
+  // 3) Respaldo: nombre que empieza con lo buscado.
+  if(lista.length < max){
     try{
-      var ql = _sfNorm(query), extra = [];
+      var ql = _sfNorm(query);
       (await col.where('nl', '>=', ql).where('nl', '<=', ql + '\uf8ff').limit(20).get())
-        .forEach(function(d){ var p = d.data(); p._id = d.id; extra.push(p); });
-      res = rankearProductos(query, extra, max);
-      if(!res.length) res = extra.slice(0, max);
+        .forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
     }catch(e){ if(!_lastBusqError) _lastBusqError = 'nl: ' + ((e && (e.code || e.message)) || 'error'); }
   }
-  return res;
+  return lista.slice(0, max);
 }
 
 // Trae productos de un proveedor desde el servidor (celular).
@@ -12358,8 +12353,7 @@ async function prepararBusquedaServidor(opts){
   try{
     var ms = await metaRef.get();
     var meta = ms.exists ? ms.data() : {};
-    var alDia = (meta.ver === TOK_VER); // ¿índice con la versión actual del buscador?
-    if(meta.done && alDia && !opts.forzar){
+    if(meta.done && !opts.forzar){
       // Ya está lista la búsqueda. Si falta la lista de proveedores, la armamos (solo lectura).
       if(!meta.proveedores || !meta.proveedores.length){
         try{ await recolectarProveedores(metaRef); }catch(e){}
@@ -12368,9 +12362,8 @@ async function prepararBusquedaServidor(opts){
       if(btn){ btn.disabled = false; btn.textContent = '🔎 Búsqueda lista ✓'; }
       _prepEnCurso = false; return;
     }
-    // Si cambió la versión del buscador, re-indexamos desde el principio.
-    var cursor = alDia ? (meta.cursor || null) : null;
-    var hechos = alDia ? (meta.hechos || 0) : 0;
+    var cursor = meta.cursor || null;
+    var hechos = meta.hechos || 0;
     var provSet = {}; (meta.proveedores || []).forEach(function(x){ provSet[x] = 1; });
     var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
     var seguir = true;
