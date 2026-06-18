@@ -12105,17 +12105,19 @@ async function reconstruirBaseLocal(){
 // ═══════════════════════════════════════════════════════
 // Busca productos directamente en Firestore (por código o palabras clave),
 // sin necesitar la base local completa. Devuelve hasta 'max' resultados.
+var _lastBusqError = '';
 async function buscarProductosServidor(query, max){
   query = (query || '').trim();
   if(!query || !currentEmpresaId) return [];
   max = max || 25;
+  _lastBusqError = '';
   var col = db.collection('empresas').doc(currentEmpresaId).collection('productos');
   var vistos = {}, lista = [];
   // 1) Código exacto (lo más común al vender)
   try{
     var byCode = await col.where('codigo', '==', query).limit(5).get();
     byCode.forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
-  }catch(e){}
+  }catch(e){ _lastBusqError = 'codigo: ' + ((e && (e.code || e.message)) || 'error'); }
   // 2) Palabras clave (nombre/rubro/proveedor), ordenado por relevancia
   try{
     var toks = _sfTokens(query).slice(0, 10);
@@ -12132,7 +12134,15 @@ async function buscarProductosServidor(query, max){
       arr.sort(function(a, b){ return b.sc - a.sc; });
       arr.forEach(function(o){ if(!vistos[o.p._id]){ vistos[o.p._id] = 1; lista.push(o.p); } });
     }
-  }catch(e){ console.error('buscarProductosServidor:', e && e.message); }
+  }catch(e){ _lastBusqError = 'tok: ' + ((e && (e.code || e.message)) || 'error'); console.error('buscarProductosServidor tok:', e); }
+  // 3) Respaldo: nombre que empieza con lo buscado (usa el campo 'nl')
+  if(lista.length < max){
+    try{
+      var ql = _sfNorm(query);
+      var byNl = await col.where('nl', '>=', ql).where('nl', '<=', ql + '\uf8ff').limit(20).get();
+      byNl.forEach(function(d){ if(!vistos[d.id]){ vistos[d.id] = 1; var p = d.data(); p._id = d.id; lista.push(p); } });
+    }catch(e){ if(!_lastBusqError) _lastBusqError = 'nl: ' + ((e && (e.code || e.message)) || 'error'); }
+  }
   return lista.slice(0, max);
 }
 
@@ -12546,7 +12556,9 @@ async function showProdDropdownServidor(query, dd){
   prodPage = 0;
   if(typeof renderProductos === 'function') renderProductos();
   if(!res.length){
-    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>' + eH(query) + '</strong>"</div>';
+    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>' + eH(query) + '</strong>"' +
+      (_lastBusqError ? ('<br><small style="color:#c0392b">⚠️ ' + eH(_lastBusqError) + '</small>') : '') +
+      '</div>';
     dd.classList.add('show');
     return;
   }
