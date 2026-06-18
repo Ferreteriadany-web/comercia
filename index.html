@@ -7289,6 +7289,11 @@
                 <div class="form-group">
                   <input class="form-input" type="text" id="tiendaAsesorNombre" placeholder="Ej: Marcos, Dany, Sofía…" autocomplete="off">
                 </div>
+                <div class="tw-q" style="font-size:14px;margin-top:18px">Guía del asesor &#129504; (tu conocimiento de mostrador)</div>
+                <p class="tw-help">Escribí, en tus palabras, qué proveedores y marcas líderes tenés por rubro y para qué caso conviene cada uno. El asesor lo usa para recomendar. No hace falta etiquetar producto por producto.</p>
+                <div class="form-group">
+                  <textarea class="form-input" id="tiendaAsesorGuia" rows="7" placeholder="Ej:&#10;PINTURAS: Distribuidora X (líneas Alba y Sherwin) para obra profesional; Distribuidora Y (Tersuave) más económico.&#10;ELECTRICIDAD: Proveedor Z (marcas Sica, Genrod).&#10;HERRAMIENTAS: para uso doméstico marca A; para profesional marca B (proveedor C)." autocomplete="off" style="resize:vertical;font-family:inherit"></textarea>
+                </div>
               </div>
               <div class="tw-step" data-step="3" hidden>
                 <div class="tw-q">3 · ¿Qué productos mostrás? &#128230;</div>
@@ -9777,6 +9782,7 @@ async function initTienda(){
     var w = document.getElementById('tiendaWhatsapp'); if(w) w.value = x.whatsapp || '';
     var b = document.getElementById('tiendaBienvenida'); if(b) b.value = x.bienvenida || '';
     var an = document.getElementById('tiendaAsesorNombre'); if(an) an.value = x.asesorNombre || '';
+    var ag = document.getElementById('tiendaAsesorGuia'); if(ag) ag.value = x.asesorGuia || '';
     // rubros
     if(Array.isArray(x.rubrosVisibles)){
       window._twRubrosPrev = x.rubrosVisibles;
@@ -9854,6 +9860,7 @@ async function guardarPublicarTienda(){
       whatsapp: wa,
       bienvenida: (document.getElementById('tiendaBienvenida').value || '').trim(),
       asesorNombre: (document.getElementById('tiendaAsesorNombre').value || '').trim(),
+      asesorGuia: (document.getElementById('tiendaAsesorGuia').value || '').trim(),
       rubrosVisibles: rubrosVisibles ? rubrosVisibles : firebase.firestore.FieldValue.delete(),
       mostrarPrecio: mostrarPrecio,
       mostrarStock: mostrarStock,
