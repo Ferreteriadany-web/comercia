@@ -9827,35 +9827,62 @@ async function guardarPublicarTienda(){
     var mostrarCodigo = !!document.getElementById('twCodigo').checked;
 
     var lista = (typeof productos !== 'undefined' && productos) ? productos : [];
-    var items = [], MAX = 5000;
-    for(var i = 0; i < lista.length && items.length < MAX; i++){
+    var ref = db.collection('tiendas').doc(currentEmpresaId);
+    var ver = Date.now();                 // sello de esta publicación
+    var rubrosSet = {}, totalCat = 0, ops = [], LOTE = 450;
+
+    function _setBtn(txt){ if(btn){ btn.innerHTML = txt; } }
+    async function _flush(force){
+      while(ops.length >= LOTE || (force && ops.length)){
+        var batch = db.batch();
+        ops.splice(0, LOTE).forEach(function(op){ batch.set(op.ref, op.data); });
+        await batch.commit();
+      }
+    }
+
+    // Escribimos UN documento por producto en la subcolección 'cat' (buscable por tokens).
+    // Soporta 100k+ porque la tienda y el asesor consultan el servidor, no bajan todo.
+    for(var i = 0; i < lista.length; i++){
       var pr = lista[i];
-      if(!((pr.descripcion || '').trim())) continue; // necesita al menos un nombre
+      if(!((pr.descripcion || '').trim())) continue;        // necesita un nombre
       if(rubrosVisibles && rubrosVisibles.indexOf(pr.rubro || '') < 0) continue; // filtro por rubro
       var precio = Number(pr.precioVenta) || 0;
-      items.push({
-        c: pr.codigo || '',
+      if(pr.rubro) rubrosSet[pr.rubro] = 1;
+      var docId = String(pr._id || pr.codigo || ('p' + i));
+      ops.push({ ref: ref.collection('cat').doc(docId), data: {
         n: pr.descripcion || 'Producto',
-        p: (mostrarPrecio && precio > 0) ? precio : 0, // 0 → se muestra "Consultar"
+        p: (mostrarPrecio && precio > 0) ? precio : 0,      // 0 → "Consultar"
         f: pr.fotoUrl || '',
         r: pr.rubro || '',
         pv: pr.proveedor || '',
         s: Number(pr.stock) || 0,
-        d: (pr.detalle || '').slice(0, 600)
-      });
+        c: pr.codigo || '',
+        d: (pr.detalle || '').slice(0, 300),
+        tok: _sfTokens((pr.descripcion || '') + ' ' + (pr.rubro || '') + ' ' + (pr.proveedor || '') + ' ' + (pr.codigo || '')),
+        ver: ver
+      }});
+      totalCat++;
+      if(ops.length >= LOTE){ _setBtn('Publicando… ' + totalCat); await _flush(false); }
     }
-    var ref = db.collection('tiendas').doc(currentEmpresaId);
-    var prev = await ref.get();
-    var prevChunks = (prev.exists && prev.data().chunks) ? prev.data().chunks : 0;
-    var SIZE = 400;
-    var nChunks = Math.ceil(items.length / SIZE);
-    var batch = db.batch();
-    for(var ci = 0; ci < nChunks; ci++){
-      batch.set(ref.collection('catalogo').doc(String(ci)), { items: items.slice(ci*SIZE, ci*SIZE + SIZE) });
+    await _flush(true);
+
+    // Borramos los productos que ya no están (quedaron con un sello viejo).
+    _setBtn('Limpiando…');
+    while(true){
+      var ss = await ref.collection('cat').where('ver', '<', ver).limit(400).get();
+      if(ss.empty) break;
+      var bd = db.batch(); ss.forEach(function(d){ bd.delete(d.ref); }); await bd.commit();
+      if(ss.size < 400) break;
     }
-    for(var k = nChunks; k < prevChunks; k++){           // borrar tandas sobrantes
-      batch.delete(ref.collection('catalogo').doc(String(k)));
+    // Borramos el formato viejo (chunks de 'catalogo'), si existía.
+    while(true){
+      var os = await ref.collection('catalogo').limit(400).get();
+      if(os.empty) break;
+      var bo = db.batch(); os.forEach(function(d){ bo.delete(d.ref); }); await bo.commit();
+      if(os.size < 400) break;
     }
+
+    var rubrosArr = Object.keys(rubrosSet).sort();
     var data = {
       activa: !!document.getElementById('tiendaActiva').checked,
       nombre: currentEmpresa ? (currentEmpresa.nombre || 'Tienda') : 'Tienda',
@@ -9866,17 +9893,18 @@ async function guardarPublicarTienda(){
       asesorNombre: (document.getElementById('tiendaAsesorNombre').value || '').trim(),
       asesorGuia: (document.getElementById('tiendaAsesorGuia').value || '').trim(),
       rubrosVisibles: rubrosVisibles ? rubrosVisibles : firebase.firestore.FieldValue.delete(),
+      rubros: rubrosArr,
       mostrarPrecio: mostrarPrecio,
       mostrarStock: mostrarStock,
       mostrarCodigo: mostrarCodigo,
-      chunks: nChunks,
-      totalItems: items.length,
-      items: firebase.firestore.FieldValue.delete(),     // limpiar formato viejo
+      totalItems: totalCat,
+      catVer: ver,
+      chunks: firebase.firestore.FieldValue.delete(),   // limpiar formato viejo
+      items: firebase.firestore.FieldValue.delete(),
       actualizado: new Date().toISOString()
     };
-    batch.set(ref, data, { merge: true });
-    await batch.commit();
-    if(typeof toast === 'function') toast('Tienda publicada (' + items.length + ' productos)', 'success');
+    await ref.set(data, { merge: true });
+    if(typeof toast === 'function') toast('Tienda publicada (' + totalCat + ' productos)', 'success');
     initTienda();
   }catch(e){
     if(typeof showAlert === 'function') showAlert('tiendaAlert', 'No se pudo publicar: ' + (e.message || ''));
@@ -10102,6 +10130,18 @@ function twResumen(){
 // TIENDA ONLINE — vitrina pública (modo tienda)
 // ═══════════════════════════════════════════════════════
 var _sfData = null, _sfCart = [], _sfFiltro = '', _sfRubro = '', _sfRubros = [];
+var _sfItemsById = {}, _sfGridItems = [], _sfLastDoc = null, _sfHasMore = false, _sfCargandoGrid = false, _sfBuscarTimer = null;
+var _SF_PAGE = 24;
+// Normaliza texto (minúsculas, sin acentos) y arma tokens para búsqueda en servidor.
+function _sfNorm(s){ return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function _sfTokens(str){
+  var raw = _sfNorm(str).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/);
+  var seen = {}, out = [];
+  for(var i = 0; i < raw.length; i++){ var w = raw[i]; if(w.length >= 2 && !seen[w]){ seen[w] = 1; out.push(w); if(out.length >= 40) break; } }
+  return out;
+}
+function _sfKey(it){ return it && it.c ? ('c:' + it.c) : ('n:' + (it ? it.n : '')); }
+function _sfRegistrar(it){ if(it){ _sfItemsById[_sfKey(it)] = it; } }
 function sfPeso(n){ try{ return '$' + Number(n || 0).toLocaleString('es-AR'); }catch(e){ return '$' + n; } }
 function sfEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
@@ -10208,18 +10248,9 @@ async function initStorefront(empresaId){
       return;
     }
     _sfData = d.data();
-    _sfData.items = _sfData.items || [];
-    if(_sfData.chunks){
-      var snap = await db.collection('tiendas').doc(empresaId).collection('catalogo').get();
-      var partes = [];
-      snap.forEach(function(doc){ partes.push({ i: parseInt(doc.id, 10) || 0, items: (doc.data().items || []) }); });
-      partes.sort(function(a, b){ return a.i - b.i; });
-      var todo = [];
-      partes.forEach(function(pt){ todo = todo.concat(pt.items); });
-      _sfData.items = todo;
-    }
-    var rset = {}; _sfData.items.forEach(function(it){ if(it.r) rset[it.r] = 1; });
-    _sfRubros = Object.keys(rset).sort();
+    _sfData.items = [];
+    // Ya NO bajamos el catálogo completo (soporta 100k+). Los rubros vienen guardados en la config.
+    _sfRubros = Array.isArray(_sfData.rubros) ? _sfData.rubros.slice() : [];
     document.title = (_sfData.nombre || 'Tienda') + ' · Comercia';
     renderStorefront();
   }catch(e){
@@ -10273,9 +10304,8 @@ function renderStorefront(){
   var bc = document.getElementById('sfBackCats'); if(bc) bc.style.display = _sfRubros.length ? '' : 'none';
   sfRenderFinder();
   sfRenderRubros();
-  sfRenderGrid();
   sfRenderCart();
-  if(!_sfRubros.length) sfMostrarShop(); // sin categorías → directo al catálogo
+  if(!_sfRubros.length){ sfMostrarShop(); sfCargarGrid(true); } // sin categorías → directo al catálogo
   setTimeout(function(){ if(typeof sfAsesorAbrir === 'function') sfAsesorAbrir(); }, 350); // la tienda arranca como una charla
 }
 
@@ -10288,8 +10318,12 @@ function sfRenderRubros(){
   });
   c.innerHTML = html;
 }
-function sfSetRubro(idx){ _sfRubro = (idx < 0) ? '' : (_sfRubros[idx] || ''); sfRenderRubros(); sfRenderGrid(); }
-function sfBuscar(v){ _sfFiltro = (v || '').toLowerCase(); sfRenderGrid(); }
+function sfSetRubro(idx){ _sfRubro = (idx < 0) ? '' : (_sfRubros[idx] || ''); _sfFiltro = ''; var s = document.getElementById('sfSearch'); if(s) s.value = ''; sfRenderRubros(); sfCargarGrid(true); }
+function sfBuscar(v){
+  _sfFiltro = (v || '').trim();
+  if(_sfBuscarTimer) clearTimeout(_sfBuscarTimer);
+  _sfBuscarTimer = setTimeout(function(){ sfCargarGrid(true); }, 350); // espera a que deje de tipear
+}
 
 // ── Buscador guiado para el cliente (pantalla de inicio con categorías) ──
 function sfRenderFinder(){
@@ -10315,7 +10349,7 @@ function sfElegirCat(idx){
   _sfRubro = (idx < 0) ? '' : (_sfRubros[idx] || '');
   _sfFiltro = ''; var s = document.getElementById('sfSearch'); if(s) s.value = '';
   sfMostrarShop();
-  sfRenderRubros(); sfRenderGrid();
+  sfRenderRubros(); sfCargarGrid(true);
   try{ window.scrollTo(0, 0); }catch(e){}
 }
 function sfVolverCategorias(){
@@ -10326,25 +10360,42 @@ function sfVolverCategorias(){
   try{ window.scrollTo(0, 0); }catch(e){}
 }
 
-function sfItemsFiltrados(){
-  return (_sfData.items || []).filter(function(it){
-    if(_sfRubro && it.r !== _sfRubro) return false;
+// Trae productos del servidor (búsqueda por tokens / rubro / todo), paginado de a 24.
+async function sfCargarGrid(reset){
+  if(_sfCargandoGrid) return;
+  var g = document.getElementById('sfGrid'); if(!g) return;
+  if(reset){ _sfGridItems = []; _sfLastDoc = null; _sfHasMore = false; g.innerHTML = '<div class="sf-empty">Buscando…</div>'; }
+  _sfCargandoGrid = true;
+  try{
+    var col = db.collection('tiendas').doc(window._sfId).collection('cat');
+    var q = col;
     if(_sfFiltro){
-      var hay = ((it.n || '') + ' ' + (it.c || '')).toLowerCase();
-      if(hay.indexOf(_sfFiltro) < 0) return false;
+      var toks = _sfTokens(_sfFiltro).slice(0, 10);
+      if(!toks.length){ _sfCargandoGrid = false; _sfGridItems = []; sfRenderGrid(); return; }
+      q = q.where('tok', 'array-contains-any', toks);
+    } else if(_sfRubro){
+      q = q.where('r', '==', _sfRubro);
     }
-    return true;
-  });
+    q = q.limit(_SF_PAGE);
+    if(_sfLastDoc) q = q.startAfter(_sfLastDoc);
+    var snap = await q.get();
+    snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; _sfRegistrar(it); _sfGridItems.push(it); });
+    _sfLastDoc = snap.docs.length ? snap.docs[snap.docs.length - 1] : _sfLastDoc;
+    _sfHasMore = (snap.docs.length === _SF_PAGE);
+    sfRenderGrid();
+  }catch(e){
+    g.innerHTML = '<div class="sf-empty">No pudimos cargar los productos.<br><small>' + sfEsc((e && e.message) || '') + '</small></div>';
+  }
+  _sfCargandoGrid = false;
 }
 function sfRenderGrid(){
   var g = document.getElementById('sfGrid'); if(!g) return;
-  var items = sfItemsFiltrados();
-  if(!items.length){ g.innerHTML = '<div class="sf-empty">No encontramos productos.</div>'; return; }
+  if(!_sfGridItems.length){ g.innerHTML = '<div class="sf-empty">No encontramos productos.</div>'; return; }
   var verPrecio = (_sfData.mostrarPrecio !== false);
   var verCodigo = (_sfData.mostrarCodigo !== false);
   var verStock = (_sfData.mostrarStock === true);
-  g.innerHTML = items.map(function(it){
-    var realIdx = _sfData.items.indexOf(it);
+  var cards = _sfGridItems.map(function(it){
+    var key = _sfKey(it);
     var thumb = it.f
       ? '<img src="' + sfEsc(it.f) + '" alt="" loading="lazy">'
       : '<span class="sf-noimg">&#128230;</span>';
@@ -10359,22 +10410,24 @@ function sfRenderGrid(){
         ((verCodigo && it.c) ? '<div class="sf-pcode">' + sfEsc(it.c) + '</div>' : '') +
         (it.d ? '<div class="sf-pdesc">' + sfEsc(it.d).replace(/\n/g, '<br>') + '</div>' : '') +
         precioHtml + stockHtml +
-        '<button class="sf-add" onclick="sfAgregar(' + realIdx + ')">' + (verPrecio ? 'Agregar' : 'Agregar a la consulta') + '</button>' +
+        '<button class="sf-add" onclick="sfAgregarKey(\'' + key.replace(/'/g, "\\'") + '\')">' + (verPrecio ? 'Agregar' : 'Agregar a la consulta') + '</button>' +
       '</div>' +
     '</div>';
   }).join('');
+  var verMas = _sfHasMore ? '<button class="sf-allbtn" style="margin-top:14px" onclick="sfCargarGrid(false)">Ver más</button>' : '';
+  g.innerHTML = cards + verMas;
 }
 
-function sfAgregar(idx){
-  var it = _sfData.items[idx]; if(!it) return;
-  var ex = null; for(var i = 0; i < _sfCart.length; i++){ if(_sfCart[i].idx === idx){ ex = _sfCart[i]; break; } }
-  if(ex){ ex.qty++; } else { _sfCart.push({ idx: idx, item: it, qty: 1 }); }
+function sfAgregarKey(key){
+  var it = _sfItemsById[key]; if(!it) return;
+  var ex = null; for(var i = 0; i < _sfCart.length; i++){ if(_sfCart[i].key === key){ ex = _sfCart[i]; break; } }
+  if(ex){ ex.qty++; } else { _sfCart.push({ key: key, item: it, qty: 1 }); }
   sfRenderCart();
   var cb = document.querySelector('.sf-cartbtn'); if(cb){ cb.style.transform = 'scale(1.08)'; setTimeout(function(){ cb.style.transform = ''; }, 120); }
 }
-function sfQty(idx, delta){
+function sfQty(key, delta){
   for(var i = 0; i < _sfCart.length; i++){
-    if(_sfCart[i].idx === idx){
+    if(_sfCart[i].key === key){
       _sfCart[i].qty += delta;
       if(_sfCart[i].qty <= 0){ _sfCart.splice(i, 1); }
       break;
@@ -10398,8 +10451,8 @@ function sfRenderCart(){
           : '';
         return '<div class="sf-citem">' +
           '<div class="sf-citem-n">' + sfEsc(c.item.n) + sub + '</div>' +
-          '<div class="sf-qty"><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',-1)">&minus;</button>' +
-          '<b>' + c.qty + '</b><button class="sf-qbtn" onclick="sfQty(' + c.idx + ',1)">+</button></div>' +
+          '<div class="sf-qty"><button class="sf-qbtn" onclick="sfQty(\'' + c.key.replace(/'/g, "\\'") + '\',-1)">&minus;</button>' +
+          '<b>' + c.qty + '</b><button class="sf-qbtn" onclick="sfQty(\'' + c.key.replace(/'/g, "\\'") + '\',1)">+</button></div>' +
         '</div>';
       }).join('');
     }
@@ -10493,8 +10546,9 @@ function sfAsesorRender(){
     var bub = '<div class="sf-abubble sf-abot">' + sfEsc(m.content) + '</div>';
     if(m.productos && m.productos.length){
       bub += '<div class="sf-arec">' + m.productos.map(function(pr){
-        var idx = sfIdxDe(pr);
-        var btn = (idx >= 0) ? ('<button onclick="sfAgregar(' + idx + ')">Agregar</button>') : '';
+        _sfRegistrar(pr);
+        var key = _sfKey(pr);
+        var btn = '<button onclick="sfAgregarKey(\'' + key.replace(/'/g, "\\'") + '\')">Agregar</button>';
         var precio = (_sfData.mostrarPrecio !== false && pr.p) ? (' — ' + sfPeso(pr.p)) : '';
         return '<div class="sf-acard"><span><b>' + sfEsc(pr.n || '') + '</b>' + precio + '</span>' + btn + '</div>';
       }).join('') + '</div>';
@@ -10557,17 +10611,17 @@ async function sfAsesorEnviar(){
   _sfAsesorMsgs.push(msg);
   _sfAsesorImg = null; sfAsesorPreview();
   _sfAsesorCargando = true; sfAsesorRender();
-  var candidatos = sfAsesorCandidatos();
   try{
     var res = await functions.httpsCallable('tiendaAsesorIA')({
       empresaId: window._sfId || '',
       messages: _sfAsesorMsgs.map(function(m, i, arr){ var o = { role: m.role, content: m.content }; if(m.img && i === arr.length - 1) o.img = m.img; return o; }),
-      candidatos: candidatos,
       rubros: _sfRubros || []
     });
     var data = (res && res.data) ? res.data : {};
     var reply = data.reply || 'Contame un poco más y te ayudo.';
-    var productos = sfAsesorProductosEnReply(reply, candidatos);
+    var cand = Array.isArray(data.candidatos) ? data.candidatos : [];
+    cand.forEach(function(pr){ _sfRegistrar(pr); });
+    var productos = sfAsesorProductosEnReply(reply, cand);
     _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productos });
   }catch(err){
     _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora. Probá de nuevo o escribinos por WhatsApp.' });
