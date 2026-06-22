@@ -10710,6 +10710,7 @@ function bootStoreMode(){
     window.STORE_MODE = true;
     var l = document.getElementById('landing'); if(l) l.style.display = 'none';
     var a = document.getElementById('app'); if(a) a.classList.remove('show');
+    var iaf = document.querySelector('.ia-fab'); if(iaf) iaf.style.display = 'none'; // el 🤖 interno no va en la página pública
     var sf = document.getElementById('storefront'); if(sf) sf.style.display = 'block';
     initStorefront(tiendaId);
   }catch(e){ console.warn('store mode', e); }
