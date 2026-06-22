@@ -5300,6 +5300,7 @@
             <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
             <button class="btn btn-line btn-sm" onclick="reconstruirBaseLocal()" title="Si ves productos raros o faltantes, esto baja todo de nuevo desde la nube">&#128260; Reconstruir base</button>
             <button id="btnVerifBusq" class="btn btn-line btn-sm" onclick="verificarBusqueda()" title="Muestra cuántos productos están listos para buscar desde el celular">&#128269; Verificar búsqueda</button>
+            <button id="btnAnalizarDup" class="btn btn-line btn-sm" onclick="analizarDuplicados()" title="Cuenta productos vacíos y copias (no borra nada)">&#128269; Analizar duplicados</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -9239,6 +9240,7 @@ auth.onAuthStateChanged(async function(user){
 
 async function logout(){
   try{ if(typeof detenerSyncPedido === 'function') detenerSyncPedido(); }catch(e){}
+  try{ if(typeof detenerSyncCatalogo === 'function') detenerSyncCatalogo(); }catch(e){}
   try{ if(typeof detenerLatidoDispositivo === 'function') detenerLatidoDispositivo(); }catch(e){}
   try{ if(typeof liberarMiDispositivo === 'function') await liberarMiDispositivo(); }catch(e){}
   await auth.signOut();
@@ -11594,6 +11596,7 @@ async function esAplicar(){
     if(validas.length) resumen += 'Stock sumado a ' + validas.length + ' producto(s)';
     if(creados) resumen += (validas.length ? ' · ' : '') + creados + ' producto(s) creado(s)';
     toast(resumen, 'success');
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos (stock cambió)
     esState = { filas: [], metodo: null };
     esVolverInicio();
     if(typeof renderProductos === 'function') renderProductos();
@@ -12642,14 +12645,19 @@ async function detectarBorrados(empresaId){
 async function cargarProductos(){
   if(!currentEmpresaId) return;
   if(MODO_LIVIANO){
-    // 📱 Celular: cargar TODO el catálogo y trabajar LOCAL, igual que la compu.
-    //    Si ya está en caché, instantáneo. La primera vez lo baja con progreso.
+    // 📱 Celular: trabaja LOCAL igual que la compu, y se SINCRONIZA SOLO con la nube.
+    //    Compara el conteo nube vs local: si cambió (altas/bajas/import), se actualiza solo.
     try{
       var cache = [];
       try{ cache = await idbGetTodos(currentEmpresaId); }catch(e){}
-      if(!cache || !cache.length){
-        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(cargando catálogo)');
-        var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+      var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+      var necesitaBajar = !cache || !cache.length;
+      var cloudCount = null;
+      try{ cloudCount = (await colP.count().get()).data().count; }catch(e){}
+      if(cloudCount != null && cache && cache.length && cloudCount !== cache.length) necesitaBajar = true;
+
+      if(necesitaBajar){
+        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(actualizando catálogo)');
         var curP = null, todoP = [], seguirP = true;
         while(seguirP){
           var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(3000);
@@ -12661,21 +12669,25 @@ async function cargarProductos(){
           if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todoP.length.toLocaleString('es-AR') + ')');
           if(snapP.size < 3000) seguirP = false;
         }
+        // Reconciliar el guardado local: dejar EXACTAMENTE lo que hay en la nube.
+        var freshIds = {}; todoP.forEach(function(p){ freshIds[p._id] = 1; });
+        try{ await idbGuardarBatch(currentEmpresaId, todoP); }catch(e){}
+        var stale = []; (cache || []).forEach(function(p){ if(!freshIds[p._id]) stale.push(p._id); });
+        if(stale.length){ try{ await idbBorrarIds(currentEmpresaId, stale); }catch(e){} }
         cache = todoP;
-        // Guardar en caché local en segundo plano (no bloquea; si falla, queda en memoria).
-        try{ idbGuardarBatch(currentEmpresaId, cache); }catch(e){}
       }
+      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
       productos = cache;
       productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
       productosFiltered = productos.slice();
       prodPage = 0;
-      MODO_LIVIANO = false; // de acá en más, el celular funciona IGUAL que la compu
+      MODO_LIVIANO = false; // de acá en más, igual que la compu
       if(typeof renderProductos === 'function') renderProductos();
       if(typeof actualizarStats === 'function') actualizarStats();
       if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
       var _vmw = document.getElementById('prodVerMasWrap'); if(_vmw) _vmw.style.display = 'none';
-      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
-      if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId);
+      if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId); // ediciones puntuales
+      if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
     }catch(err){
       console.error('Carga catálogo móvil:', err);
       if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
@@ -12695,6 +12707,7 @@ async function cargarProductos(){
     poblarFiltroProveedores();
 
     sincronizarProductos(currentEmpresaId);
+    if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
   }catch(err){
     console.error('Error cargando productos:', err);
     toast('Error al cargar productos','error');
@@ -12968,6 +12981,64 @@ function highlightDdSel(){
 
 function filterProductos(){
   showProdDropdown(document.getElementById('prodSearch').value);
+}
+
+// Analiza el catálogo en memoria (SOLO LECTURA, no borra nada): vacíos, sin código, copias.
+function analizarDuplicados(){
+  if(!productos || !productos.length){
+    if(typeof alertComercia === 'function') alertComercia('Entrá primero en la computadora para que cargue el catálogo, y después tocá Analizar.');
+    return;
+  }
+  var total = productos.length;
+  var conCodigo = 0, sinCodGen = 0, vacios = 0, sinCodConNombre = 0;
+  var porNombre = {}, samplesVacios = [], samplesDup = [];
+  for(var i = 0; i < productos.length; i++){
+    var p = productos[i];
+    var id = String(p._id || '');
+    var cod = (p.codigo || '').trim();
+    var desc = (p.descripcion || '').trim();
+    if(cod) conCodigo++;
+    if(id.indexOf('SIN_COD_') === 0) sinCodGen++;
+    if(!cod && !desc){ vacios++; if(samplesVacios.length < 4) samplesVacios.push(id); }
+    else if(!cod){ sinCodConNombre++; }
+    if(desc){ var k = _sfNorm(desc); porNombre[k] = (porNombre[k] || 0) + 1; }
+  }
+  var nombresDup = 0, copiasDeMas = 0;
+  Object.keys(porNombre).forEach(function(k){
+    if(porNombre[k] > 1){ nombresDup++; copiasDeMas += (porNombre[k] - 1); if(samplesDup.length < 6) samplesDup.push('• "' + k + '" → ' + porNombre[k] + ' veces'); }
+  });
+
+  var html = '' +
+    '<div style="font-size:14px;line-height:1.7">' +
+    '<div style="font-weight:700;font-size:16px;margin-bottom:8px">Análisis del catálogo (no se borró nada)</div>' +
+    '<div>Total de productos: <b>' + total.toLocaleString('es-AR') + '</b></div>' +
+    '<div>Con código (normales): <b>' + conCodigo.toLocaleString('es-AR') + '</b></div>' +
+    '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' +
+    '<div style="color:#c0392b">🗑️ Vacíos (sin código y sin nombre) → <b>' + vacios.toLocaleString('es-AR') + '</b> <span style="color:#888">(basura segura para borrar)</span></div>' +
+    '<div>Sin código pero con nombre: <b>' + sinCodConNombre.toLocaleString('es-AR') + '</b></div>' +
+    '<div>Generados "SIN_COD_" (copias viejas): <b>' + sinCodGen.toLocaleString('es-AR') + '</b></div>' +
+    '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' +
+    '<div>Nombres que se repiten: <b>' + nombresDup.toLocaleString('es-AR') + '</b></div>' +
+    '<div style="color:#c0392b">Copias de más por nombre repetido → <b>' + copiasDeMas.toLocaleString('es-AR') + '</b></div>' +
+    (samplesDup.length ? ('<div style="margin-top:6px;color:#555;font-size:13px">Ejemplos repetidos:<br>' + samplesDup.join('<br>') + '</div>') : '') +
+    (samplesVacios.length ? ('<div style="margin-top:6px;color:#555;font-size:13px">Ejemplos de vacíos (ids):<br>' + samplesVacios.map(function(x){ return '• ' + eH(x); }).join('<br>') + '</div>') : '') +
+    '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' +
+    '<div style="color:#666;font-size:13px">Pasame estos números y decidimos qué limpiar. Nada se borró todavía.</div>' +
+    '</div>';
+
+  // Modal simple, autocontenido
+  var ov = document.getElementById('analizarDupOverlay');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'analizarDupOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:460px;width:100%;max-height:85vh;overflow:auto;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
+    html +
+    '<button onclick="document.getElementById(\'analizarDupOverlay\').remove()" style="margin-top:14px;width:100%;padding:11px;border:none;border-radius:9px;background:#e67e22;color:#fff;font-weight:600;cursor:pointer">Cerrar</button>' +
+    '</div>';
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  console.log('Análisis duplicados:', { total: total, conCodigo: conCodigo, vacios: vacios, sinCodConNombre: sinCodConNombre, sinCodGen: sinCodGen, nombresDup: nombresDup, copiasDeMas: copiasDeMas });
 }
 
 // 📱 Celular: listado de productos por páginas (trae de a 100 del servidor).
@@ -13554,6 +13625,7 @@ async function saveProduct(){
     toast(editId ? 'Producto actualizado' : 'Producto creado', 'success');
     renderProductos();
     actualizarStats();
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
   }catch(err){
     console.error(err);
     showAlert('prodAlert', 'Error al guardar: ' + (err.message || ''));
@@ -14744,9 +14816,17 @@ async function impAplicarCambios(){
         var batch = db.batch();
         for(var j=0;j<chunk.length;j++){
           var ex = chunk[j].excel;
-          var codigoUsado = ex.codigo || ('SIN_COD_' + Date.now() + '_' + j);
-          var docId = sanitizarId(codigoUsado);
+          // ID ESTABLE: por código si hay; si no, derivado del nombre (para NO duplicar al reimportar).
+          var docId;
+          if(ex.codigo){
+            docId = sanitizarId(ex.codigo);
+          } else if(ex.descripcion && ex.descripcion.trim()){
+            docId = 'AUTO_' + sanitizarId(_sfNorm(ex.descripcion)).slice(0, 90);
+          } else {
+            procesados++; continue; // fila vacía (sin código y sin nombre): no se crea
+          }
           if(!docId){ procesados++; continue; }
+          var codigoUsado = ex.codigo || '';
           var data = {
             codigo: ex.codigo || codigoUsado,
             codBarra: ex.codBarra || '',
@@ -14802,6 +14882,7 @@ async function impAplicarCambios(){
       '\u2713 Listo: ' + cambiosSel.length + ' actualizados, ' + nuevosSel.length + ' nuevos.';
     document.getElementById('impBtnCerrar').disabled = false;
     toast('Importación completa: ' + (cambiosSel.length+nuevosSel.length) + ' cambios aplicados', 'success');
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
   }catch(err){
     console.error('Error aplicando cambios:', err);
     impLog2('\u2717 Error: ' + err.message);
@@ -15801,6 +15882,42 @@ function detenerSyncPedido(){
     try{ _pedidoUnsubscribe(); }catch(e){}
     _pedidoUnsubscribe = null;
   }
+}
+
+// ── Sincronización EN VIVO del catálogo (precios/stock/productos/import) ──
+// Cuando un usuario cambia productos, "prende una señal" y todos los demás
+// traen los cambios solos. (No escuchamos los 101k; solo una señal chiquita.)
+var _catalogoUnsub = null, _catalogoLastVer = 0, _catalogoSelfBump = 0;
+function iniciarSyncCatalogo(){
+  if(!currentEmpresaId || !db) return;
+  if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
+  var ref = db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('catalogo');
+  _catalogoUnsub = ref.onSnapshot(function(snap){
+    if(!snap.exists) return;
+    var d = snap.data() || {};
+    var ver = d.ver || 0;
+    if(ver <= _catalogoLastVer) return;
+    var primera = (_catalogoLastVer === 0);
+    _catalogoLastVer = ver;
+    if(primera) return; // primer snapshot: solo registramos el nivel actual
+    // anti-eco: si el cambio lo hicimos nosotros hace muy poco, ignorar
+    if(d.by === (currentUser ? currentUser.uid : '') && Math.abs(Date.now() - _catalogoSelfBump) < 4000) return;
+    // Otro usuario cambió el catálogo → traer los cambios.
+    if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId);
+    if(typeof toast === 'function') toast('Catálogo actualizado', 'info');
+  }, function(err){ console.error('sync catálogo:', err); });
+}
+function detenerSyncCatalogo(){
+  if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
+}
+// Avisa a todos que el catálogo cambió (la llaman las funciones que escriben productos).
+function marcarCambioCatalogo(){
+  if(!currentEmpresaId || !db) return;
+  _catalogoSelfBump = Date.now();
+  try{
+    db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('catalogo')
+      .set({ ver: Date.now(), by: (currentUser ? currentUser.uid : '') }, { merge: true });
+  }catch(e){}
 }
 
 // Guarda el estado actual del pedido en Firestore (con debounce)
@@ -25301,6 +25418,7 @@ async function lpAplicarCatalogo(){
     }
 
     toast('✅ Catálogo sincronizado: ' + matches.length + ' productos, ' + provIds.length + ' proveedores creados', 'success');
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
     lpCerrarModalCatalogo();
     lpCargarProveedores();
   }catch(err){
