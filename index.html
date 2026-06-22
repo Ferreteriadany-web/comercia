@@ -12701,6 +12701,36 @@ async function bajarCatalogoResumible(empresaId, forzar){
   return { completo: completo, total: productos.length };
 }
 
+// AUTOMÁTICO (sin botones): si esta máquina tiene fotos en su copia local, se asegura
+// de que la nube también las tenga, para que el resto de los dispositivos las reciban.
+// Corre UNA sola vez por dispositivo, en segundo plano, sin molestar.
+async function reconciliarFotosNube(){
+  try{
+    if(!currentEmpresaId || !db) return;
+    var flagKey = 'fotosReconciliadas_' + currentEmpresaId;
+    try{ if(localStorage.getItem(flagKey) === '1') return; }catch(e){}
+    if(!Array.isArray(productos) || !productos.length) return; // todavía no cargó: reintenta luego
+    var conFoto = productos.filter(function(p){ return p && p.fotoUrl; });
+    if(!conFoto.length){ try{ localStorage.setItem(flagKey, '1'); }catch(e){} return; } // nada que subir
+    var B = 400, subidos = 0;
+    for(var i = 0; i < conFoto.length; i += B){
+      var slice = conFoto.slice(i, i + B);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id);
+        var data = { fotoUrl: p.fotoUrl, updatedAt: new Date().toISOString() };
+        if(p.fotoPath) data.fotoPath = p.fotoPath;
+        batch.set(ref, data, { merge: true });
+      });
+      try{ await batch.commit(); subidos += slice.length; }
+      catch(e){ console.warn('reconciliar fotos: lote falló', e); return; } // sin flag: reintenta al reabrir
+    }
+    try{ localStorage.setItem(flagKey, '1'); }catch(e){}
+    if(subidos && typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
+    console.log('Fotos aseguradas en la nube:', subidos);
+  }catch(e){ console.warn('reconciliarFotosNube', e); }
+}
+
 async function cargarProductos(){
   if(!currentEmpresaId) return;
   if(MODO_LIVIANO){
@@ -12802,6 +12832,7 @@ async function cargarProductos(){
 
       if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId); // ediciones puntuales
       if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
+      setTimeout(function(){ if(typeof reconciliarFotosNube === 'function') reconciliarFotosNube(); }, 6000);
     }catch(err){
       // Error duro: NO borrar nada. Recuperar de la copia local si hace falta.
       console.error('Carga catálogo móvil:', err);
@@ -12825,6 +12856,7 @@ async function cargarProductos(){
 
     sincronizarProductos(currentEmpresaId);
     if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
+    setTimeout(function(){ if(typeof reconciliarFotosNube === 'function') reconciliarFotosNube(); }, 6000);
   }catch(err){
     console.error('Error cargando productos:', err);
     toast('Error al cargar productos','error');
