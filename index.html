@@ -12186,13 +12186,12 @@ async function reconstruirBaseLocal(){
     ? await confirmComercia('Voy a reconstruir la base de productos bajando TODO de nuevo desde la nube. Tus datos en la nube NO se tocan. ¿Dale?')
     : confirm('¿Reconstruir la base de productos desde la nube?');
   if(!ok) return;
-  if(typeof toast === 'function') toast('Reconstruyendo base de productos…', 'info');
+  if(typeof toast === 'function') toast('Actualizando catálogo (fotos y descripciones incluidas)…', 'info');
   mostrarSyncEstado('sincronizando');
   try{
-    var todos = await bajarTodosProductosNube(currentEmpresaId);
-    await aplicarReconstruccion(currentEmpresaId, todos);
+    var res = await bajarCatalogoResumible(currentEmpresaId, true); // forzar: rebarre todo fresco
     mostrarSyncEstado('ok');
-    if(typeof toast === 'function') toast('Listo: ' + todos.length + ' productos ✓', 'success');
+    if(typeof toast === 'function') toast('Listo: ' + res.total + ' productos ✓', 'success');
   }catch(e){
     mostrarSyncEstado('error');
     if(typeof toast === 'function') toast('Error al reconstruir: ' + (e.message || e), 'error');
@@ -12580,31 +12579,35 @@ async function sincronizarProductos(empresaId){
       poblarFiltroProveedores();
     }
 
-    // Chequeo de integridad SIEMPRE (1 lectura barata): la cantidad local debe coincidir con la nube.
+    // Chequeo de integridad (1 lectura barata): cantidad local vs nube.
     try{
       var aggSnap = await db.collection('empresas').doc(empresaId).collection('productos').count().get();
       var totalFirestore = aggSnap.data().count;
-      if(totalFirestore > productos.length){
-        // Faltan productos en local → AUTO-REPARACIÓN: bajar todo de forma segura.
-        var todos = await bajarTodosProductosNube(empresaId);
-        await aplicarReconstruccion(empresaId, todos);
-        mostrarSyncEstado('ok');
+      var metaAhora = (await idbGetMeta(empresaId)) || {};
+      // Solo re-bajamos si faltan MUCHOS y el catálogo nunca se bajó completo.
+      // Si ya está completo, los cambios chicos los trae la sincro delta — NO se re-baja todo
+      // (eso era lo que dejaba "Sincronizando..." para siempre en el celular).
+      if(totalFirestore > productos.length + 20 && !metaAhora.dlCompleta){
+        await bajarCatalogoResumible(empresaId); // resumible: no se cuelga
         return;
       }
       if(totalFirestore < productos.length){
         await detectarBorrados(empresaId);
       }
-      await idbSetMeta(empresaId, {
-        ultSync: lastUpdatedAt || (meta && meta.ultSync) || new Date().toISOString(),
+      // Guardar meta SIN borrar dlCompleta/dlCursor (merge).
+      await idbSetMeta(empresaId, Object.assign({}, metaAhora, {
+        ultSync: lastUpdatedAt || metaAhora.ultSync || new Date().toISOString(),
         totalDocs: totalFirestore,
         updatedAt: new Date().toISOString()
-      });
+      }));
     }catch(e){
-      await idbSetMeta(empresaId, {
-        ultSync: lastUpdatedAt || (meta && meta.ultSync) || new Date().toISOString(),
-        totalDocs: productos.length,
-        updatedAt: new Date().toISOString()
-      });
+      try{
+        var metaAhora2 = (await idbGetMeta(empresaId)) || {};
+        await idbSetMeta(empresaId, Object.assign({}, metaAhora2, {
+          ultSync: lastUpdatedAt || metaAhora2.ultSync || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+      }catch(e2){}
     }
 
     mostrarSyncEstado('ok');
@@ -12649,6 +12652,55 @@ async function detectarBorrados(empresaId){
 // ═══════════════════════════════════════════════════════
 // MÓDULO PRODUCTOS — Cargar y renderizar
 // ═══════════════════════════════════════════════════════
+// Descarga RESUMIBLE del catálogo: baja de a poco, guarda cada parte al instante,
+// retoma donde quedó y SOBRESCRIBE cada producto con su versión fresca (trae fotos
+// y descripciones nuevas). Segura en celular: si se corta, no pierde progreso ni se
+// cuelga, y NO tira error. Con forzar=true rebarre todo desde cero.
+async function bajarCatalogoResumible(empresaId, forzar){
+  if(!empresaId || !db) return { completo:false, total:0 };
+  var colP = db.collection('empresas').doc(empresaId).collection('productos');
+  var meta = null; try{ meta = await idbGetMeta(empresaId); }catch(e){}
+  var cloudCount = null;
+  try{ cloudCount = (await colP.count().get()).data().count; }catch(e){}
+  if(!Array.isArray(productos)) productos = [];
+  var idx = {};
+  for(var ii=0; ii<productos.length; ii++){ idx[productos[ii]._id] = ii; }
+  var cursor = forzar ? null : ((meta && !meta.dlCompleta && meta.dlCursor) || null);
+  if(forzar){ try{ var m0=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, m0, { dlCompleta:false, dlCursor:null })); }catch(e){} }
+  if(typeof mostrarSyncEstado==='function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount? ' / '+cloudCount.toLocaleString('es-AR') : '') + ')');
+  var completo = false;
+  try{
+    var hayMas = true, pr = 0;
+    while(hayMas){
+      var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(1500);
+      if(cursor) qP = qP.startAfter(cursor);
+      var snapP = null, intentos = 0;
+      while(true){
+        try{ snapP = await qP.get(); break; }
+        catch(eP){ intentos++; if(intentos>=5) throw eP; await new Promise(function(r){ setTimeout(r, 1000*intentos); }); }
+      }
+      if(!snapP || snapP.empty){ completo = true; break; }
+      var pagina = [];
+      snapP.forEach(function(d){ var p=d.data(); p._id=d.id; pagina.push(p); });
+      try{ await idbGuardarBatch(empresaId, pagina); }catch(e){}
+      for(var jj=0; jj<pagina.length; jj++){ var pp=pagina[jj]; if(idx[pp._id]!=null){ productos[idx[pp._id]]=pp; } else { idx[pp._id]=productos.length; productos.push(pp); } }
+      cursor = snapP.docs[snapP.docs.length-1].id;
+      try{ var mP=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mP, { dlCursor:cursor, dlCompleta:false })); }catch(e){}
+      if(snapP.docs.length < 1500) hayMas = false;
+      if(typeof mostrarSyncEstado==='function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount? ' / '+cloudCount.toLocaleString('es-AR') : '') + ')');
+      if(++pr >= 2){ pr=0; productosFiltered=productos.slice(); if(typeof renderProductos==='function') renderProductos(); if(typeof actualizarStats==='function') actualizarStats(); }
+    }
+    if(completo){ try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){} }
+  }catch(eDL){ console.warn('Descarga resumible cortada (se retoma luego):', eDL); }
+  productos.sort(function(a,b){ return (a.descripcion||'').localeCompare(b.descripcion||''); });
+  productosFiltered = productos.slice();
+  if(typeof renderProductos==='function') renderProductos();
+  if(typeof actualizarStats==='function') actualizarStats();
+  if(typeof poblarFiltroProveedores==='function') poblarFiltroProveedores();
+  if(typeof mostrarSyncEstado==='function') mostrarSyncEstado('ok');
+  return { completo: completo, total: productos.length };
+}
+
 async function cargarProductos(){
   if(!currentEmpresaId) return;
   if(MODO_LIVIANO){
