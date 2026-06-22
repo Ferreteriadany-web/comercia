@@ -12673,9 +12673,11 @@ async function cargarProductos(){
       if(typeof actualizarStats === 'function') actualizarStats();
       if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
 
-      // 2) ¿Ya está todo bajado? (descarga marcada completa y el total coincide)
-      var yaCompleto = meta && meta.dlCompleta &&
-        (cloudCount == null ? (productos.length > 0) : (productos.length >= (cloudCount - 2)));
+      // 2) ¿Ya está bajado el catálogo? Una vez completo, los cambios chicos
+      //    (altas/ediciones del día a día) los trae la sincro rápida — NO se re-baja todo.
+      //    Solo se vuelve a bajar entero si la copia quedó MUY corta (faltaría >10%).
+      var yaCompleto = meta && meta.dlCompleta && productos.length > 0 &&
+        (cloudCount == null || productos.length >= (cloudCount * 0.9));
 
       if(!yaCompleto){
         // Índice rápido _id → posición (para no duplicar sin recorrer todo).
