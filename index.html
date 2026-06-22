@@ -9237,6 +9237,9 @@ async function logout(){
   try{ if(typeof detenerSyncPedido === 'function') detenerSyncPedido(); }catch(e){}
   try{ if(typeof detenerSyncCatalogo === 'function') detenerSyncCatalogo(); }catch(e){}
   try{ if(typeof detenerSyncClientesVivo === 'function') detenerSyncClientesVivo(); }catch(e){}
+  try{ if(typeof detenerSyncVentasVivo === 'function') detenerSyncVentasVivo(); }catch(e){}
+  try{ if(typeof detenerSyncCajaVivo === 'function') detenerSyncCajaVivo(); }catch(e){}
+  try{ if(typeof detenerSyncPresupuestosVivo === 'function') detenerSyncPresupuestosVivo(); }catch(e){}
   try{ if(typeof detenerLatidoDispositivo === 'function') detenerLatidoDispositivo(); }catch(e){}
   try{ if(typeof liberarMiDispositivo === 'function') await liberarMiDispositivo(); }catch(e){}
   await auth.signOut();
@@ -16117,6 +16120,63 @@ function detenerSyncClientesVivo(){
   if(_clientesUnsub){ try{ _clientesUnsub(); }catch(e){} _clientesUnsub = null; }
 }
 
+// ── EN VIVO: ventas (colección chica, limit 500) ──
+var _ventasVivoUnsub = null, _ventasVivoInit = false;
+function iniciarSyncVentasVivo(){
+  if(!currentEmpresaId || !db) return;
+  if(_ventasVivoUnsub){ try{ _ventasVivoUnsub(); }catch(e){} _ventasVivoUnsub = null; }
+  _ventasVivoInit = false;
+  _ventasVivoUnsub = db.collection('empresas').doc(currentEmpresaId).collection('ventas')
+    .orderBy('fecha','desc').limit(500)
+    .onSnapshot(function(snap){
+      if(typeof ventas === 'undefined') ventas = [];
+      ventas = [];
+      snap.forEach(function(d){ var v=d.data(); v._id=d.id; ventas.push(v); });
+      if(typeof actualizarStatsVentas === 'function') actualizarStatsVentas();
+      if(!_ventasVivoInit){ _ventasVivoInit = true; return; }
+      var mc = document.getElementById('moduleCaja'); if(mc && mc.classList.contains('active') && typeof renderCaja==='function') renderCaja();
+      var mp = document.getElementById('modulePresupuestos'); if(mp && mp.classList.contains('active') && typeof renderHistorialPresupuestos==='function') renderHistorialPresupuestos();
+    }, function(err){ console.error('sync ventas vivo:', err); });
+}
+function detenerSyncVentasVivo(){ if(_ventasVivoUnsub){ try{ _ventasVivoUnsub(); }catch(e){} _ventasVivoUnsub = null; } }
+
+// ── EN VIVO: caja (movimientos) ──
+var _cajaVivoUnsub = null, _cajaVivoInit = false;
+function iniciarSyncCajaVivo(){
+  if(!currentEmpresaId || !db) return;
+  if(_cajaVivoUnsub){ try{ _cajaVivoUnsub(); }catch(e){} _cajaVivoUnsub = null; }
+  _cajaVivoInit = false;
+  _cajaVivoUnsub = db.collection('empresas').doc(currentEmpresaId).collection('caja_movimientos')
+    .orderBy('fecha','desc').limit(300)
+    .onSnapshot(function(snap){
+      if(typeof cajaMovimientos === 'undefined') cajaMovimientos = [];
+      cajaMovimientos = [];
+      snap.forEach(function(d){ var m=d.data(); m._id=d.id; cajaMovimientos.push(m); });
+      if(!_cajaVivoInit){ _cajaVivoInit = true; return; }
+      var mc = document.getElementById('moduleCaja'); if(mc && mc.classList.contains('active') && typeof renderCaja==='function') renderCaja();
+    }, function(err){ console.error('sync caja vivo:', err); });
+}
+function detenerSyncCajaVivo(){ if(_cajaVivoUnsub){ try{ _cajaVivoUnsub(); }catch(e){} _cajaVivoUnsub = null; } }
+
+// ── EN VIVO: presupuestos ──
+var _presupVivoUnsub = null, _presupVivoInit = false;
+function iniciarSyncPresupuestosVivo(){
+  if(!currentEmpresaId || !db) return;
+  if(_presupVivoUnsub){ try{ _presupVivoUnsub(); }catch(e){} _presupVivoUnsub = null; }
+  _presupVivoInit = false;
+  _presupVivoUnsub = db.collection('empresas').doc(currentEmpresaId).collection('presupuestos')
+    .orderBy('fecha','desc').limit(500)
+    .onSnapshot(function(snap){
+      if(typeof presupuestos === 'undefined') presupuestos = [];
+      presupuestos = [];
+      snap.forEach(function(d){ var v=d.data(); v._id=d.id; presupuestos.push(v); });
+      if(typeof actualizarStatsPresupuestos === 'function') actualizarStatsPresupuestos();
+      if(!_presupVivoInit){ _presupVivoInit = true; return; }
+      var mp = document.getElementById('modulePresupuestos'); if(mp && mp.classList.contains('active') && typeof renderHistorialPresupuestos==='function') renderHistorialPresupuestos();
+    }, function(err){ console.error('sync presup vivo:', err); });
+}
+function detenerSyncPresupuestosVivo(){ if(_presupVivoUnsub){ try{ _presupVivoUnsub(); }catch(e){} _presupVivoUnsub = null; } }
+
 // Guarda el estado actual del pedido en Firestore (con debounce)
 function guardarPedidoCompartido(){
   if(_pedidoRemoteUpdating) return; // no guardar si lo que cambió vino del remoto
@@ -18495,6 +18555,7 @@ async function cargarVentas(){
     ventas = [];
     snap.forEach(function(d){ var v=d.data(); v._id=d.id; ventas.push(v); });
     actualizarStatsVentas();
+    if(typeof iniciarSyncVentasVivo === 'function') iniciarSyncVentasVivo();
   }catch(err){
     console.error('Error cargando ventas:', err);
   }
@@ -18728,6 +18789,7 @@ async function cargarCajaMovimientos(){
     snap.forEach(function(d){ var m=d.data(); m._id=d.id; cajaMovimientos.push(m); });
   }catch(err){ console.warn('Error cargando caja:', err); }
   renderCaja();
+  if(typeof iniciarSyncCajaVivo === 'function') iniciarSyncCajaVivo();
 }
 
 function cajaEsHoy(fechaIso){ return new Date(fechaIso).toDateString() === new Date().toDateString(); }
@@ -19040,6 +19102,7 @@ async function cargarPresupuestos(){
     snap.forEach(function(d){ var v=d.data(); v._id=d.id; presupuestos.push(v); });
     actualizarStatsPresupuestos();
     renderHistorialPresupuestos();
+    if(typeof iniciarSyncPresupuestosVivo === 'function') iniciarSyncPresupuestosVivo();
   }catch(err){
     console.error('Error cargando presupuestos:', err);
   }
