@@ -12646,38 +12646,49 @@ async function cargarProductos(){
   if(!currentEmpresaId) return;
   if(MODO_LIVIANO){
     // 📱 Celular: trabaja LOCAL igual que la compu, y se SINCRONIZA SOLO con la nube.
-    //    Compara el conteo nube vs local: si cambió (altas/bajas/import), se actualiza solo.
+    //    A PRUEBA DE CORTES: solo reemplaza la copia local si la descarga llegó COMPLETA.
     try{
       var cache = [];
       try{ cache = await idbGetTodos(currentEmpresaId); }catch(e){}
       var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
-      var necesitaBajar = !cache || !cache.length;
       var cloudCount = null;
       try{ cloudCount = (await colP.count().get()).data().count; }catch(e){}
-      if(cloudCount != null && cache && cache.length && cloudCount !== cache.length) necesitaBajar = true;
+      var necesitaBajar = (!cache || !cache.length) || (cloudCount != null && cache.length !== cloudCount);
 
       if(necesitaBajar){
         if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(actualizando catálogo)');
-        var curP = null, todoP = [], seguirP = true;
-        while(seguirP){
+        var curP = null, todoP = [], completo = false;
+        while(true){
           var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(3000);
           if(curP) qP = qP.startAfter(curP);
-          var snapP = await qP.get();
-          if(snapP.empty) break;
+          // Reintentos por página (red móvil inestable).
+          var snapP = null, intentos = 0;
+          while(true){
+            try{ snapP = await qP.get(); break; }
+            catch(ePag){ intentos++; if(intentos >= 4) throw ePag; await new Promise(function(r){ setTimeout(r, 800 * intentos); }); }
+          }
+          if(!snapP || snapP.empty){ completo = true; break; }
           snapP.forEach(function(d){ var p = d.data(); p._id = d.id; todoP.push(p); });
           curP = snapP.docs[snapP.docs.length - 1];
           if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todoP.length.toLocaleString('es-AR') + ')');
-          if(snapP.size < 3000) seguirP = false;
+          if(snapP.size < 3000){ completo = true; break; }
         }
-        // Reconciliar el guardado local: dejar EXACTAMENTE lo que hay en la nube.
-        var freshIds = {}; todoP.forEach(function(p){ freshIds[p._id] = 1; });
-        try{ await idbGuardarBatch(currentEmpresaId, todoP); }catch(e){}
-        var stale = []; (cache || []).forEach(function(p){ if(!freshIds[p._id]) stale.push(p._id); });
-        if(stale.length){ try{ await idbBorrarIds(currentEmpresaId, stale); }catch(e){} }
-        cache = todoP;
+        // ¿COMPLETA? Solo entonces reemplazamos/borramos. Si no, NO tocamos la copia local.
+        var descargaOk = completo && todoP.length && (cloudCount == null || todoP.length >= (cloudCount - 2));
+        if(descargaOk){
+          var freshIds = {}; todoP.forEach(function(p){ freshIds[p._id] = 1; });
+          try{ await idbGuardarBatch(currentEmpresaId, todoP); }catch(e){}
+          var stale = []; (cache || []).forEach(function(p){ if(!freshIds[p._id]) stale.push(p._id); });
+          if(stale.length){ try{ await idbBorrarIds(currentEmpresaId, stale); }catch(e){} }
+          cache = todoP;
+        } else {
+          // Descarga incompleta: NO corromper nada. Si no había copia, usamos lo que bajó; si había, la dejamos.
+          if(!cache || !cache.length) cache = todoP;
+          if(typeof toast === 'function') toast('No pude bajar todo el catálogo (conexión). Volvé a entrar con buena señal.', 'error');
+        }
       }
       if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
-      productos = cache;
+      productos = cache || [];
       productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
       productosFiltered = productos.slice();
       prodPage = 0;
@@ -12689,9 +12700,12 @@ async function cargarProductos(){
       if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId); // ediciones puntuales
       if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
     }catch(err){
+      // Error duro: NO borrar nada. Recuperar de la copia local si hace falta.
       console.error('Carga catálogo móvil:', err);
       if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('error');
+      try{ if(!productos || !productos.length){ productos = (await idbGetTodos(currentEmpresaId)) || []; } }catch(e){}
       productosFiltered = productos.slice();
+      MODO_LIVIANO = false;
       if(typeof renderProductos === 'function') renderProductos();
     }
     return;
