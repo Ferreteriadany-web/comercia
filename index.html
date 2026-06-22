@@ -9236,6 +9236,7 @@ auth.onAuthStateChanged(async function(user){
 async function logout(){
   try{ if(typeof detenerSyncPedido === 'function') detenerSyncPedido(); }catch(e){}
   try{ if(typeof detenerSyncCatalogo === 'function') detenerSyncCatalogo(); }catch(e){}
+  try{ if(typeof detenerSyncClientesVivo === 'function') detenerSyncClientesVivo(); }catch(e){}
   try{ if(typeof detenerLatidoDispositivo === 'function') detenerLatidoDispositivo(); }catch(e){}
   try{ if(typeof liberarMiDispositivo === 'function') await liberarMiDispositivo(); }catch(e){}
   await auth.signOut();
@@ -12547,7 +12548,7 @@ async function sincronizarProductos(empresaId){
         var p = d.data();
         p._id = d.id;
         batch.push(p);
-        if(p.updatedAt && (!lastUpdatedAt || p.updatedAt > lastUpdatedAt)){
+        if(p.updatedAt && typeof p.updatedAt === 'string' && (!lastUpdatedAt || p.updatedAt > lastUpdatedAt)){
           lastUpdatedAt = p.updatedAt;
         }
       });
@@ -12651,51 +12652,18 @@ async function detectarBorrados(empresaId){
 async function cargarProductos(){
   if(!currentEmpresaId) return;
   if(MODO_LIVIANO){
-    // 📱 Celular: trabaja LOCAL igual que la compu, y se SINCRONIZA SOLO con la nube.
-    //    A PRUEBA DE CORTES: solo reemplaza la copia local si la descarga llegó COMPLETA.
+    // 📱 Celular: trabaja LOCAL igual que la compu. La descarga es RESUMIBLE:
+    //    baja de a poco, GUARDA cada parte al instante y RETOMA donde quedó.
+    //    Aunque se corte la conexión, nunca vuelve a cero — va sumando hasta el total.
     try{
-      var cache = [];
-      try{ cache = await idbGetTodos(currentEmpresaId); }catch(e){}
       var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+      var meta = null; try{ meta = await idbGetMeta(currentEmpresaId); }catch(e){}
       var cloudCount = null;
       try{ cloudCount = (await colP.count().get()).data().count; }catch(e){}
-      // Bajamos si: no hay copia, o el total no coincide, o no pudimos verificar el total
-      // (en ese caso bajamos igual, para no quedarnos con una copia incompleta).
-      var necesitaBajar = (!cache || !cache.length) || (cloudCount == null) || (cache.length !== cloudCount);
 
-      if(necesitaBajar){
-        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(actualizando catálogo)');
-        var curP = null, todoP = [], completo = false;
-        while(true){
-          var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(3000);
-          if(curP) qP = qP.startAfter(curP);
-          // Reintentos por página (red móvil inestable).
-          var snapP = null, intentos = 0;
-          while(true){
-            try{ snapP = await qP.get(); break; }
-            catch(ePag){ intentos++; if(intentos >= 4) throw ePag; await new Promise(function(r){ setTimeout(r, 800 * intentos); }); }
-          }
-          if(!snapP || snapP.empty){ completo = true; break; }
-          snapP.forEach(function(d){ var p = d.data(); p._id = d.id; todoP.push(p); });
-          curP = snapP.docs[snapP.docs.length - 1];
-          if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todoP.length.toLocaleString('es-AR') + ')');
-          if(snapP.size < 3000){ completo = true; break; }
-        }
-        // ¿COMPLETA? Solo entonces reemplazamos/borramos. Si no, NO tocamos la copia local.
-        var descargaOk = completo && todoP.length && (cloudCount == null || todoP.length >= (cloudCount - 2));
-        if(descargaOk){
-          var freshIds = {}; todoP.forEach(function(p){ freshIds[p._id] = 1; });
-          try{ await idbGuardarBatch(currentEmpresaId, todoP); }catch(e){}
-          var stale = []; (cache || []).forEach(function(p){ if(!freshIds[p._id]) stale.push(p._id); });
-          if(stale.length){ try{ await idbBorrarIds(currentEmpresaId, stale); }catch(e){} }
-          cache = todoP;
-        } else {
-          // Descarga incompleta: NO corromper nada. Si no había copia, usamos lo que bajó; si había, la dejamos.
-          if(!cache || !cache.length) cache = todoP;
-          if(typeof toast === 'function') toast('No pude bajar todo el catálogo (conexión). Volvé a entrar con buena señal.', 'error');
-        }
-      }
-      if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+      // 1) Mostrar YA lo que haya guardado (la app arranca usable al toque).
+      var cache = [];
+      try{ cache = await idbGetTodos(currentEmpresaId); }catch(e){}
       productos = cache || [];
       productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
       productosFiltered = productos.slice();
@@ -12704,7 +12672,80 @@ async function cargarProductos(){
       if(typeof renderProductos === 'function') renderProductos();
       if(typeof actualizarStats === 'function') actualizarStats();
       if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
-      var _vmw = document.getElementById('prodVerMasWrap'); if(_vmw) _vmw.style.display = 'none';
+
+      // 2) ¿Ya está todo bajado? (descarga marcada completa y el total coincide)
+      var yaCompleto = meta && meta.dlCompleta &&
+        (cloudCount == null ? (productos.length > 0) : (productos.length >= (cloudCount - 2)));
+
+      if(!yaCompleto){
+        // Índice rápido _id → posición (para no duplicar sin recorrer todo).
+        var idx = {};
+        for(var ii = 0; ii < productos.length; ii++){ idx[productos[ii]._id] = ii; }
+        var cursor = (meta && meta.dlCursor) || null;
+        // Si antes quedó "completa" pero el total no coincide (hubo cambios), rebarremos desde cero.
+        if(meta && meta.dlCompleta){ cursor = null; }
+        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount ? ' / ' + cloudCount.toLocaleString('es-AR') : '') + ')');
+        try{
+          var hayMas = true, paginasDesdeRender = 0;
+          while(hayMas){
+            var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(1500);
+            if(cursor) qP = qP.startAfter(cursor);
+            // Reintentos por página (red móvil inestable).
+            var snapP = null, intentos = 0;
+            while(true){
+              try{ snapP = await qP.get(); break; }
+              catch(ePag){ intentos++; if(intentos >= 5) throw ePag; await new Promise(function(r){ setTimeout(r, 1000 * intentos); }); }
+            }
+            if(!snapP || snapP.empty){ hayMas = false; break; }
+            var pagina = [];
+            snapP.forEach(function(d){ var p = d.data(); p._id = d.id; pagina.push(p); });
+            // Guardar la página AL INSTANTE (persiste el progreso aunque se corte después).
+            try{ await idbGuardarBatch(currentEmpresaId, pagina); }catch(e){}
+            // Sumar a memoria sin duplicar (índice O(1)).
+            for(var jj = 0; jj < pagina.length; jj++){
+              var pp = pagina[jj];
+              if(idx[pp._id] != null){ productos[idx[pp._id]] = pp; }
+              else { idx[pp._id] = productos.length; productos.push(pp); }
+            }
+            cursor = snapP.docs[snapP.docs.length - 1].id;
+            // Guardar el punto de avance (merge con meta existente).
+            try{
+              var mPrev = (await idbGetMeta(currentEmpresaId)) || {};
+              await idbSetMeta(currentEmpresaId, Object.assign({}, mPrev, { dlCursor: cursor, dlCompleta: false }));
+            }catch(e){}
+            if(snapP.docs.length < 1500) hayMas = false;
+            if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount ? ' / ' + cloudCount.toLocaleString('es-AR') : '') + ')');
+            // Refrescar la grilla cada par de páginas para que se vea subir el número.
+            if(++paginasDesdeRender >= 2){
+              paginasDesdeRender = 0;
+              productosFiltered = productos.slice();
+              if(typeof renderProductos === 'function') renderProductos();
+              if(typeof actualizarStats === 'function') actualizarStats();
+            }
+          }
+          // Terminó el barrido completo → marcar como completo.
+          try{
+            var mFin = (await idbGetMeta(currentEmpresaId)) || {};
+            await idbSetMeta(currentEmpresaId, Object.assign({}, mFin, { dlCompleta: true, dlCursor: null, totalDocs: productos.length }));
+          }catch(e){}
+          productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
+          productosFiltered = productos.slice();
+          if(typeof renderProductos === 'function') renderProductos();
+          if(typeof actualizarStats === 'function') actualizarStats();
+          if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+          if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+        }catch(eDL){
+          // Se cortó: NO se pierde nada (cada página ya quedó guardada). Retoma al reabrir.
+          console.warn('Descarga catálogo cortada (se retoma al reabrir):', eDL);
+          productosFiltered = productos.slice();
+          if(typeof renderProductos === 'function') renderProductos();
+          if(typeof actualizarStats === 'function') actualizarStats();
+          if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+        }
+      } else {
+        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
+      }
+
       if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId); // ediciones puntuales
       if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
     }catch(err){
@@ -13544,7 +13585,7 @@ async function tnGenerarDescripcionesMasivo(){
     }
     if(r && r.ok){
       try{
-        await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto }, { merge: true });
+        await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto, updatedAt: new Date().toISOString() }, { merge: true });
         p.detalle = r.texto; // reflejar en memoria para la sync/publicación
         generadas++;
       }catch(e){ errores++; if(erroresMuestra.length < 5) erroresMuestra.push('guardar: ' + (e.message || e)); }
@@ -13579,6 +13620,9 @@ async function tnGenerarDescripcionesMasivo(){
   }
   if(recortado && !cortado) rep += '<div style="margin-top:6px;font-size:12px">Generé las primeras ' + MAX + '. Volvé a tocar el botón para seguir con el resto.</div>';
   if(prog) prog.innerHTML = rep;
+  // Guardar en la copia local y avisar a todos los dispositivos.
+  try{ if(generadas && typeof idbGuardarBatch === 'function') await idbGuardarBatch(currentEmpresaId, lista); }catch(e){}
+  if(generadas && typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
   if(typeof toast === 'function') toast('Listo: ' + generadas + ' descripciones generadas', generadas ? 'success' : 'error');
   if(erroresMuestra.length) console.log('Muestra de errores de generación:', erroresMuestra);
   if(sinInfo.length) console.log('Productos sin info:', sinInfo);
@@ -13910,7 +13954,7 @@ async function prodFotosMasivasProcesar(){
 
       // Guardar en Firestore
       await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(productoId)
-        .set({ fotoUrl: url, fotoPath: fullPath, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true});
+        .set({ fotoUrl: url, fotoPath: fullPath, updatedAt: new Date().toISOString() }, {merge:true});
       // Memoria local
       prod.fotoUrl = url; prod.fotoPath = fullPath;
       actualizados.push(prod);
@@ -13926,6 +13970,7 @@ async function prodFotosMasivasProcesar(){
 
   // Guardar cache local
   if(actualizados.length){ try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){} }
+  if(actualizados.length && typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
 
   // Resumen
   var res = document.getElementById('fotosMasivasResumen');
@@ -14087,7 +14132,7 @@ async function prodAsignarProveedorMasivo(){
       var batch = db.batch();
       slice.forEach(function(id){
         var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(id);
-        batch.set(ref, { proveedor: nombre, updatedAt: nowTs }, {merge: true});
+        batch.set(ref, { proveedor: nombre, updatedAt: nowIso }, {merge: true});
         var p = productos.find(function(x){ return x._id === id; });
         if(p){ p.proveedor = nombre; p.updatedAt = nowIso; actualizados.push(p); }
       });
@@ -14097,6 +14142,7 @@ async function prodAsignarProveedorMasivo(){
     if(actualizados.length){ try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('idb', e); } }
 
     toast('✅ Proveedor "' + nombre + '" asignado a ' + ids.length + ' producto(s)', 'success');
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
     prodSelectedIds.clear();
     renderProductos();
     actualizarBarraSeleccion();
@@ -15017,6 +15063,7 @@ async function cargarClientes(){
     renderClientes();
     actualizarStatsClientes();
     sincronizarClientes(currentEmpresaId);
+    if(typeof iniciarSyncClientesVivo === 'function') iniciarSyncClientesVivo();
   }catch(err){
     console.error('Error cargando clientes:', err);
     toast('Error al cargar clientes','error');
@@ -15940,6 +15987,48 @@ function marcarCambioCatalogo(){
     db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('catalogo')
       .set({ ver: Date.now(), by: (currentUser ? currentUser.uid : '') }, { merge: true });
   }catch(e){}
+}
+
+// ── Sincronización EN VIVO de clientes (colección chica: la escuchamos entera) ──
+var _clientesUnsub = null, _clientesVivoInit = false;
+function iniciarSyncClientesVivo(){
+  if(!currentEmpresaId || !db) return;
+  if(_clientesUnsub){ try{ _clientesUnsub(); }catch(e){} _clientesUnsub = null; }
+  _clientesVivoInit = false;
+  var ref = db.collection('empresas').doc(currentEmpresaId).collection('clientes');
+  _clientesUnsub = ref.onSnapshot(function(snap){
+    if(!Array.isArray(clientes)) clientes = [];
+    var cambios = 0, guardar = [], borrar = [];
+    snap.docChanges().forEach(function(ch){
+      var c = ch.doc.data(); c._id = ch.doc.id;
+      var i = -1;
+      for(var k = 0; k < clientes.length; k++){ if(clientes[k]._id === c._id){ i = k; break; } }
+      if(ch.type === 'removed'){
+        if(i >= 0) clientes.splice(i, 1);
+        borrar.push(c._id);
+      } else {
+        if(i >= 0) clientes[i] = c; else clientes.push(c);
+        guardar.push(c);
+      }
+      cambios++;
+    });
+    if(guardar.length){ try{ idbGuardarClientes(currentEmpresaId, guardar); }catch(e){} }
+    if(borrar.length){ try{ idbBorrarClientes(currentEmpresaId, borrar); }catch(e){} }
+    // El primer snapshot es la carga inicial: no avisamos ni forzamos re-render.
+    if(!_clientesVivoInit){ _clientesVivoInit = true; return; }
+    if(cambios){
+      clientes.sort(function(a, b){ return (a.razonSocial || '').localeCompare(b.razonSocial || ''); });
+      var mod = document.getElementById('moduleClientes');
+      if(mod && mod.classList.contains('active')){
+        clientesFiltered = clientes.slice();
+        if(typeof renderClientes === 'function') renderClientes();
+        if(typeof actualizarStatsClientes === 'function') actualizarStatsClientes();
+      }
+    }
+  }, function(err){ console.error('sync clientes vivo:', err); });
+}
+function detenerSyncClientesVivo(){
+  if(_clientesUnsub){ try{ _clientesUnsub(); }catch(e){} _clientesUnsub = null; }
 }
 
 // Guarda el estado actual del pedido en Firestore (con debounce)
@@ -27407,6 +27496,7 @@ async function lpEjecutarAplicar(filas){
     var provTxt = (imp.modo === 'sabana') ? (' en ' + Object.keys(porProv).length + ' proveedores') : '';
     var omitTxt = noEnCatalogo.length ? (' · ' + noEnCatalogo.length + ' no estaban en el catálogo') : '';
     toast('✅ Aplicado: ' + totalActualizados + ' actualizados, ' + totalCreados + ' nuevos' + provTxt + omitTxt, 'success');
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
     lpState.importacion = null;
     lpVolverAPaso1();
     document.getElementById('lpFileInput').value = '';
