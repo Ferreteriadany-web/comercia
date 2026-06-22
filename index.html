@@ -5299,8 +5299,6 @@
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
             <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
             <button class="btn btn-line btn-sm" onclick="reconstruirBaseLocal()" title="Si ves productos raros o faltantes, esto baja todo de nuevo desde la nube">&#128260; Reconstruir base</button>
-            <button id="btnVerifBusq" class="btn btn-line btn-sm" onclick="verificarBusqueda()" title="Muestra cuántos productos están listos para buscar desde el celular">&#128269; Verificar búsqueda</button>
-            <button id="btnAnalizarDup" class="btn btn-line btn-sm" onclick="analizarDuplicados()" title="Cuenta productos vacíos y copias (no borra nada)">&#128269; Analizar duplicados</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -5392,9 +5390,6 @@
                 <button class="page-btn" id="prodPrevBtn" onclick="prodPrevPage()">&larr; Anterior</button>
                 <button class="page-btn" id="prodNextBtn" onclick="prodNextPage()">Siguiente &rarr;</button>
               </div>
-            </div>
-            <div id="prodVerMasWrap" style="display:none;text-align:center;padding:12px 0">
-              <button class="btn btn-line btn-sm" id="prodVerMasBtn" onclick="prodCargarPaginaServidor(false)" style="width:100%;max-width:340px">&#11015;&#65039; Ver más productos</button>
             </div>
           </div>
         </div>
@@ -12125,17 +12120,28 @@ async function idbLimpiarEmpresa(empresaId){
 
 // Baja TODOS los productos desde la nube por documentId (seguro, no depende de updatedAt).
 async function bajarTodosProductosNube(empresaId){
-  var todos = [], cursor = null, more = true;
-  while(more){
-    var q = db.collection('empresas').doc(empresaId).collection('productos')
-      .orderBy(firebase.firestore.FieldPath.documentId()).limit(2000);
+  var col = db.collection('empresas').doc(empresaId).collection('productos');
+  var total = null;
+  try{ total = (await col.count().get()).data().count; }catch(e){}
+  var todos = [], cursor = null;
+  while(true){
+    var q = col.orderBy(firebase.firestore.FieldPath.documentId()).limit(2000);
     if(cursor) q = q.startAfter(cursor);
-    var snap = await q.get();
+    // Reintentos por página (red móvil inestable).
+    var snap = null, intentos = 0;
+    while(true){
+      try{ snap = await q.get(); break; }
+      catch(ePag){ intentos++; if(intentos >= 5) throw ePag; await new Promise(function(r){ setTimeout(r, 1000 * intentos); }); }
+    }
     if(snap.empty){ break; }
     snap.forEach(function(d){ var p = d.data(); p._id = d.id; todos.push(p); });
     cursor = snap.docs[snap.docs.length - 1].id;
-    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todos.length + ')');
-    if(snap.docs.length < 2000) more = false;
+    if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + todos.length.toLocaleString('es-AR') + (total ? ' / ' + total.toLocaleString('es-AR') : '') + ')');
+    if(snap.docs.length < 2000) break;
+  }
+  // VERIFICAR que llegó completa. Si no, error (NO se usa una lista incompleta).
+  if(total != null && todos.length < total - 2){
+    throw new Error('Descarga incompleta (' + todos.length + ' de ' + total + '). Reintentá con buena señal.');
   }
   return todos;
 }
@@ -12653,7 +12659,9 @@ async function cargarProductos(){
       var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
       var cloudCount = null;
       try{ cloudCount = (await colP.count().get()).data().count; }catch(e){}
-      var necesitaBajar = (!cache || !cache.length) || (cloudCount != null && cache.length !== cloudCount);
+      // Bajamos si: no hay copia, o el total no coincide, o no pudimos verificar el total
+      // (en ese caso bajamos igual, para no quedarnos con una copia incompleta).
+      var necesitaBajar = (!cache || !cache.length) || (cloudCount == null) || (cache.length !== cloudCount);
 
       if(necesitaBajar){
         if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(actualizando catálogo)');
