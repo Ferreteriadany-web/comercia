@@ -4034,9 +4034,9 @@
     #moduleVentas.active .mobile-cart-fab{
       display:flex;
       position:fixed;
-      bottom:18px;
+      bottom:calc(70px + env(safe-area-inset-bottom, 0px));
       right:18px;
-      z-index:800;
+      z-index:960;
       background:linear-gradient(135deg, var(--accent) 0%, var(--orange) 100%);
       color:#1a1408;
       border:none;
@@ -27695,6 +27695,10 @@ async function lpCargarHistorial(){
 <!-- ═══════════════ ASISTENTE IA ═══════════════ -->
 <style>
   .ia-fab{position:fixed;bottom:20px;right:20px;z-index:90;width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:24px;box-shadow:0 6px 20px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center}
+  @media (max-width:768px){
+    /* En celular, por encima de la barra de abajo y a la izquierda, para no chocar con el carrito */
+    .ia-fab{bottom:calc(70px + env(safe-area-inset-bottom, 0px));left:16px;right:auto;z-index:960;width:48px;height:48px;font-size:22px}
+  }
   .ia-modes{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
   .ia-mode{padding:8px 14px;border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:20px;cursor:pointer;font-size:13px;font-weight:600}
   .ia-mode.active{background:var(--accent);color:#fff;border-color:var(--accent)}
