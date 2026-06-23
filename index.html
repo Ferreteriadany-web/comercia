@@ -12838,9 +12838,13 @@ async function bajarCatalogoResumible(empresaId, forzar){
           console.warn('bajarCatalogoResumible: borrado masivo evitado ('+aBorrar.length+'/'+productos.length+').');
         }
       }
-      // Marcar "completo" SOLO si el barrido coincidió con la nube (si no, se reintenta luego).
-      if((cloudCount == null) || (Math.abs(nVistos - cloudCount) <= 3)){
+      // Marcar "completo" cuando el TOTAL local coincide con la nube (sirve también si fue
+      // una descarga RETOMADA, donde 'vistos' solo tiene la parte de esta sesión).
+      if((cloudCount == null) || (Math.abs(productos.length - cloudCount) <= 3)){
         try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){}
+      } else {
+        // Llegó al final del barrido pero quedó corto → reintentar desde cero la próxima vez.
+        try{ var mS=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mS, { dlCompleta:false, dlCursor:null })); }catch(e){}
       }
     }
   }catch(eDL){ console.warn('Descarga resumible cortada (se retoma luego):', eDL); }
@@ -12915,8 +12919,10 @@ async function cargarProductos(){
         (cloudCount == null || Math.abs(productos.length - cloudCount) <= 3);
 
       if(!yaCompleto){
-        // Reconciliar EXACTO: baja lo que falta Y borra lo que ya no está, hasta igualar la nube.
-        await bajarCatalogoResumible(currentEmpresaId, true);
+        // Si SOBRAN productos (hay que borrar) → barrido completo desde cero.
+        // Si solo FALTAN (descarga incompleta) → RETOMAR donde quedó, sin volver a empezar.
+        var hayQueBorrar = (cloudCount != null && productos.length > cloudCount + 3);
+        await bajarCatalogoResumible(currentEmpresaId, hayQueBorrar);
       } else {
         if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
       }
@@ -12951,7 +12957,7 @@ async function cargarProductos(){
       var _ccPc = null;
       try{ _ccPc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
       var _okPc = _metaPc.dlCompleta && productos.length > 0 && (_ccPc == null || Math.abs(productos.length - _ccPc) <= 3);
-      if(!_okPc){ await bajarCatalogoResumible(currentEmpresaId, true); }
+      if(!_okPc){ var _borrarPc = (_ccPc != null && productos.length > _ccPc + 3); await bajarCatalogoResumible(currentEmpresaId, _borrarPc); }
     }catch(e){ console.warn('reconciliar PC:', e); }
 
     sincronizarProductos(currentEmpresaId);
