@@ -16135,6 +16135,8 @@ function iniciarSyncCatalogo(){
   // con la nube. Si hay diferencia (señal perdida, etc.), se reempareja solo. Es barato: 1 lectura.
   if(_verifCatInt){ try{ clearInterval(_verifCatInt); }catch(e){} }
   _verifCatInt = setInterval(function(){ verificarConsistenciaCatalogo(); }, 300000);
+  // Y un chequeo rápido a los ~12s de abrir: si quedó algún resto de más, lo limpia al instante (solo).
+  setTimeout(function(){ verificarConsistenciaCatalogo(); }, 12000);
 }
 // Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
 async function verificarConsistenciaCatalogo(){
