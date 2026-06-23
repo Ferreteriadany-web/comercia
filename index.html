@@ -12730,30 +12730,52 @@ async function detectarBorrados(empresaId){
   var idsFirestore = {};
   var more = true;
   var cursor = null;
-  while(more){
-    var q = db.collection('empresas').doc(empresaId).collection('productos')
-      .orderBy(firebase.firestore.FieldPath.documentId()).limit(3000);
-    if(cursor) q = q.startAfter(cursor);
-    var snap = await q.get();
-    if(snap.empty){ more = false; break; }
-    snap.forEach(function(d){ idsFirestore[d.id]=1; });
-    cursor = snap.docs[snap.docs.length-1].id;
-    if(snap.docs.length < 3000) more = false;
+  // TRABA 1: si la lectura se corta, abortamos SIN borrar nada.
+  try{
+    while(more){
+      var q = db.collection('empresas').doc(empresaId).collection('productos')
+        .orderBy(firebase.firestore.FieldPath.documentId()).limit(3000);
+      if(cursor) q = q.startAfter(cursor);
+      var snap = await q.get();
+      if(snap.empty){ more = false; break; }
+      snap.forEach(function(d){ idsFirestore[d.id]=1; });
+      cursor = snap.docs[snap.docs.length-1].id;
+      if(snap.docs.length < 3000) more = false;
+    }
+  }catch(e){
+    console.warn('detectarBorrados: barrido incompleto → NO se borra nada (seguridad).', e);
+    return;
   }
 
+  // TRABA 2: lo que leímos tiene que COINCIDIR con el total real de la nube.
+  // Si no coincide (lectura parcial), NO borramos nada.
+  var nIds = Object.keys(idsFirestore).length;
+  var cloudCount = null;
+  try{ cloudCount = (await db.collection('empresas').doc(empresaId).collection('productos').count().get()).data().count; }catch(e){}
+  if(cloudCount == null || Math.abs(nIds - cloudCount) > 3){
+    console.warn('detectarBorrados: leído ('+nIds+') no coincide con la nube ('+cloudCount+') → NO se borra (seguridad).');
+    return;
+  }
+
+  // Recién ahora calculamos qué sobra localmente (sin tocar el array todavía).
   var aBorrar = [];
-  for(var i=productos.length-1; i>=0; i--){
-    if(!idsFirestore[productos[i]._id]){
-      aBorrar.push(productos[i]._id);
-      productos.splice(i,1);
-    }
+  for(var i=0; i<productos.length; i++){
+    if(!idsFirestore[productos[i]._id]) aBorrar.push(productos[i]._id);
   }
-  if(aBorrar.length > 0){
-    await idbBorrarIds(empresaId, aBorrar);
-    productosFiltered = productos.slice();
-    renderProductos();
-    actualizarStats();
+  if(!aBorrar.length) return;
+
+  // TRABA 3: nunca borrar automáticamente una porción gigante (señal de algo mal).
+  if(aBorrar.length > productos.length * 0.5){
+    console.warn('detectarBorrados: intentaría borrar '+aBorrar.length+' de '+productos.length+' → demasiado, se aborta por seguridad.');
+    return;
   }
+
+  var bset = {}; aBorrar.forEach(function(id){ bset[id]=1; });
+  productos = productos.filter(function(p){ return !bset[p._id]; });
+  try{ await idbBorrarIds(empresaId, aBorrar); }catch(e){}
+  productosFiltered = productos.slice();
+  if(typeof renderProductos === 'function') renderProductos();
+  if(typeof actualizarStats === 'function') actualizarStats();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -12800,17 +12822,26 @@ async function bajarCatalogoResumible(empresaId, forzar){
       if(++pr >= 2){ pr=0; productosFiltered=productos.slice(); if(typeof renderProductos==='function') renderProductos(); if(typeof actualizarStats==='function') actualizarStats(); }
     }
     if(completo){
-      // Recorrió TODO desde el principio → reconciliar BORRADOS: sacar locales que ya no están en la nube.
-      if(desdeCero){
+      // Reconciliar BORRADOS SOLO si el barrido fue ÍNTEGRO: vio TODO el catálogo desde el
+      // principio Y la cantidad leída coincide con el total real de la nube. Si no, NO se borra.
+      var nVistos = Object.keys(vistos).length;
+      var barridoIntegro = desdeCero && (cloudCount != null) && (Math.abs(nVistos - cloudCount) <= 3);
+      if(barridoIntegro){
         var aBorrar = [];
         for(var z=0; z<productos.length; z++){ if(!vistos[productos[z]._id]) aBorrar.push(productos[z]._id); }
-        if(aBorrar.length){
+        // Traba extra: nunca borrar de golpe una porción gigante.
+        if(aBorrar.length && aBorrar.length <= productos.length * 0.5){
           try{ await idbBorrarIds(empresaId, aBorrar); }catch(e){}
           var bset = {}; aBorrar.forEach(function(id){ bset[id]=1; });
           productos = productos.filter(function(p){ return !bset[p._id]; });
+        } else if(aBorrar.length){
+          console.warn('bajarCatalogoResumible: borrado masivo evitado ('+aBorrar.length+'/'+productos.length+').');
         }
       }
-      try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){}
+      // Marcar "completo" SOLO si el barrido coincidió con la nube (si no, se reintenta luego).
+      if((cloudCount == null) || (Math.abs(nVistos - cloudCount) <= 3)){
+        try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){}
+      }
     }
   }catch(eDL){ console.warn('Descarga resumible cortada (se retoma luego):', eDL); }
   productos.sort(function(a,b){ return (a.descripcion||'').localeCompare(b.descripcion||''); });
@@ -16137,6 +16168,8 @@ function iniciarSyncCatalogo(){
   _verifCatInt = setInterval(function(){ verificarConsistenciaCatalogo(); }, 300000);
   // Y un chequeo rápido a los ~12s de abrir: si quedó algún resto de más, lo limpia al instante (solo).
   setTimeout(function(){ verificarConsistenciaCatalogo(); }, 12000);
+  // A los ~25s, ya sincronizado, revisa si hay productos duplicados y ofrece limpiarlos.
+  setTimeout(function(){ if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto(); }, 25000);
 }
 // Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
 async function verificarConsistenciaCatalogo(){
@@ -16152,6 +16185,84 @@ async function verificarConsistenciaCatalogo(){
       if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
     }
   }catch(e){ /* es solo una verificación de fondo: si falla, se reintenta luego */ }
+}
+
+// ─── LIMPIEZA AUTOMÁTICA DE PRODUCTOS DUPLICADOS ───
+// Detecta productos repetidos (MISMO código y MISMO nombre cargados más de una vez).
+function detectarDuplicadosCatalogo(){
+  var mapa = {};
+  for(var i=0; i<productos.length; i++){
+    var p = productos[i];
+    var cod = (p.codigo || '').trim().toLowerCase();
+    if(!cod) continue; // sin código no lo tocamos (no podemos asegurar que sea repetido)
+    var key = cod + '||' + (p.descripcion || '').trim().toLowerCase();
+    (mapa[key] = mapa[key] || []).push(p);
+  }
+  var grupos = [];
+  for(var k in mapa){ if(mapa[k].length > 1) grupos.push(mapa[k]); }
+  return grupos;
+}
+// Borra las copias repetidas de la NUBE, dejando la mejor de cada grupo. Pide confirmación.
+async function limpiarDuplicadosCatalogo(grupos){
+  if(!grupos || !grupos.length || !currentEmpresaId || !db) return;
+  var aEliminar = [];
+  grupos.forEach(function(g){
+    // Ordena: la "mejor" primero (con foto, con detalle, más reciente) → esa se queda.
+    g.sort(function(a, b){
+      var sa = (a.fotoUrl?2:0) + (a.detalle?1:0), sb = (b.fotoUrl?2:0) + (b.detalle?1:0);
+      if(sb !== sa) return sb - sa;
+      return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''));
+    });
+    for(var i=1; i<g.length; i++) aEliminar.push(g[i]);
+  });
+  if(!aEliminar.length) return;
+  // SEGURIDAD: nunca borrar de golpe una porción gigante.
+  if(aEliminar.length > productos.length * 0.5){ console.warn('Duplicados: demasiados, se aborta por seguridad.'); return; }
+  mostrarSyncEstado('sincronizando', '(limpiando duplicados)');
+  var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+  var borrados = 0;
+  try{
+    for(var i=0; i<aEliminar.length; i+=400){
+      var lote = aEliminar.slice(i, i+400);
+      var batch = db.batch();
+      lote.forEach(function(p){ batch.delete(colP.doc(p._id)); });
+      await batch.commit();
+      var idset = {}; lote.forEach(function(p){ idset[p._id] = 1; });
+      productos = productos.filter(function(p){ return !idset[p._id]; });
+      try{ await idbBorrarIds(currentEmpresaId, lote.map(function(p){ return p._id; })); }catch(e){}
+      borrados += lote.length;
+      mostrarSyncEstado('sincronizando', '(limpiando ' + borrados + '/' + aEliminar.length + ')');
+    }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
+    productosFiltered = productos.slice();
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
+    mostrarSyncEstado('ok');
+    if(typeof toast === 'function') toast('Listo: quité ' + borrados + ' duplicados. Quedaron ' + productos.length.toLocaleString('es-AR') + ' ✓', 'success');
+  }catch(e){
+    mostrarSyncEstado('error');
+    if(typeof toast === 'function') toast('Error limpiando duplicados: ' + (e.message || e), 'error');
+  }
+}
+// AUTOMÁTICO: al abrir (una vez, ya sincronizado), si hay repetidos, ofrece limpiarlos.
+var _dupChequeado = false;
+async function chequearDuplicadosAuto(){
+  try{
+    if(_dupChequeado) return;
+    if(!currentEmpresaId || !db || !Array.isArray(productos) || productos.length < 20) return;
+    // Solo si este dispositivo está COMPLETO (su copia local refleja la nube), para no borrar en falso.
+    var cc = null;
+    try{ cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
+    if(cc == null || Math.abs(productos.length - cc) > 3) return; // todavía no terminó de sincronizar
+    var grupos = detectarDuplicadosCatalogo();
+    var extra = grupos.reduce(function(a, g){ return a + (g.length - 1); }, 0);
+    if(extra < 5) return; // nada relevante
+    _dupChequeado = true;
+    var ok = (typeof confirmComercia === 'function')
+      ? await confirmComercia('Encontré ' + extra.toLocaleString('es-AR') + ' productos repetidos (mismo código y nombre cargados más de una vez). ¿Querés que deje UNO de cada uno y borre las copias? No perdés productos: solo se quitan los repetidos.')
+      : confirm('Encontré ' + extra + ' productos repetidos. ¿Limpiar dejando uno de cada uno?');
+    if(ok) await limpiarDuplicadosCatalogo(grupos);
+  }catch(e){ console.warn('chequeo duplicados:', e); }
 }
 function detenerSyncCatalogo(){
   if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
