@@ -12785,6 +12785,7 @@ async function detectarBorrados(empresaId){
 // retoma donde quedó y SOBRESCRIBE cada producto con su versión fresca (trae fotos
 // y descripciones nuevas). Segura en celular: si se corta, no pierde progreso ni se
 // cuelga, y NO tira error. Con forzar=true rebarre todo desde cero.
+var SYNC_VERSION = 'r3'; // se sube cuando cambia la lógica de sincro, para forzar una corrección única
 async function bajarCatalogoResumible(empresaId, forzar){
   if(!empresaId || !db) return { completo:false, total:0 };
   var colP = db.collection('empresas').doc(empresaId).collection('productos');
@@ -12801,7 +12802,7 @@ async function bajarCatalogoResumible(empresaId, forzar){
   if(typeof mostrarSyncEstado==='function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount? ' / '+cloudCount.toLocaleString('es-AR') : '') + ')');
   var completo = false;
   try{
-    var hayMas = true, pr = 0;
+    var hayMas = true, pr = 0, vacioReintentos = 0;
     while(hayMas){
       var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(1500);
       if(cursor) qP = qP.startAfter(cursor);
@@ -12810,7 +12811,16 @@ async function bajarCatalogoResumible(empresaId, forzar){
         try{ snapP = await qP.get(); break; }
         catch(eP){ intentos++; if(intentos>=5) throw eP; await new Promise(function(r){ setTimeout(r, 1000*intentos); }); }
       }
-      if(!snapP || snapP.empty){ completo = true; break; }
+      if(!snapP || snapP.empty){
+        // Página vacía: ¿es el FINAL real, o un bache de señal con productos que aún faltan?
+        if((cloudCount != null) && (productos.length < cloudCount - 3) && vacioReintentos < 5){
+          vacioReintentos++;
+          await new Promise(function(r){ setTimeout(r, 1500*vacioReintentos); });
+          continue; // reintentar el MISMO cursor: la nube puede devolver los que faltan
+        }
+        completo = true; break;
+      }
+      vacioReintentos = 0;
       var pagina = [];
       snapP.forEach(function(d){ var p=d.data(); p._id=d.id; pagina.push(p); vistos[d.id]=1; });
       try{ await idbGuardarBatch(empresaId, pagina); }catch(e){}
@@ -12841,7 +12851,7 @@ async function bajarCatalogoResumible(empresaId, forzar){
       // Marcar "completo" cuando el TOTAL local coincide con la nube (sirve también si fue
       // una descarga RETOMADA, donde 'vistos' solo tiene la parte de esta sesión).
       if((cloudCount == null) || (productos.length >= cloudCount - 30)){
-        try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){}
+        try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length, syncVersion: SYNC_VERSION })); }catch(e){}
       } else {
         // Llegó al final del barrido pero quedó corto → reintentar desde cero la próxima vez.
         try{ var mS=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mS, { dlCompleta:false, dlCursor:null })); }catch(e){}
@@ -12914,9 +12924,12 @@ async function cargarProductos(){
       // 2) ¿Ya está bajado el catálogo? Una vez completo, los cambios chicos
       //    (altas/ediciones del día a día) los trae la sincro rápida — NO se re-baja todo.
       //    Solo se vuelve a bajar entero si la copia quedó MUY corta (faltaría >10%).
-      // ¿Ya está EXACTO contra la nube? (mismo número, tolerancia mínima por carreras)
+      // "Ya completo" = el barrido se dio por terminado Y (o ya está marcado con esta versión de
+      // sincro, o coincide casi exacto con la nube). La marca de versión fuerza UNA corrección
+      // tras actualizar, para arreglar copias que antes quedaron cortas.
+      var _verOk = meta && meta.syncVersion === SYNC_VERSION;
       var yaCompleto = meta && meta.dlCompleta && productos.length > 0 &&
-        (cloudCount == null || (productos.length >= cloudCount - 30 && productos.length <= cloudCount + 3));
+        (cloudCount == null || (productos.length <= cloudCount + 3 && (_verOk || productos.length >= cloudCount - 3)));
 
       if(!yaCompleto){
         // Si SOBRAN productos (hay que borrar) → barrido completo desde cero.
@@ -12924,6 +12937,8 @@ async function cargarProductos(){
         var hayQueBorrar = (cloudCount != null && productos.length > cloudCount + 3);
         await bajarCatalogoResumible(currentEmpresaId, hayQueBorrar);
       } else {
+        // Ya está bien → dejamos la marca de versión para confiar a futuro (sin re-barrer).
+        try{ var _mv=(await idbGetMeta(currentEmpresaId))||{}; if(_mv.syncVersion !== SYNC_VERSION) await idbSetMeta(currentEmpresaId, Object.assign({}, _mv, { syncVersion: SYNC_VERSION })); }catch(e){}
         if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
       }
 
@@ -12956,8 +12971,10 @@ async function cargarProductos(){
       var _metaPc = (await idbGetMeta(currentEmpresaId)) || {};
       var _ccPc = null;
       try{ _ccPc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
-      var _okPc = _metaPc.dlCompleta && productos.length > 0 && (_ccPc == null || (productos.length >= _ccPc - 30 && productos.length <= _ccPc + 3));
+      var _verOkPc = _metaPc.syncVersion === SYNC_VERSION;
+      var _okPc = _metaPc.dlCompleta && productos.length > 0 && (_ccPc == null || (productos.length <= _ccPc + 3 && (_verOkPc || productos.length >= _ccPc - 3)));
       if(!_okPc){ var _borrarPc = (_ccPc != null && productos.length > _ccPc + 3); await bajarCatalogoResumible(currentEmpresaId, _borrarPc); }
+      else { try{ if(_metaPc.syncVersion !== SYNC_VERSION) await idbSetMeta(currentEmpresaId, Object.assign({}, _metaPc, { syncVersion: SYNC_VERSION })); }catch(e){} }
     }catch(e){ console.warn('reconciliar PC:', e); }
 
     sincronizarProductos(currentEmpresaId);
