@@ -12605,9 +12605,9 @@ function mostrarSyncEstado(estado, detalle){
     el.className = 'sync-badge syncing';
   } else if(estado === 'ok'){
     el.style.display = 'inline-flex';
-    el.innerHTML = '&#10003; Actualizado';
+    el.innerHTML = '&#10003; Al d\u00eda' + ((typeof productos !== 'undefined' && productos && productos.length) ? ' &middot; ' + productos.length.toLocaleString('es-AR') : '');
     el.className = 'sync-badge ok';
-    setTimeout(function(){ el.style.display='none'; }, 2500);
+    setTimeout(function(){ el.style.display='none'; }, 3500);
   } else if(estado === 'error'){
     el.style.display = 'inline-flex';
     el.innerHTML = '&#9888; Error al sincronizar';
@@ -16105,7 +16105,7 @@ function detenerSyncPedido(){
 // ── Sincronización EN VIVO del catálogo (precios/stock/productos/import) ──
 // Cuando un usuario cambia productos, "prende una señal" y todos los demás
 // traen los cambios solos. (No escuchamos los 101k; solo una señal chiquita.)
-var _catalogoUnsub = null, _catalogoLastVer = 0, _catalogoSelfBump = 0;
+var _catalogoUnsub = null, _catalogoLastVer = 0, _catalogoSelfBump = 0, _verifCatInt = null;
 function iniciarSyncCatalogo(){
   if(!currentEmpresaId || !db) return;
   if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
@@ -16124,9 +16124,30 @@ function iniciarSyncCatalogo(){
     if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId);
     if(typeof toast === 'function') toast('Catálogo actualizado', 'info');
   }, function(err){ console.error('sync catálogo:', err); });
+
+  // VERIFICACIÓN PERIÓDICA DE SEGURIDAD: cada 5 min confirma que el número local coincide
+  // con la nube. Si hay diferencia (señal perdida, etc.), se reempareja solo. Es barato: 1 lectura.
+  if(_verifCatInt){ try{ clearInterval(_verifCatInt); }catch(e){} }
+  _verifCatInt = setInterval(function(){ verificarConsistenciaCatalogo(); }, 300000);
+}
+// Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
+async function verificarConsistenciaCatalogo(){
+  try{
+    if(!currentEmpresaId || !db) return;
+    if(typeof syncEnCurso !== 'undefined' && syncEnCurso) return; // ya está sincronizando
+    if(typeof document !== 'undefined' && document.hidden) return; // pestaña en segundo plano: no gastar
+    var cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count;
+    if(cc == null) return;
+    var local = (Array.isArray(productos) ? productos.length : 0);
+    if(Math.abs(local - cc) > 3){
+      // Hay diferencia real → reemparejar (trae cambios nuevos y saca lo borrado).
+      if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
+    }
+  }catch(e){ /* es solo una verificación de fondo: si falla, se reintenta luego */ }
 }
 function detenerSyncCatalogo(){
   if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
+  if(_verifCatInt){ try{ clearInterval(_verifCatInt); }catch(e){} _verifCatInt = null; }
 }
 // Avisa a todos que el catálogo cambió (la llaman las funciones que escriben productos).
 function marcarCambioCatalogo(){
@@ -28282,3 +28303,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+  
