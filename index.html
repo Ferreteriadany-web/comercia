@@ -5490,6 +5490,7 @@
           <div style="display:flex;align-items:center;gap:14px">
             <img id="inicioLogo" alt="" style="display:none;width:46px;height:46px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line-2);padding:3px;flex-shrink:0">
             <h1 class="main-title" id="inicioSaludo">Inicio</h1>
+            <span class="sync-badge" id="syncBadgeInicio" style="display:none"></span>
           </div>
         </header>
 <details class="ayuda-mod"><summary><span class="ay-ico">&#127968;</span><span>¿Cómo funciona el Inicio?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es tu <b>tablero del d&iacute;a</b>. De un vistazo ves las ventas de hoy, lo que entr&oacute; en caja, cu&aacute;nto te deben los clientes y qu&eacute; productos quedan con poco stock. <b>Toc&aacute; cualquier tarjeta</b> para ir directo a esa secci&oacute;n.</div></details>
@@ -12597,24 +12598,29 @@ async function verificarBusqueda(){
 // INDICADOR DE SYNC EN EL UI
 // ═══════════════════════════════════════════════════════
 function mostrarSyncEstado(estado, detalle){
-  var el = document.getElementById('syncBadge');
-  if(!el) return;
+  var els = [document.getElementById('syncBadge'), document.getElementById('syncBadgeInicio')];
+  els = els.filter(function(e){ return e; });
+  if(!els.length) return;
+  var html = '', cls = 'sync-badge', disp = 'none', ocultar = 0;
   if(estado === 'sincronizando'){
-    el.style.display = 'inline-flex';
-    el.innerHTML = '<span class="sync-spinner"></span> Sincronizando' + (detalle?' '+detalle:'') + '...';
-    el.className = 'sync-badge syncing';
+    disp = 'inline-flex';
+    html = '<span class="sync-spinner"></span> Sincronizando' + (detalle?' '+detalle:'') + '...';
+    cls = 'sync-badge syncing';
   } else if(estado === 'ok'){
-    el.style.display = 'inline-flex';
-    el.innerHTML = '&#10003; Al d\u00eda' + ((typeof productos !== 'undefined' && productos && productos.length) ? ' &middot; ' + productos.length.toLocaleString('es-AR') : '');
-    el.className = 'sync-badge ok';
-    setTimeout(function(){ el.style.display='none'; }, 3500);
+    disp = 'inline-flex';
+    html = '&#10003; Al d\u00eda' + ((typeof productos !== 'undefined' && productos && productos.length) ? ' &middot; ' + productos.length.toLocaleString('es-AR') : '');
+    cls = 'sync-badge ok';
+    ocultar = 3500;
   } else if(estado === 'error'){
-    el.style.display = 'inline-flex';
-    el.innerHTML = '&#9888; Error al sincronizar';
-    el.className = 'sync-badge err';
-  } else {
-    el.style.display = 'none';
+    disp = 'inline-flex';
+    html = '&#9888; Error al sincronizar';
+    cls = 'sync-badge err';
   }
+  els.forEach(function(el){
+    el.style.display = disp;
+    if(disp !== 'none'){ el.innerHTML = html; el.className = cls; }
+  });
+  if(ocultar){ setTimeout(function(){ els.forEach(function(el){ el.style.display='none'; }); }, ocultar); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -28303,4 +28309,3 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
-  
