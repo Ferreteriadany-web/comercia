@@ -6174,6 +6174,7 @@
             <button class="rep-tab active" id="repTabCaja" onclick="repCambiarTab('caja')">Caja diaria</button>
             <button class="rep-tab" id="repTabFact" onclick="repCambiarTab('facturacion')">Facturación mensual</button>
             <button class="rep-tab" id="repTabProv" onclick="repCambiarTab('proveedor')">Por proveedor</button>
+            <button class="rep-tab" id="repTabProd" onclick="repCambiarTab('productos')">Informes de productos</button>
           </div>
 
           <!-- CAJA DIARIA -->
@@ -6194,6 +6195,34 @@
               <button class="btn btn-sm btn-light" onclick="repFactMesActual()">Este mes</button>
             </div>
             <div id="repFactContenido"><div class="rep-empty">Elegí un mes.</div></div>
+          </div>
+
+          <!-- INFORMES DE PRODUCTOS -->
+          <div id="repPaneProd" class="rep-pane" style="display:none">
+            <style>
+              #repPaneProd .ip-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+              #repPaneProd .ip-kpi{position:relative;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px 16px;overflow:hidden}
+              #repPaneProd .ip-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+              #repPaneProd .ip-kpi.k2::before{background:var(--success,#16a34a)}
+              #repPaneProd .ip-kpi.k3::before{background:var(--orange,#ea7a17)}
+              #repPaneProd .ip-kpi-label{font-size:10.5px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+              #repPaneProd .ip-kpi-val{font-size:24px;font-weight:700;color:var(--text);font-family:var(--mono,inherit);line-height:1}
+              #repPaneProd .ip-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+              #repPaneProd .ip-card{background:var(--paper);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+              #repPaneProd .ip-title{font-size:13px;font-weight:700;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--bg-2,transparent)}
+              #repPaneProd .ip-table{width:100%;border-collapse:collapse;font-size:13px}
+              #repPaneProd .ip-table td{padding:8px 12px;border-bottom:1px solid var(--line)}
+              #repPaneProd .ip-table tr:last-child td{border-bottom:none}
+              #repPaneProd .ip-rank{color:var(--text-mute);font-weight:700;width:34px;font-size:12px}
+              #repPaneProd .ip-name{color:var(--text)}
+              #repPaneProd .ip-cod{color:var(--text-mute);font-size:11px;font-family:var(--mono,inherit)}
+              #repPaneProd .ip-val{text-align:right;font-weight:700;color:var(--accent);white-space:nowrap}
+            </style>
+            <div class="rep-controls">
+              <span style="font-size:13px;color:var(--text-mute)">Análisis de los últimos 12 meses de ventas.</span>
+              <button class="btn btn-sm btn-primary" onclick="repCargarProductos()">Generar informe</button>
+            </div>
+            <div id="repProdContenido"><div class="rep-empty">Tocá "Generar informe" para ver tus productos estrella. &#128202;</div></div>
           </div>
 
           <!-- POR PROVEEDOR Y PRODUCTO -->
@@ -11664,11 +11693,83 @@ function repCambiarTab(tab){
   document.getElementById('repTabCaja').classList.toggle('active', tab === 'caja');
   document.getElementById('repTabFact').classList.toggle('active', tab === 'facturacion');
   var tp = document.getElementById('repTabProv'); if(tp) tp.classList.toggle('active', tab === 'proveedor');
+  var tpr = document.getElementById('repTabProd'); if(tpr) tpr.classList.toggle('active', tab === 'productos');
   document.getElementById('repPaneCaja').style.display = (tab === 'caja') ? 'block' : 'none';
   document.getElementById('repPaneFact').style.display = (tab === 'facturacion') ? 'block' : 'none';
   var pp = document.getElementById('repPaneProv'); if(pp) pp.style.display = (tab === 'proveedor') ? 'block' : 'none';
+  var ppr = document.getElementById('repPaneProd'); if(ppr) ppr.style.display = (tab === 'productos') ? 'block' : 'none';
   if(tab === 'facturacion' && !document.getElementById('repFactContenido').dataset.cargado){
     repCargarFacturacion();
+  }
+}
+
+// ─── INFORMES DE PRODUCTOS (inteligencia de ventas, últimos 12 meses) ───
+var _repProdData = null;
+async function repCargarProductos(){
+  var cont = document.getElementById('repProdContenido');
+  if(!cont) return;
+  cont.innerHTML = '<div class="rep-empty">Analizando tus ventas&hellip;</div>';
+  try{
+    var hasta = new Date();
+    var desde = new Date(hasta.getFullYear(), hasta.getMonth() - 11, 1);
+    var ventas = await repTraerVentas(repFechaLocalISO(desde) + 'T00:00:00.000', repFechaLocalISO(hasta) + 'T23:59:59.999');
+    ventas = (ventas || []).filter(function(v){ return v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; });
+    if(!ventas.length){ cont.innerHTML = '<div class="rep-empty">Todav&iacute;a no hay ventas para analizar. Cuando empieces a vender, ac&aacute; van a aparecer tus productos estrella. &#128202;</div>'; _repProdData = null; return; }
+
+    var prod = {};
+    function mesDe(fecha){ var d = new Date(fecha); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+    ventas.forEach(function(v){
+      var mes = mesDe(v.fecha);
+      (v.items || []).forEach(function(it){
+        var key = it.codigo || it.descripcion || '?';
+        var cant = Number(it.cantidad) || 0, imp = Number(it.subtotal) || 0;
+        if(!prod[key]) prod[key] = { codigo: it.codigo || '', desc: it.descripcion || '', cant: 0, importe: 0, meses: {} };
+        prod[key].cant += cant; prod[key].importe += imp;
+        prod[key].meses[mes] = (prod[key].meses[mes] || 0) + cant;
+      });
+    });
+    var lista = Object.keys(prod).map(function(k){ var p = prod[k]; p.nMeses = Object.keys(p.meses).length; return p; });
+
+    var topCant = lista.slice().sort(function(a, b){ return b.cant - a.cant; }).slice(0, 15);
+    var topImp = lista.slice().sort(function(a, b){ return b.importe - a.importe; }).slice(0, 15);
+    var constantes = lista.filter(function(p){ return p.nMeses >= 3; }).sort(function(a, b){ return b.nMeses - a.nMeses || b.cant - a.cant; }).slice(0, 15);
+    var meses = [];
+    for(var i = 11; i >= 0; i--){ var dm = new Date(hasta.getFullYear(), hasta.getMonth() - i, 1); meses.push(dm.getFullYear() + '-' + String(dm.getMonth() + 1).padStart(2, '0')); }
+    var liderMes = meses.map(function(m){ var best = null, bestC = 0; lista.forEach(function(p){ var c = p.meses[m] || 0; if(c > bestC){ bestC = c; best = p; } }); return { mes: m, prod: best, cant: bestC }; });
+
+    _repProdData = { topCant: topCant, constantes: constantes, liderMes: liderMes };
+
+    var fmt = (typeof fmtPeso === 'function') ? fmtPeso : function(n){ return '$' + Math.round(n || 0); };
+    var esc = (typeof eH === 'function') ? eH : function(s){ return String(s); };
+    var NM = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    function nombreMes(m){ var p = m.split('-'); return NM[parseInt(p[1], 10) - 1] + ' ' + p[0].slice(2); }
+    function fila(rank, nombre, cod, val){ return '<tr><td class="ip-rank">' + rank + '</td><td class="ip-name">' + esc(nombre) + (cod ? ' <span class="ip-cod">' + esc(cod) + '</span>' : '') + '</td><td class="ip-val">' + val + '</td></tr>'; }
+    function tabla(titulo, items, valFn){
+      var h = '<div class="ip-card"><div class="ip-title">' + titulo + '</div><table class="ip-table"><tbody>';
+      items.forEach(function(p, i){ h += fila(i + 1, p.desc || p.codigo || '—', p.codigo, valFn(p)); });
+      h += '</tbody></table></div>'; return h;
+    }
+
+    var totU = lista.reduce(function(a, p){ return a + p.cant; }, 0);
+    var totI = lista.reduce(function(a, p){ return a + p.importe; }, 0);
+    var html = '<div class="ip-kpis">' +
+      '<div class="ip-kpi"><div class="ip-kpi-label">Productos distintos</div><div class="ip-kpi-val">' + lista.length.toLocaleString('es-AR') + '</div></div>' +
+      '<div class="ip-kpi k2"><div class="ip-kpi-label">Unidades (12 meses)</div><div class="ip-kpi-val">' + totU.toLocaleString('es-AR') + '</div></div>' +
+      '<div class="ip-kpi k3"><div class="ip-kpi-label">Facturaci&oacute;n (12 meses)</div><div class="ip-kpi-val">' + fmt(totI) + '</div></div>' +
+      '</div>';
+    html += '<div class="ip-grid">';
+    html += tabla('&#127942; M&aacute;s vendidos (unidades)', topCant, function(p){ return p.cant.toLocaleString('es-AR') + ' u.'; });
+    html += tabla('&#128176; M&aacute;s facturaci&oacute;n', topImp, function(p){ return fmt(p.importe); });
+    html += tabla('&#128257; Vendidos constantemente', constantes, function(p){ return p.nMeses + ' meses'; });
+    html += '</div>';
+    html += '<div class="ip-card" style="margin-top:16px"><div class="ip-title">&#128197; Producto l&iacute;der por mes</div><table class="ip-table"><tbody>';
+    liderMes.forEach(function(lm){ html += '<tr><td class="ip-rank" style="text-transform:capitalize;width:auto;white-space:nowrap">' + nombreMes(lm.mes) + '</td><td class="ip-name">' + (lm.prod ? esc(lm.prod.desc || lm.prod.codigo) : '<span style="color:var(--text-mute)">sin ventas</span>') + '</td><td class="ip-val">' + (lm.cant ? lm.cant.toLocaleString('es-AR') + ' u.' : '') + '</td></tr>'; });
+    html += '</tbody></table></div>';
+
+    cont.innerHTML = html;
+  }catch(err){
+    console.error('informe productos:', err);
+    cont.innerHTML = '<div class="rep-empty">No pude generar el informe. Prob&aacute; de nuevo.</div>';
   }
 }
 
@@ -12588,21 +12689,17 @@ async function sincronizarProductos(empresaId){
       var aggSnap = await db.collection('empresas').doc(empresaId).collection('productos').count().get();
       var totalFirestore = aggSnap.data().count;
       var metaAhora = (await idbGetMeta(empresaId)) || {};
-      // Solo re-bajamos si faltan MUCHOS y el catálogo nunca se bajó completo.
-      // Si ya está completo, los cambios chicos los trae la sincro delta — NO se re-baja todo
-      // (eso era lo que dejaba "Sincronizando..." para siempre en el celular).
-      if(totalFirestore > productos.length + 20 && !metaAhora.dlCompleta){
-        await bajarCatalogoResumible(empresaId); // resumible: no se cuelga
-        return;
-      }
+      // Si falta algo que la sincro rápida no alcanzó a traer, marcamos para reconciliar
+      // EXACTO en la próxima apertura (no hacemos el barrido pesado acá, para no trabar).
+      var faltan = (totalFirestore > productos.length + 3);
       if(totalFirestore < productos.length){
         await detectarBorrados(empresaId);
       }
-      // Guardar meta SIN borrar dlCompleta/dlCursor (merge).
       await idbSetMeta(empresaId, Object.assign({}, metaAhora, {
         ultSync: lastUpdatedAt || metaAhora.ultSync || new Date().toISOString(),
         totalDocs: totalFirestore,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        dlCompleta: faltan ? false : metaAhora.dlCompleta
       }));
     }catch(e){
       try{
@@ -12670,6 +12767,8 @@ async function bajarCatalogoResumible(empresaId, forzar){
   var idx = {};
   for(var ii=0; ii<productos.length; ii++){ idx[productos[ii]._id] = ii; }
   var cursor = forzar ? null : ((meta && !meta.dlCompleta && meta.dlCursor) || null);
+  var desdeCero = !cursor; // si arranca del principio, al terminar podemos reconciliar borrados
+  var vistos = {};         // ids que existen en la nube (para detectar borrados)
   if(forzar){ try{ var m0=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, m0, { dlCompleta:false, dlCursor:null })); }catch(e){} }
   if(typeof mostrarSyncEstado==='function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount? ' / '+cloudCount.toLocaleString('es-AR') : '') + ')');
   var completo = false;
@@ -12685,7 +12784,7 @@ async function bajarCatalogoResumible(empresaId, forzar){
       }
       if(!snapP || snapP.empty){ completo = true; break; }
       var pagina = [];
-      snapP.forEach(function(d){ var p=d.data(); p._id=d.id; pagina.push(p); });
+      snapP.forEach(function(d){ var p=d.data(); p._id=d.id; pagina.push(p); vistos[d.id]=1; });
       try{ await idbGuardarBatch(empresaId, pagina); }catch(e){}
       for(var jj=0; jj<pagina.length; jj++){ var pp=pagina[jj]; if(idx[pp._id]!=null){ productos[idx[pp._id]]=pp; } else { idx[pp._id]=productos.length; productos.push(pp); } }
       cursor = snapP.docs[snapP.docs.length-1].id;
@@ -12694,7 +12793,19 @@ async function bajarCatalogoResumible(empresaId, forzar){
       if(typeof mostrarSyncEstado==='function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount? ' / '+cloudCount.toLocaleString('es-AR') : '') + ')');
       if(++pr >= 2){ pr=0; productosFiltered=productos.slice(); if(typeof renderProductos==='function') renderProductos(); if(typeof actualizarStats==='function') actualizarStats(); }
     }
-    if(completo){ try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){} }
+    if(completo){
+      // Recorrió TODO desde el principio → reconciliar BORRADOS: sacar locales que ya no están en la nube.
+      if(desdeCero){
+        var aBorrar = [];
+        for(var z=0; z<productos.length; z++){ if(!vistos[productos[z]._id]) aBorrar.push(productos[z]._id); }
+        if(aBorrar.length){
+          try{ await idbBorrarIds(empresaId, aBorrar); }catch(e){}
+          var bset = {}; aBorrar.forEach(function(id){ bset[id]=1; });
+          productos = productos.filter(function(p){ return !bset[p._id]; });
+        }
+      }
+      try{ var mF=(await idbGetMeta(empresaId))||{}; await idbSetMeta(empresaId, Object.assign({}, mF, { dlCompleta:true, dlCursor:null, totalDocs:productos.length })); }catch(e){}
+    }
   }catch(eDL){ console.warn('Descarga resumible cortada (se retoma luego):', eDL); }
   productos.sort(function(a,b){ return (a.descripcion||'').localeCompare(b.descripcion||''); });
   productosFiltered = productos.slice();
@@ -12762,74 +12873,13 @@ async function cargarProductos(){
       // 2) ¿Ya está bajado el catálogo? Una vez completo, los cambios chicos
       //    (altas/ediciones del día a día) los trae la sincro rápida — NO se re-baja todo.
       //    Solo se vuelve a bajar entero si la copia quedó MUY corta (faltaría >10%).
+      // ¿Ya está EXACTO contra la nube? (mismo número, tolerancia mínima por carreras)
       var yaCompleto = meta && meta.dlCompleta && productos.length > 0 &&
-        (cloudCount == null || productos.length >= (cloudCount * 0.9));
+        (cloudCount == null || Math.abs(productos.length - cloudCount) <= 3);
 
       if(!yaCompleto){
-        // Índice rápido _id → posición (para no duplicar sin recorrer todo).
-        var idx = {};
-        for(var ii = 0; ii < productos.length; ii++){ idx[productos[ii]._id] = ii; }
-        var cursor = (meta && meta.dlCursor) || null;
-        // Si antes quedó "completa" pero el total no coincide (hubo cambios), rebarremos desde cero.
-        if(meta && meta.dlCompleta){ cursor = null; }
-        if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount ? ' / ' + cloudCount.toLocaleString('es-AR') : '') + ')');
-        try{
-          var hayMas = true, paginasDesdeRender = 0;
-          while(hayMas){
-            var qP = colP.orderBy(firebase.firestore.FieldPath.documentId()).limit(1500);
-            if(cursor) qP = qP.startAfter(cursor);
-            // Reintentos por página (red móvil inestable).
-            var snapP = null, intentos = 0;
-            while(true){
-              try{ snapP = await qP.get(); break; }
-              catch(ePag){ intentos++; if(intentos >= 5) throw ePag; await new Promise(function(r){ setTimeout(r, 1000 * intentos); }); }
-            }
-            if(!snapP || snapP.empty){ hayMas = false; break; }
-            var pagina = [];
-            snapP.forEach(function(d){ var p = d.data(); p._id = d.id; pagina.push(p); });
-            // Guardar la página AL INSTANTE (persiste el progreso aunque se corte después).
-            try{ await idbGuardarBatch(currentEmpresaId, pagina); }catch(e){}
-            // Sumar a memoria sin duplicar (índice O(1)).
-            for(var jj = 0; jj < pagina.length; jj++){
-              var pp = pagina[jj];
-              if(idx[pp._id] != null){ productos[idx[pp._id]] = pp; }
-              else { idx[pp._id] = productos.length; productos.push(pp); }
-            }
-            cursor = snapP.docs[snapP.docs.length - 1].id;
-            // Guardar el punto de avance (merge con meta existente).
-            try{
-              var mPrev = (await idbGetMeta(currentEmpresaId)) || {};
-              await idbSetMeta(currentEmpresaId, Object.assign({}, mPrev, { dlCursor: cursor, dlCompleta: false }));
-            }catch(e){}
-            if(snapP.docs.length < 1500) hayMas = false;
-            if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('sincronizando', '(' + productos.length.toLocaleString('es-AR') + (cloudCount ? ' / ' + cloudCount.toLocaleString('es-AR') : '') + ')');
-            // Refrescar la grilla cada par de páginas para que se vea subir el número.
-            if(++paginasDesdeRender >= 2){
-              paginasDesdeRender = 0;
-              productosFiltered = productos.slice();
-              if(typeof renderProductos === 'function') renderProductos();
-              if(typeof actualizarStats === 'function') actualizarStats();
-            }
-          }
-          // Terminó el barrido completo → marcar como completo.
-          try{
-            var mFin = (await idbGetMeta(currentEmpresaId)) || {};
-            await idbSetMeta(currentEmpresaId, Object.assign({}, mFin, { dlCompleta: true, dlCursor: null, totalDocs: productos.length }));
-          }catch(e){}
-          productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
-          productosFiltered = productos.slice();
-          if(typeof renderProductos === 'function') renderProductos();
-          if(typeof actualizarStats === 'function') actualizarStats();
-          if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
-          if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
-        }catch(eDL){
-          // Se cortó: NO se pierde nada (cada página ya quedó guardada). Retoma al reabrir.
-          console.warn('Descarga catálogo cortada (se retoma al reabrir):', eDL);
-          productosFiltered = productos.slice();
-          if(typeof renderProductos === 'function') renderProductos();
-          if(typeof actualizarStats === 'function') actualizarStats();
-          if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
-        }
+        // Reconciliar EXACTO: baja lo que falta Y borra lo que ya no está, hasta igualar la nube.
+        await bajarCatalogoResumible(currentEmpresaId, true);
       } else {
         if(typeof mostrarSyncEstado === 'function') mostrarSyncEstado('ok');
       }
@@ -12857,6 +12907,15 @@ async function cargarProductos(){
     renderProductos();
     actualizarStats();
     poblarFiltroProveedores();
+
+    // Converger EXACTO contra la nube (igual que el celular): baja faltantes + borra lo que ya no está.
+    try{
+      var _metaPc = (await idbGetMeta(currentEmpresaId)) || {};
+      var _ccPc = null;
+      try{ _ccPc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
+      var _okPc = _metaPc.dlCompleta && productos.length > 0 && (_ccPc == null || Math.abs(productos.length - _ccPc) <= 3);
+      if(!_okPc){ await bajarCatalogoResumible(currentEmpresaId, true); }
+    }catch(e){ console.warn('reconciliar PC:', e); }
 
     sincronizarProductos(currentEmpresaId);
     if(typeof iniciarSyncCatalogo === 'function') iniciarSyncCatalogo();
