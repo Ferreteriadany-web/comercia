@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-7'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-8'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -26684,10 +26684,11 @@ async function diagnosticoProveedores(){
     if(!nombres.length){ if(cont) cont.innerHTML = 'No hay proveedores configurados.'; return; }
     var localCount = {};
     for(var k = 0; k < productos.length; k++){ var pv = productos[k].proveedor || ''; localCount[pv] = (localCount[pv] || 0) + 1; }
-    var filas = [];
+    var filas = []; var primerError = '';
     for(var i = 0; i < nombres.length; i++){
       var nom = nombres[i], cloudN = null;
-      try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }catch(e){ cloudN = '?'; }
+      try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }
+      catch(e){ cloudN = '?'; if(!primerError) primerError = (e && (e.code || e.message)) ? ((e.code || '') + ' ' + (e.message || '')) : String(e); }
       var locN = localCount[nom] || 0;
       var dif = (typeof cloudN === 'number') ? (cloudN - locN) : 0;
       filas.push({ nom: nom, loc: locN, nube: cloudN, dif: dif });
@@ -26705,6 +26706,9 @@ async function diagnosticoProveedores(){
       '</tr>';
     });
     html += '</table>';
+    if(primerError){
+      html += '<div style="margin-top:10px;padding:8px;border:1px solid var(--danger);border-radius:8px;color:var(--danger);font-size:11px">No pude leer la nube. Error: ' + eH(primerError) + '</div>';
+    }
     var faltan = filas.filter(function(f){ return f.dif > 0; });
     if(faltan.length){
       html += '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="verificarPorProveedor(currentEmpresaId).then(function(){ diagnosticoProveedores(); })">Traer lo que falta (' + faltan.reduce(function(s, f){ return s + f.dif; }, 0) + ')</button></div>';
