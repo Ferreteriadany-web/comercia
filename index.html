@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-8'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-9'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16247,52 +16247,45 @@ function iniciarSyncCatalogo(){
   setTimeout(function(){ if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto(); }, 25000);
   // A los ~32s, revisa si hay productos vacíos (basura de importación) y ofrece limpiarlos.
   setTimeout(function(){ if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto(); }, 32000);
-  // A los ~20s, verifica por proveedor que no falte contenido (ej: una lista cargada en otro dispositivo).
-  setTimeout(function(){ if(typeof verificarPorProveedor === 'function') verificarPorProveedor(currentEmpresaId); }, 20000);
 }
 // Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
 // Verificación POR PROVEEDOR: compara, proveedor por proveedor, cuántos productos tiene este
 // dispositivo vs cuántos hay en la nube, y trae los que falten. Detecta diferencias de CONTENIDO
 // que el conteo total no ve (ej: al celular le falta toda una lista cargada en la PC).
 var _verifProvEnCurso = false;
-async function verificarPorProveedor(empresaId){
-  if(_verifProvEnCurso) return;
+async function verificarPorProveedor(empresaId, onProgreso){
+  if(_verifProvEnCurso) return { resultados: [], traidos: 0 };
   _verifProvEnCurso = true;
   try{
-    if(!empresaId || !db || !Array.isArray(productos)) return;
+    if(!empresaId || !db || !Array.isArray(productos)) return { resultados: [], traidos: 0 };
     var colP = db.collection('empresas').doc(empresaId).collection('productos');
-    // Lista de proveedores: la base de proveedores (listas_proveedores) + los que aparecen localmente.
     var provs = {};
     try{
       var snap = await db.collection('empresas').doc(empresaId).collection('listas_proveedores').get();
       snap.forEach(function(d){ var n = (d.data() || {}).proveedorNombre; if(n) provs[n] = 1; });
     }catch(e){}
     for(var z = 0; z < productos.length; z++){ if(productos[z].proveedor) provs[productos[z].proveedor] = 1; }
-    var nombres = Object.keys(provs);
-    if(!nombres.length) return;
-    // Conteo local por proveedor.
-    var localCount = {};
-    for(var k = 0; k < productos.length; k++){ var pv = productos[k].proveedor || ''; localCount[pv] = (localCount[pv] || 0) + 1; }
-    var traidos = 0;
+    var nombres = Object.keys(provs).sort();
+    if(!nombres.length) return { resultados: [], traidos: 0 };
+    var tengo = {}; for(var t = 0; t < productos.length; t++){ tengo[productos[t]._id] = 1; }
+    var resultados = []; var traidos = 0;
     for(var i = 0; i < nombres.length; i++){
       var nom = nombres[i];
-      var cloudN = null;
-      try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }catch(e){ continue; }
-      var locN = localCount[nom] || 0;
-      if(cloudN != null && cloudN > locN + 2){
-        // Faltan productos de este proveedor → traerlos y sumar los que no tengo.
-        try{
-          var qs = await colP.where('proveedor', '==', nom).get();
-          var tengo = {}; for(var t = 0; t < productos.length; t++){ tengo[productos[t]._id] = 1; }
-          var nuevos = [];
-          qs.forEach(function(d){ if(!tengo[d.id]){ var o = d.data(); o._id = d.id; nuevos.push(o); } });
-          if(nuevos.length){
-            productos = productos.concat(nuevos);
-            try{ await idbGuardarBatch(empresaId, nuevos); }catch(e){}
-            traidos += nuevos.length;
-          }
-        }catch(e){ console.warn('traer proveedor', nom, e); }
+      if(typeof onProgreso === 'function') onProgreso(i + 1, nombres.length, nom);
+      var cloudN = null, nuevos = [];
+      try{
+        // Esta versión de Firebase NO soporta count() con filtro: traemos y contamos acá.
+        var qs = await colP.where('proveedor', '==', nom).get();
+        cloudN = qs.size;
+        qs.forEach(function(d){ if(!tengo[d.id]){ var o = d.data(); o._id = d.id; nuevos.push(o); tengo[d.id] = 1; } });
+      }catch(e){ cloudN = null; }
+      if(nuevos.length){
+        productos = productos.concat(nuevos);
+        try{ await idbGuardarBatch(empresaId, nuevos); }catch(e){}
+        traidos += nuevos.length;
       }
+      var locN = 0; for(var k = 0; k < productos.length; k++){ if((productos[k].proveedor || '') === nom) locN++; }
+      resultados.push({ nom: nom, aca: locN, nube: cloudN, traidos: nuevos.length });
     }
     if(traidos){
       productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
@@ -16302,7 +16295,8 @@ async function verificarPorProveedor(empresaId){
       if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
       if(typeof toast === 'function') toast('Traje ' + traidos + ' productos que faltaban ✓', 'success');
     }
-  }catch(e){ console.warn('verificarPorProveedor:', e); }
+    return { resultados: resultados, traidos: traidos };
+  }catch(e){ console.warn('verificarPorProveedor:', e); return { resultados: [], traidos: 0 }; }
   finally{ _verifProvEnCurso = false; }
 }
 
@@ -16340,12 +16334,6 @@ async function verificarConsistenciaCatalogo(){
     } else if(faltan || hayCambioEnNube){
       // Faltan productos o hubo cambios en la nube → reemparejar (incremental + tombstones).
       if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
-    }
-
-    // Verificar SIEMPRE por proveedor que no falte contenido (ej: una lista cargada en otro
-    // dispositivo). No depende de la huella ni del número total: compara proveedor por proveedor.
-    if(typeof verificarPorProveedor === 'function'){
-      await verificarPorProveedor(currentEmpresaId);
     }
 
     // Guardar la huella SOLO si ya quedamos consistentes (local ≈ nube). Si no, se reintenta luego.
@@ -26671,49 +26659,40 @@ function lpCerrarLimpieza(){
 async function diagnosticoProveedores(){
   var cont = document.getElementById('diagProvResultado');
   if(!currentEmpresaId || !db){ if(cont) cont.innerHTML = 'No disponible.'; return; }
-  if(cont) cont.innerHTML = 'Comparando con la nube…';
+  if(cont) cont.innerHTML = 'Comparando con la nube… (esto lee el catálogo, puede tardar)';
   try{
-    var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
-    var provs = {};
-    try{
-      var snap = await db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').get();
-      snap.forEach(function(d){ var n = (d.data() || {}).proveedorNombre; if(n) provs[n] = 1; });
-    }catch(e){}
-    for(var z = 0; z < productos.length; z++){ if(productos[z].proveedor) provs[productos[z].proveedor] = 1; }
-    var nombres = Object.keys(provs).sort();
-    if(!nombres.length){ if(cont) cont.innerHTML = 'No hay proveedores configurados.'; return; }
-    var localCount = {};
-    for(var k = 0; k < productos.length; k++){ var pv = productos[k].proveedor || ''; localCount[pv] = (localCount[pv] || 0) + 1; }
-    var filas = []; var primerError = '';
-    for(var i = 0; i < nombres.length; i++){
-      var nom = nombres[i], cloudN = null;
-      try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }
-      catch(e){ cloudN = '?'; if(!primerError) primerError = (e && (e.code || e.message)) ? ((e.code || '') + ' ' + (e.message || '')) : String(e); }
-      var locN = localCount[nom] || 0;
-      var dif = (typeof cloudN === 'number') ? (cloudN - locN) : 0;
-      filas.push({ nom: nom, loc: locN, nube: cloudN, dif: dif });
-    }
-    filas.sort(function(a, b){ return Math.abs(b.dif) - Math.abs(a.dif); });
+    // Trae de la nube por proveedor, suma lo que falte localmente y devuelve el detalle.
+    var r = await verificarPorProveedor(currentEmpresaId, function(hechos, total, nom){
+      if(cont) cont.innerHTML = 'Comparando con la nube… ' + hechos + '/' + total + ' (' + eH(nom) + ')';
+    });
+    var filas = (r && r.resultados) ? r.resultados.slice() : [];
+    // Ordenar: primero los que tuvieron diferencia.
+    filas.sort(function(a, b){
+      var da = (typeof a.nube === 'number') ? Math.abs(a.nube - a.aca) + a.traidos : 0;
+      var db2 = (typeof b.nube === 'number') ? Math.abs(b.nube - b.aca) + b.traidos : 0;
+      return db2 - da;
+    });
     var html = '<table style="width:100%;border-collapse:collapse">' +
-      '<tr style="text-align:left;color:var(--text-mute)"><th>Proveedor</th><th>Acá</th><th>Nube</th><th>Dif.</th></tr>';
+      '<tr style="text-align:left;color:var(--text-mute)"><th>Proveedor</th><th>Acá</th><th>Nube</th><th>Traídos</th></tr>';
     filas.forEach(function(f){
-      var color = (f.dif === 0) ? 'var(--text-mute)' : (f.dif > 0 ? 'var(--danger)' : 'var(--warning)');
+      var difCol = (typeof f.nube === 'number' && f.nube !== f.aca) ? 'var(--warning)' : 'var(--text-mute)';
       html += '<tr style="border-top:1px solid var(--line)">' +
         '<td>' + eH(f.nom) + '</td>' +
-        '<td>' + f.loc.toLocaleString('es-AR') + '</td>' +
-        '<td>' + (typeof f.nube === 'number' ? f.nube.toLocaleString('es-AR') : f.nube) + '</td>' +
-        '<td style="color:' + color + ';font-weight:600">' + (f.dif > 0 ? '+' + f.dif : f.dif) + '</td>' +
+        '<td>' + f.aca.toLocaleString('es-AR') + '</td>' +
+        '<td>' + (typeof f.nube === 'number' ? f.nube.toLocaleString('es-AR') : '?') + '</td>' +
+        '<td style="color:' + (f.traidos ? 'var(--ok,#16a34a)' : 'var(--text-mute)') + ';font-weight:600">' + (f.traidos ? '+' + f.traidos : '0') + '</td>' +
       '</tr>';
     });
     html += '</table>';
-    if(primerError){
-      html += '<div style="margin-top:10px;padding:8px;border:1px solid var(--danger);border-radius:8px;color:var(--danger);font-size:11px">No pude leer la nube. Error: ' + eH(primerError) + '</div>';
-    }
-    var faltan = filas.filter(function(f){ return f.dif > 0; });
-    if(faltan.length){
-      html += '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="verificarPorProveedor(currentEmpresaId).then(function(){ diagnosticoProveedores(); })">Traer lo que falta (' + faltan.reduce(function(s, f){ return s + f.dif; }, 0) + ')</button></div>';
+    if(r && r.traidos){
+      html += '<div style="margin-top:10px;color:var(--ok,#16a34a);font-weight:600">✓ Traje ' + r.traidos.toLocaleString('es-AR') + ' productos que faltaban. Ya quedó al día.</div>';
     } else {
-      html += '<div style="margin-top:10px;color:var(--ok,#16a34a)">✓ Este dispositivo coincide con la nube en todos los proveedores.</div>';
+      html += '<div style="margin-top:10px;color:var(--ok,#16a34a)">✓ Este dispositivo ya tenía todo lo de la nube. Nada que traer.</div>';
+    }
+    // Marcar proveedores donde el dispositivo tiene de MÁS que la nube (posible resto viejo).
+    var sobrantes = filas.filter(function(f){ return (typeof f.nube === 'number') && f.aca > f.nube; });
+    if(sobrantes.length){
+      html += '<div style="margin-top:8px;font-size:11px;color:var(--warning)">En ' + sobrantes.length + ' proveedor(es) tenés MÁS que la nube (resto viejo). Si te molesta, usá "Reconstruir base".</div>';
     }
     if(cont) cont.innerHTML = html;
   }catch(e){ if(cont) cont.innerHTML = 'Error: ' + eH(e.message || String(e)); }
