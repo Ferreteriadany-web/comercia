@@ -16172,7 +16172,7 @@ function detenerSyncPedido(){
 // ── Sincronización EN VIVO del catálogo (precios/stock/productos/import) ──
 // Cuando un usuario cambia productos, "prende una señal" y todos los demás
 // traen los cambios solos. (No escuchamos los 101k; solo una señal chiquita.)
-var _catalogoUnsub = null, _catalogoLastVer = 0, _catalogoSelfBump = 0, _verifCatInt = null;
+var _catalogoUnsub = null, _catalogoLastVer = 0, _catalogoSelfBump = 0, _verifCatInt = null, _inflacionReparada = false;
 function iniciarSyncCatalogo(){
   if(!currentEmpresaId || !db) return;
   if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
@@ -16217,15 +16217,45 @@ async function verificarConsistenciaCatalogo(){
     if(!currentEmpresaId || !db) return;
     if(typeof syncEnCurso !== 'undefined' && syncEnCurso) return; // ya está sincronizando
     if(typeof document !== 'undefined' && document.hidden) return; // pestaña en segundo plano: no gastar
-    // Procesar borrados de otros dispositivos SIEMPRE (aunque la cantidad coincida).
+    // 1) Procesar borrados de otros dispositivos SIEMPRE (aunque la cantidad coincida).
     if(typeof procesarBorrados === 'function') await procesarBorrados(currentEmpresaId);
+    // 2) Leer la HUELLA (ver) del catálogo en la nube + la cantidad. Dos lecturas baratas.
+    var cloudVer = 0;
+    try{
+      var est = await db.collection('empresas').doc(currentEmpresaId).collection('estado').doc('catalogo').get();
+      cloudVer = (est.exists ? ((est.data() || {}).ver || 0) : 0);
+    }catch(e){}
     var cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count;
     if(cc == null) return;
     var local = (Array.isArray(productos) ? productos.length : 0);
-    if(local < cc - 30 || local > cc + 3){
-      // Hay diferencia real → reemparejar (trae cambios nuevos y saca lo borrado).
+    var meta = (await idbGetMeta(currentEmpresaId)) || {};
+    var lastVer = meta.lastVer || 0;
+    var hayCambioEnNube = (cloudVer > lastVer);          // alguien cambió algo (aunque la cantidad sea igual)
+    var faltan = (local < cc - 30);                       // tengo de menos → me faltan productos
+    var sobran = (local > cc + 30);                       // tengo de MÁS → copia inflada (basura local)
+
+    if(sobran){
+      // INFLACIÓN local: tengo más que la nube. Barrido íntegro que baja todo fresco y saca los
+      // extras. Se hace 1 sola vez por sesión para no repetir descargas grandes.
+      if(!_inflacionReparada && typeof bajarCatalogoResumible === 'function'){
+        _inflacionReparada = true;
+        if(typeof toast === 'function') toast('Emparejando con la nube…', 'info');
+        await bajarCatalogoResumible(currentEmpresaId, true);
+      }
+    } else if(faltan || hayCambioEnNube){
+      // Faltan productos o hubo cambios en la nube → reemparejar (incremental + tombstones).
       if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
     }
+
+    // Guardar la huella SOLO si ya quedamos consistentes (local ≈ nube). Si no, se reintenta luego.
+    try{
+      var localPost = (Array.isArray(productos) ? productos.length : 0);
+      if(cloudVer && Math.abs(localPost - cc) <= 30){
+        var meta2 = (await idbGetMeta(currentEmpresaId)) || {};
+        await idbSetMeta(currentEmpresaId, Object.assign({}, meta2, { lastVer: cloudVer }));
+      }
+    }catch(e){}
+
     // Reintentar los chequeos de limpieza (duplicados / vacíos) por si la primera vez no corrieron.
     if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto();
     if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto();
