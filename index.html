@@ -16212,6 +16212,9 @@ async function verificarConsistenciaCatalogo(){
       // Hay diferencia real → reemparejar (trae cambios nuevos y saca lo borrado).
       if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
     }
+    // Reintentar los chequeos de limpieza (duplicados / vacíos) por si la primera vez no corrieron.
+    if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto();
+    if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto();
   }catch(e){ /* es solo una verificación de fondo: si falla, se reintenta luego */ }
 }
 
@@ -16281,7 +16284,7 @@ async function chequearDuplicadosAuto(){
     // Solo si este dispositivo está COMPLETO (su copia local refleja la nube), para no borrar en falso.
     var cc = null;
     try{ cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
-    if(cc == null || Math.abs(productos.length - cc) > 3) return; // todavía no terminó de sincronizar
+    if(cc == null || Math.abs(productos.length - cc) > 50) return; // aún no terminó de sincronizar
     var grupos = detectarDuplicadosCatalogo();
     var extra = grupos.reduce(function(a, g){ return a + (g.length - 1); }, 0);
     if(extra < 5) return; // nada relevante
@@ -16340,7 +16343,7 @@ async function chequearVaciosAuto(){
     if(!currentEmpresaId || !db || !Array.isArray(productos) || productos.length < 20) return;
     var cc = null;
     try{ cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
-    if(cc == null || Math.abs(productos.length - cc) > 3) return; // todavía no terminó de sincronizar
+    if(cc == null || Math.abs(productos.length - cc) > 50) return; // aún no terminó de sincronizar
     var vac = detectarProductosVacios();
     if(vac.length < 3) return;
     _vaciosChequeado = true;
@@ -26374,6 +26377,9 @@ function lpAbrirLimpieza(){
   var vaciosHtml = vacios.length === 0 ? '<span style="color:var(--text-mute)">No hay proveedores sin productos.</span>' :
     vacios.slice(0, 60).map(function(p){ return eH(p.proveedorNombre || p.nombre); }).join(' · ') + (vacios.length > 60 ? ' …y ' + (vacios.length-60) + ' más' : '');
 
+  // Productos vacíos (sin código NI descripción = basura de importación)
+  var nVacios = (typeof detectarProductosVacios === 'function') ? detectarProductosVacios().length : 0;
+
   var html = '' +
     '<div class="modal-overlay show" id="lpLimpiezaOverlay" onclick="if(event.target===this)lpCerrarLimpieza()">' +
     '<div class="modal" style="max-width:640px">' +
@@ -26402,6 +26408,16 @@ function lpAbrirLimpieza(){
           '<div style="font-size:11px;color:var(--text-mute);margin-top:8px">Te muestra cuántos son y pide confirmación antes de borrar. La fecha por defecto es 2 horas atrás; ajustala al momento de la importación.</div>' +
         '</div>' +
 
+        '<div style="background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
+          '<div style="font-weight:600;margin-bottom:6px">3) Productos vacíos (sin código ni descripción)</div>' +
+          '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">' +
+            'Son productos basura (solo proveedor o precio, sin código ni nombre). Detectados ahora: <b>' + nVacios.toLocaleString('es-AR') + '</b>.' +
+          '</div>' +
+          (nVacios > 0 ?
+            '<button class="btn btn-line btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="lpLimpiarVaciosManual()">Borrar los ' + nVacios.toLocaleString('es-AR') + ' productos vacíos</button>' :
+            '<span style="font-size:12px;color:var(--text-mute)">No hay productos vacíos. ✓</span>') +
+        '</div>' +
+
         '<div style="background:rgba(220,53,69,.06);border:1px solid var(--danger);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
           '<div style="font-weight:600;color:var(--danger);margin-bottom:6px">&#9888; Empezar de cero</div>' +
           '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">Borra <b>TODOS los productos y TODOS los proveedores</b> para rearmar el catálogo desde una importación limpia. <b>No toca</b> ventas, clientes, cuentas corrientes ni caja. No se puede deshacer.</div>' +
@@ -26419,6 +26435,16 @@ function lpAbrirLimpieza(){
 function lpCerrarLimpieza(){
   var o = document.getElementById('lpLimpiezaOverlay');
   if(o) o.remove();
+}
+
+// Borrado manual de productos vacíos (desde la pantalla de Limpieza), con confirmación.
+async function lpLimpiarVaciosManual(){
+  var vac = (typeof detectarProductosVacios === 'function') ? detectarProductosVacios() : [];
+  if(!vac.length){ if(typeof toast === 'function') toast('No hay productos vacíos ✓', 'info'); return; }
+  var ok = (typeof confirmComercia === 'function')
+    ? await confirmComercia('Se van a borrar ' + vac.length.toLocaleString('es-AR') + ' productos vacíos (sin código ni descripción, solo proveedor o precio). No afecta a tus productos buenos. ¿Confirmás?')
+    : confirm('Borrar ' + vac.length + ' productos vacíos?');
+  if(ok){ lpCerrarLimpieza(); await limpiarProductosVacios(vac); }
 }
 
 async function lpBorrarProvVacios(){
