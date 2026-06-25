@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-4'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-5'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16249,6 +16249,61 @@ function iniciarSyncCatalogo(){
   setTimeout(function(){ if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto(); }, 32000);
 }
 // Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
+// Verificación POR PROVEEDOR: compara, proveedor por proveedor, cuántos productos tiene este
+// dispositivo vs cuántos hay en la nube, y trae los que falten. Detecta diferencias de CONTENIDO
+// que el conteo total no ve (ej: al celular le falta toda una lista cargada en la PC).
+var _verifProvEnCurso = false;
+async function verificarPorProveedor(empresaId){
+  if(_verifProvEnCurso) return;
+  _verifProvEnCurso = true;
+  try{
+    if(!empresaId || !db || !Array.isArray(productos)) return;
+    var colP = db.collection('empresas').doc(empresaId).collection('productos');
+    // Lista de proveedores: la base de proveedores (listas_proveedores) + los que aparecen localmente.
+    var provs = {};
+    try{
+      var snap = await db.collection('empresas').doc(empresaId).collection('listas_proveedores').get();
+      snap.forEach(function(d){ var n = (d.data() || {}).proveedorNombre; if(n) provs[n] = 1; });
+    }catch(e){}
+    for(var z = 0; z < productos.length; z++){ if(productos[z].proveedor) provs[productos[z].proveedor] = 1; }
+    var nombres = Object.keys(provs);
+    if(!nombres.length) return;
+    // Conteo local por proveedor.
+    var localCount = {};
+    for(var k = 0; k < productos.length; k++){ var pv = productos[k].proveedor || ''; localCount[pv] = (localCount[pv] || 0) + 1; }
+    var traidos = 0;
+    for(var i = 0; i < nombres.length; i++){
+      var nom = nombres[i];
+      var cloudN = null;
+      try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }catch(e){ continue; }
+      var locN = localCount[nom] || 0;
+      if(cloudN != null && cloudN > locN + 1){
+        // Faltan productos de este proveedor → traerlos y sumar los que no tengo.
+        try{
+          var qs = await colP.where('proveedor', '==', nom).get();
+          var tengo = {}; for(var t = 0; t < productos.length; t++){ tengo[productos[t]._id] = 1; }
+          var nuevos = [];
+          qs.forEach(function(d){ if(!tengo[d.id]){ var o = d.data(); o._id = d.id; nuevos.push(o); } });
+          if(nuevos.length){
+            productos = productos.concat(nuevos);
+            try{ await idbGuardarBatch(empresaId, nuevos); }catch(e){}
+            traidos += nuevos.length;
+          }
+        }catch(e){ console.warn('traer proveedor', nom, e); }
+      }
+    }
+    if(traidos){
+      productos.sort(function(a, b){ return (a.descripcion || '').localeCompare(b.descripcion || ''); });
+      productosFiltered = productos.slice();
+      if(typeof renderProductos === 'function') renderProductos();
+      if(typeof actualizarStats === 'function') actualizarStats();
+      if(typeof poblarFiltroProveedores === 'function') poblarFiltroProveedores();
+      if(typeof toast === 'function') toast('Traje ' + traidos + ' productos que faltaban ✓', 'success');
+    }
+  }catch(e){ console.warn('verificarPorProveedor:', e); }
+  finally{ _verifProvEnCurso = false; }
+}
+
 async function verificarConsistenciaCatalogo(){
   try{
     if(!currentEmpresaId || !db) return;
@@ -16283,6 +16338,11 @@ async function verificarConsistenciaCatalogo(){
     } else if(faltan || hayCambioEnNube){
       // Faltan productos o hubo cambios en la nube → reemparejar (incremental + tombstones).
       if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
+    }
+
+    // Si la nube cambió, verificar por proveedor que no falte contenido (ej: una lista cargada en otro dispositivo).
+    if(hayCambioEnNube && typeof verificarPorProveedor === 'function'){
+      await verificarPorProveedor(currentEmpresaId);
     }
 
     // Guardar la huella SOLO si ya quedamos consistentes (local ≈ nube). Si no, se reintenta luego.
