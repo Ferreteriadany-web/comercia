@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-3'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-4'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -12196,6 +12196,23 @@ async function idbBorrarIds(empresaId, ids){
   });
 }
 
+// Vacía TODA la copia local de productos de una empresa (para reconstruir desde cero).
+async function idbVaciarProductos(empresaId){
+  var db = await abrirIDB();
+  return new Promise(function(resolve, reject){
+    var tx = db.transaction(IDB_STORE, 'readwrite');
+    var store = tx.objectStore(IDB_STORE);
+    var idx = store.index('empresaId');
+    var req = idx.openKeyCursor(IDBKeyRange.only(empresaId));
+    req.onsuccess = function(){
+      var cur = req.result;
+      if(cur){ store.delete(cur.primaryKey); cur.continue(); }
+    };
+    tx.oncomplete = function(){ resolve(); };
+    tx.onerror = function(){ reject(tx.error); };
+  });
+}
+
 async function idbGetMeta(empresaId){
   var db = await abrirIDB();
   return new Promise(function(resolve){
@@ -12293,19 +12310,36 @@ async function aplicarReconstruccion(empresaId, todos){
 async function reconstruirBaseLocal(){
   if(!currentEmpresaId) return;
   var ok = (typeof confirmComercia === 'function')
-    ? await confirmComercia('Voy a reconstruir la base de productos bajando TODO de nuevo desde la nube. Tus datos en la nube NO se tocan. ¿Dale?')
+    ? await confirmComercia('Voy a reconstruir la base de productos de ESTE dispositivo: borro la copia local y la bajo de nuevo, limpia, desde la nube. Tus datos en la nube NO se tocan. ¿Dale?')
     : confirm('¿Reconstruir la base de productos desde la nube?');
   if(!ok) return;
-  if(typeof toast === 'function') toast('Actualizando catálogo (fotos y descripciones incluidas)…', 'info');
+  if(typeof toast === 'function') toast('Reconstruyendo desde la nube (vaciando y bajando limpio)…', 'info');
   mostrarSyncEstado('sincronizando');
   try{
-    var res = await bajarCatalogoResumible(currentEmpresaId, true); // forzar: rebarre todo fresco
+    var res = await reconstruirBaseDesdeCero(currentEmpresaId);
     mostrarSyncEstado('ok');
-    if(typeof toast === 'function') toast('Listo: ' + res.total + ' productos ✓', 'success');
+    if(typeof toast === 'function') toast('Listo: ' + ((res && res.total) || productos.length) + ' productos ✓', 'success');
   }catch(e){
     mostrarSyncEstado('error');
     if(typeof toast === 'function') toast('Error al reconstruir: ' + (e.message || e), 'error');
   }
+}
+
+// Reconstrucción DESDE CERO: vacía la copia local (memoria + IndexedDB), resetea los cursores
+// y baja todo limpio desde la nube. Así es IMPOSIBLE que queden productos de más (extras/basura),
+// aunque la bajada se corte por mala señal (queda una parte correcta y se completa después).
+async function reconstruirBaseDesdeCero(empresaId){
+  if(!empresaId || !db) return { completo:false, total:0 };
+  productos = [];
+  if(typeof productosFiltered !== 'undefined') productosFiltered = [];
+  try{ await idbVaciarProductos(empresaId); }catch(e){ console.warn('vaciar productos:', e); }
+  try{
+    var m = (await idbGetMeta(empresaId)) || {};
+    await idbSetMeta(empresaId, Object.assign({}, m, { dlCompleta:false, dlCursor:null, ultSync:null, totalDocs:0 }));
+  }catch(e){}
+  if(typeof renderProductos === 'function') renderProductos();
+  if(typeof actualizarStats === 'function') actualizarStats();
+  return await bajarCatalogoResumible(empresaId, true);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -16235,15 +16269,16 @@ async function verificarConsistenciaCatalogo(){
     var lastVer = meta.lastVer || 0;
     var hayCambioEnNube = (cloudVer > lastVer);          // alguien cambió algo (aunque la cantidad sea igual)
     var faltan = (local < cc - 30);                       // tengo de menos → me faltan productos
-    var sobran = (local > cc + 30);                       // tengo de MÁS → copia inflada (basura local)
+    var sobran = (local > cc + Math.max(500, cc * 0.02)); // tengo claramente de MÁS → copia inflada (no es el retraso del contador)
+    var cambioPropioReciente = (Date.now() - _catalogoSelfBump) < 90000; // recién importé yo: el contador de la nube viene atrasado
 
-    if(sobran){
-      // INFLACIÓN local: tengo más que la nube. Barrido íntegro que baja todo fresco y saca los
-      // extras. Se hace 1 sola vez por sesión para no repetir descargas grandes.
-      if(!_inflacionReparada && typeof bajarCatalogoResumible === 'function'){
+    if(sobran && !cambioPropioReciente){
+      // INFLACIÓN local real: vaciar la copia local y bajar de cero (imposible que queden extras).
+      // Se hace 1 sola vez por sesión para no repetir descargas grandes.
+      if(!_inflacionReparada && typeof reconstruirBaseDesdeCero === 'function'){
         _inflacionReparada = true;
         if(typeof toast === 'function') toast('Emparejando con la nube…', 'info');
-        await bajarCatalogoResumible(currentEmpresaId, true);
+        await reconstruirBaseDesdeCero(currentEmpresaId);
       }
     } else if(faltan || hayCambioEnNube){
       // Faltan productos o hubo cambios en la nube → reemparejar (incremental + tombstones).
