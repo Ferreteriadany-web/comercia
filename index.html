@@ -7855,7 +7855,7 @@
     <div class="form-section-title">Categorización</div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Proveedor</label>
+        <label class="form-label">Proveedor *</label>
         <input class="form-input" type="text" id="prodProveedor" placeholder="">
       </div>
       <div class="form-group">
@@ -13842,8 +13842,9 @@ async function tnGenerarDescripcionesMasivo(){
 async function saveProduct(){
   var codigo      = document.getElementById('prodCodigo').value.trim();
   var descripcion = document.getElementById('prodDescripcion').value.trim();
-  if(!codigo || !descripcion){
-    return showAlert('prodAlert','Código y descripción son obligatorios.');
+  var proveedor   = document.getElementById('prodProveedor').value.trim();
+  if(!codigo || !descripcion || !proveedor){
+    return showAlert('prodAlert','Código, descripción y proveedor son obligatorios.');
   }
   var editId = document.getElementById('prodEditId').value;
   var data = {
@@ -13852,7 +13853,7 @@ async function saveProduct(){
     barcodeTipo: document.getElementById('prodBarcodeTipo').value,
     descripcion: descripcion,
     detalle: document.getElementById('prodDetalle').value.trim(),
-    proveedor: document.getElementById('prodProveedor').value.trim(),
+    proveedor: proveedor,
     rubro: document.getElementById('prodRubro').value.trim(),
     precioCosto: Number(document.getElementById('prodCosto').value) || 0,
     precioVenta: Number(document.getElementById('prodVenta').value) || 0,
@@ -16195,6 +16196,8 @@ function iniciarSyncCatalogo(){
   setTimeout(function(){ verificarConsistenciaCatalogo(); }, 12000);
   // A los ~25s, ya sincronizado, revisa si hay productos duplicados y ofrece limpiarlos.
   setTimeout(function(){ if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto(); }, 25000);
+  // A los ~32s, revisa si hay productos vacíos (basura de importación) y ofrece limpiarlos.
+  setTimeout(function(){ if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto(); }, 32000);
 }
 // Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
 async function verificarConsistenciaCatalogo(){
@@ -16288,6 +16291,64 @@ async function chequearDuplicadosAuto(){
       : confirm('Encontré ' + extra + ' productos repetidos. ¿Limpiar dejando uno de cada uno?');
     if(ok) await limpiarDuplicadosCatalogo(grupos);
   }catch(e){ console.warn('chequeo duplicados:', e); }
+}
+
+// ─── LIMPIEZA DE PRODUCTOS VACÍOS (sin código NI descripción = basura de importación) ───
+function detectarProductosVacios(){
+  var vac = [];
+  for(var i = 0; i < productos.length; i++){
+    var p = productos[i];
+    var cod = (p.codigo || '').toString().trim();
+    var des = (p.descripcion || '').toString().trim();
+    if(!cod && !des) vac.push(p); // sin código Y sin nombre → inservible
+  }
+  return vac;
+}
+async function limpiarProductosVacios(vac){
+  if(!vac || !vac.length || !currentEmpresaId || !db) return;
+  if(vac.length > productos.length * 0.5){ console.warn('Vacíos: demasiados, abortado por seguridad.'); return; }
+  mostrarSyncEstado('sincronizando', '(limpiando vacíos)');
+  var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+  var borrados = 0;
+  try{
+    for(var i = 0; i < vac.length; i += 400){
+      var lote = vac.slice(i, i + 400);
+      var batch = db.batch();
+      lote.forEach(function(p){ batch.delete(colP.doc(p._id)); });
+      await batch.commit();
+      var idset = {}; lote.forEach(function(p){ idset[p._id] = 1; });
+      productos = productos.filter(function(p){ return !idset[p._id]; });
+      try{ await idbBorrarIds(currentEmpresaId, lote.map(function(p){ return p._id; })); }catch(e){}
+      borrados += lote.length;
+      mostrarSyncEstado('sincronizando', '(limpiando ' + borrados + '/' + vac.length + ')');
+    }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
+    productosFiltered = productos.slice();
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
+    mostrarSyncEstado('ok');
+    if(typeof toast === 'function') toast('Listo: quité ' + borrados + ' productos vacíos. Quedaron ' + productos.length.toLocaleString('es-AR') + ' ✓', 'success');
+  }catch(e){
+    mostrarSyncEstado('error');
+    if(typeof toast === 'function') toast('Error limpiando vacíos: ' + (e.message || e), 'error');
+  }
+}
+var _vaciosChequeado = false;
+async function chequearVaciosAuto(){
+  try{
+    if(_vaciosChequeado) return;
+    if(!currentEmpresaId || !db || !Array.isArray(productos) || productos.length < 20) return;
+    var cc = null;
+    try{ cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count; }catch(e){}
+    if(cc == null || Math.abs(productos.length - cc) > 3) return; // todavía no terminó de sincronizar
+    var vac = detectarProductosVacios();
+    if(vac.length < 3) return;
+    _vaciosChequeado = true;
+    var ok = (typeof confirmComercia === 'function')
+      ? await confirmComercia('Encontré ' + vac.length.toLocaleString('es-AR') + ' productos VACÍOS (sin código ni descripción, solo proveedor o precio). Suelen ser basura de una importación. ¿Querés que los borre? No afecta a tus productos buenos.')
+      : confirm('Encontré ' + vac.length + ' productos vacíos. ¿Borrarlos?');
+    if(ok) await limpiarProductosVacios(vac);
+  }catch(e){ console.warn('chequeo vacíos:', e); }
 }
 function detenerSyncCatalogo(){
   if(_catalogoUnsub){ try{ _catalogoUnsub(); }catch(e){} _catalogoUnsub = null; }
@@ -27808,6 +27869,17 @@ async function lpEjecutarAplicar(filas){
         var docId = r.productoActual && r.productoActual.docId ?
           r.productoActual.docId :
           lpSanitizarIdProducto(r.codigoProv);
+        // GUARDA DURA: un producto NUEVO (sin existente) JAMÁS se escribe sin código
+        // ni descripción. Si faltan, se completan desde la fila; si no hay ninguno, no se crea.
+        if(!(r.productoActual && r.productoActual.docId)){
+          if(!dataFs.codigo) dataFs.codigo = String(r.codigoProv || '').trim();
+          if(!dataFs.descripcion) dataFs.descripcion = String(r.descripcion || '').trim() || dataFs.codigo;
+          if(!dataLocal.codigo) dataLocal.codigo = dataFs.codigo;
+          if(!dataLocal.descripcion) dataLocal.descripcion = dataFs.descripcion;
+          if(!String(dataFs.codigo || '').trim() && !String(dataFs.descripcion || '').trim()){
+            return; // fila basura: sin código NI nombre → no se crea
+          }
+        }
         var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(docId);
         batch.set(ref, dataFs, {merge: true});
         // Para cache local: fusionar con producto existente si lo había
