@@ -16297,13 +16297,15 @@ async function chequearDuplicadosAuto(){
 }
 
 // ─── LIMPIEZA DE PRODUCTOS VACÍOS (sin código NI descripción = basura de importación) ───
+function _esCampoVacio(v){
+  var s = String(v == null ? '' : v).trim();
+  return s === '' || s === '-' || s === '—' || s === '–' || s === '.' || s === '_';
+}
 function detectarProductosVacios(){
   var vac = [];
   for(var i = 0; i < productos.length; i++){
     var p = productos[i];
-    var cod = (p.codigo || '').toString().trim();
-    var des = (p.descripcion || '').toString().trim();
-    if(!cod && !des) vac.push(p); // sin código Y sin nombre → inservible
+    if(_esCampoVacio(p.codigo) && _esCampoVacio(p.descripcion)) vac.push(p); // sin código Y sin nombre → inservible
   }
   return vac;
 }
@@ -26379,6 +26381,18 @@ function lpAbrirLimpieza(){
 
   // Productos vacíos (sin código NI descripción = basura de importación)
   var nVacios = (typeof detectarProductosVacios === 'function') ? detectarProductosVacios().length : 0;
+  // Diagnóstico: desglose para entender qué les falta
+  var _diagSinCod = 0, _diagSinDesc = 0, _diagBulonar = 0, _muestraVac = [];
+  (productos || []).forEach(function(p){
+    var ev = (typeof _esCampoVacio === 'function');
+    var sinCod = ev ? _esCampoVacio(p.codigo) : !String(p.codigo||'').trim();
+    var sinDesc = ev ? _esCampoVacio(p.descripcion) : !String(p.descripcion||'').trim();
+    if(sinCod) _diagSinCod++;
+    if(sinDesc) _diagSinDesc++;
+    if(sinCod && sinDesc && _muestraVac.length < 3){
+      _muestraVac.push('cod="' + String(p.codigo==null?'':p.codigo) + '" desc="' + String(p.descripcion==null?'':p.descripcion) + '" prov="' + String(p.proveedor==null?'':p.proveedor) + '"');
+    }
+  });
 
   var html = '' +
     '<div class="modal-overlay show" id="lpLimpiezaOverlay" onclick="if(event.target===this)lpCerrarLimpieza()">' +
@@ -26411,11 +26425,13 @@ function lpAbrirLimpieza(){
         '<div style="background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
           '<div style="font-weight:600;margin-bottom:6px">3) Productos vacíos (sin código ni descripción)</div>' +
           '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">' +
-            'Son productos basura (solo proveedor o precio, sin código ni nombre). Detectados ahora: <b>' + nVacios.toLocaleString('es-AR') + '</b>.' +
+            'Son productos basura (solo proveedor o precio, sin código ni nombre).<br>' +
+            'Sin código: <b>' + _diagSinCod.toLocaleString('es-AR') + '</b> · Sin descripción: <b>' + _diagSinDesc.toLocaleString('es-AR') + '</b> · Sin ninguno (se borran): <b>' + nVacios.toLocaleString('es-AR') + '</b>' +
+            (_muestraVac.length ? '<br><span style="font-size:11px;opacity:.8">Ejemplos: ' + eH(_muestraVac.join('  |  ')) + '</span>' : '') +
           '</div>' +
           (nVacios > 0 ?
             '<button class="btn btn-line btn-sm" style="color:var(--danger);border-color:var(--danger)" onclick="lpLimpiarVaciosManual()">Borrar los ' + nVacios.toLocaleString('es-AR') + ' productos vacíos</button>' :
-            '<span style="font-size:12px;color:var(--text-mute)">No hay productos vacíos. ✓</span>') +
+            '<span style="font-size:12px;color:var(--text-mute)">No detecté productos sin código ni descripción. Si igual ves productos en blanco, avisame y vemos qué tienen guardado.</span>') +
         '</div>' +
 
         '<div style="background:rgba(220,53,69,.06);border:1px solid var(--danger);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
@@ -27974,6 +27990,11 @@ async function lpEjecutarAplicar(filas){
     document.getElementById('lpFileInput').value = '';
     // Refrescar productos
     try{ productos = await idbGetTodos(currentEmpresaId); }catch(e){}
+    // Redibujar al instante TODO lo que depende del catálogo (Productos, estadísticas, etc.),
+    // así el cambio impacta en todo el programa sin tener que salir y entrar.
+    try{ if(typeof productosFiltered !== 'undefined') productosFiltered = productos.slice(); }catch(e){}
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
     lpCambiarTab('historial');
     if(noEnCatalogo.length) lpMostrarNoEnCatalogo(noEnCatalogo);
   }catch(err){
