@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-6'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-7'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16279,7 +16279,7 @@ async function verificarPorProveedor(empresaId){
       var cloudN = null;
       try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }catch(e){ continue; }
       var locN = localCount[nom] || 0;
-      if(cloudN != null && cloudN > locN + 5){
+      if(cloudN != null && cloudN > locN + 2){
         // Faltan productos de este proveedor → traerlos y sumar los que no tengo.
         try{
           var qs = await colP.where('proveedor', '==', nom).get();
@@ -26641,6 +26641,13 @@ function lpAbrirLimpieza(){
             '<span style="font-size:12px;color:var(--text-mute)">No detecté productos sin código ni descripción. Si igual ves productos en blanco, avisame y vemos qué tienen guardado.</span>') +
         '</div>' +
 
+        '<div style="background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
+          '<div style="font-weight:600;margin-bottom:6px">4) Diagnóstico por proveedor (este dispositivo vs la nube)</div>' +
+          '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">Compara, proveedor por proveedor, cuántos productos tenés en ESTE dispositivo vs cuántos hay en la nube. Sirve para ver si falta alguna lista (ej: BULONAR).</div>' +
+          '<button class="btn btn-line btn-sm" onclick="diagnosticoProveedores()">Comparar con la nube</button>' +
+          '<div id="diagProvResultado" style="margin-top:10px;font-size:12px;max-height:260px;overflow:auto"></div>' +
+        '</div>' +
+
         '<div style="background:rgba(220,53,69,.06);border:1px solid var(--danger);border-radius:var(--r-md);padding:12px 14px;margin-top:14px">' +
           '<div style="font-weight:600;color:var(--danger);margin-bottom:6px">&#9888; Empezar de cero</div>' +
           '<div style="font-size:12px;color:var(--text-mute);margin-bottom:8px">Borra <b>TODOS los productos y TODOS los proveedores</b> para rearmar el catálogo desde una importación limpia. <b>No toca</b> ventas, clientes, cuentas corrientes ni caja. No se puede deshacer.</div>' +
@@ -26658,6 +26665,54 @@ function lpAbrirLimpieza(){
 function lpCerrarLimpieza(){
   var o = document.getElementById('lpLimpiezaOverlay');
   if(o) o.remove();
+}
+
+// Diagnóstico: compara, proveedor por proveedor, lo que hay en ESTE dispositivo vs la nube.
+async function diagnosticoProveedores(){
+  var cont = document.getElementById('diagProvResultado');
+  if(!currentEmpresaId || !db){ if(cont) cont.innerHTML = 'No disponible.'; return; }
+  if(cont) cont.innerHTML = 'Comparando con la nube…';
+  try{
+    var colP = db.collection('empresas').doc(currentEmpresaId).collection('productos');
+    var provs = {};
+    try{
+      var snap = await db.collection('empresas').doc(currentEmpresaId).collection('listas_proveedores').get();
+      snap.forEach(function(d){ var n = (d.data() || {}).proveedorNombre; if(n) provs[n] = 1; });
+    }catch(e){}
+    for(var z = 0; z < productos.length; z++){ if(productos[z].proveedor) provs[productos[z].proveedor] = 1; }
+    var nombres = Object.keys(provs).sort();
+    if(!nombres.length){ if(cont) cont.innerHTML = 'No hay proveedores configurados.'; return; }
+    var localCount = {};
+    for(var k = 0; k < productos.length; k++){ var pv = productos[k].proveedor || ''; localCount[pv] = (localCount[pv] || 0) + 1; }
+    var filas = [];
+    for(var i = 0; i < nombres.length; i++){
+      var nom = nombres[i], cloudN = null;
+      try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }catch(e){ cloudN = '?'; }
+      var locN = localCount[nom] || 0;
+      var dif = (typeof cloudN === 'number') ? (cloudN - locN) : 0;
+      filas.push({ nom: nom, loc: locN, nube: cloudN, dif: dif });
+    }
+    filas.sort(function(a, b){ return Math.abs(b.dif) - Math.abs(a.dif); });
+    var html = '<table style="width:100%;border-collapse:collapse">' +
+      '<tr style="text-align:left;color:var(--text-mute)"><th>Proveedor</th><th>Acá</th><th>Nube</th><th>Dif.</th></tr>';
+    filas.forEach(function(f){
+      var color = (f.dif === 0) ? 'var(--text-mute)' : (f.dif > 0 ? 'var(--danger)' : 'var(--warning)');
+      html += '<tr style="border-top:1px solid var(--line)">' +
+        '<td>' + eH(f.nom) + '</td>' +
+        '<td>' + f.loc.toLocaleString('es-AR') + '</td>' +
+        '<td>' + (typeof f.nube === 'number' ? f.nube.toLocaleString('es-AR') : f.nube) + '</td>' +
+        '<td style="color:' + color + ';font-weight:600">' + (f.dif > 0 ? '+' + f.dif : f.dif) + '</td>' +
+      '</tr>';
+    });
+    html += '</table>';
+    var faltan = filas.filter(function(f){ return f.dif > 0; });
+    if(faltan.length){
+      html += '<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="verificarPorProveedor(currentEmpresaId).then(function(){ diagnosticoProveedores(); })">Traer lo que falta (' + faltan.reduce(function(s, f){ return s + f.dif; }, 0) + ')</button></div>';
+    } else {
+      html += '<div style="margin-top:10px;color:var(--ok,#16a34a)">✓ Este dispositivo coincide con la nube en todos los proveedores.</div>';
+    }
+    if(cont) cont.innerHTML = html;
+  }catch(e){ if(cont) cont.innerHTML = 'Error: ' + eH(e.message || String(e)); }
 }
 
 // Borrado manual de productos vacíos (desde la pantalla de Limpieza), con confirmación.
