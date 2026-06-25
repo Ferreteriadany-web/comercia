@@ -5294,6 +5294,7 @@
           <div style="display:flex;align-items:center;gap:14px">
             <h1 class="main-title">Productos</h1>
             <span class="sync-badge" id="syncBadge" style="display:none"></span>
+            <span id="appVersion" style="font-size:11px;color:var(--text-mute);opacity:.7" title="Versión del programa instalada en este dispositivo"></span>
           </div>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
@@ -9282,6 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
+var APP_VERSION = 'v2026.06.25-3'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -12992,6 +12994,7 @@ async function cargarProductos(){
 }
 
 function actualizarStats(){
+  try{ var _av = document.getElementById('appVersion'); if(_av) _av.textContent = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''); }catch(e){}
   document.getElementById('statTotalProductos').textContent = productos.length.toLocaleString('es-AR');
   var provs = {};
   for(var i=0;i<productos.length;i++) if(productos[i].proveedor) provs[productos[i].proveedor]=1;
