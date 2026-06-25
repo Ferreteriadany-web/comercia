@@ -12692,6 +12692,9 @@ async function sincronizarProductos(empresaId){
       poblarFiltroProveedores();
     }
 
+    // Procesar borrados (tombstones) de otros dispositivos.
+    await procesarBorrados(empresaId);
+
     // Chequeo de integridad (1 lectura barata): cantidad local vs nube.
     try{
       var aggSnap = await db.collection('empresas').doc(empresaId).collection('productos').count().get();
@@ -13924,6 +13927,7 @@ async function deleteProduct(id){
     }
     await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(id).delete();
     await idbBorrarIds(currentEmpresaId, [id]);
+    await registrarBorrados(currentEmpresaId, [id]);
     productos = productos.filter(function(x){ return x._id !== id; });
     productosFiltered = productosFiltered.filter(function(x){ return x._id !== id; });
     toast('Producto eliminado', 'success');
@@ -16186,6 +16190,14 @@ function iniciarSyncCatalogo(){
     // Otro usuario cambió el catálogo → traer los cambios.
     if(typeof sincronizarProductos === 'function') sincronizarProductos(currentEmpresaId);
     if(typeof toast === 'function') toast('Catálogo actualizado', 'info');
+    // Si en otro dispositivo se limpiaron vacíos/duplicados, este dispositivo limpia su
+    // PROPIA copia también (el borrado no viaja solo con la sync rápida): re-habilitamos los
+    // chequeos y los corremos de nuevo.
+    _vaciosChequeado = false; _dupChequeado = false;
+    setTimeout(function(){
+      if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto();
+      if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto();
+    }, 6000);
   }, function(err){ console.error('sync catálogo:', err); });
 
   // VERIFICACIÓN PERIÓDICA DE SEGURIDAD: cada 5 min confirma que el número local coincide
@@ -16205,6 +16217,8 @@ async function verificarConsistenciaCatalogo(){
     if(!currentEmpresaId || !db) return;
     if(typeof syncEnCurso !== 'undefined' && syncEnCurso) return; // ya está sincronizando
     if(typeof document !== 'undefined' && document.hidden) return; // pestaña en segundo plano: no gastar
+    // Procesar borrados de otros dispositivos SIEMPRE (aunque la cantidad coincida).
+    if(typeof procesarBorrados === 'function') await procesarBorrados(currentEmpresaId);
     var cc = (await db.collection('empresas').doc(currentEmpresaId).collection('productos').count().get()).data().count;
     if(cc == null) return;
     var local = (Array.isArray(productos) ? productos.length : 0);
@@ -16261,6 +16275,7 @@ async function limpiarDuplicadosCatalogo(grupos){
       var idset = {}; lote.forEach(function(p){ idset[p._id] = 1; });
       productos = productos.filter(function(p){ return !idset[p._id]; });
       try{ await idbBorrarIds(currentEmpresaId, lote.map(function(p){ return p._id; })); }catch(e){}
+      await registrarBorrados(currentEmpresaId, lote.map(function(p){ return p._id; }));
       borrados += lote.length;
       mostrarSyncEstado('sincronizando', '(limpiando ' + borrados + '/' + aEliminar.length + ')');
     }
@@ -16296,6 +16311,66 @@ async function chequearDuplicadosAuto(){
   }catch(e){ console.warn('chequeo duplicados:', e); }
 }
 
+// ─── REGISTRO DE BORRADOS (tombstones) ───
+// Cada vez que se borra un producto, se anota su id acá con la fecha. Los demás
+// dispositivos leen este registro al sincronizar y eliminan lo mismo de su copia,
+// así los borrados VIAJAN igual que las altas (el problema de fondo del cross-device).
+async function registrarBorrados(empresaId, ids){
+  try{
+    if(!empresaId || !db || !ids || !ids.length) return;
+    var col = db.collection('empresas').doc(empresaId).collection('borrados');
+    var ts = new Date().toISOString();
+    for(var i = 0; i < ids.length; i += 400){
+      var lote = ids.slice(i, i + 400);
+      var batch = db.batch();
+      lote.forEach(function(id){ batch.set(col.doc(String(id)), { ts: ts }); });
+      await batch.commit();
+    }
+  }catch(e){ console.warn('registrarBorrados:', e); }
+}
+
+// Lee el registro de borrados desde el último cursor y elimina esos productos de la copia local.
+// Barato: solo lee lo borrado NUEVO (no recorre todo el catálogo). Respeta recreaciones (por updatedAt).
+async function procesarBorrados(empresaId){
+  try{
+    if(!empresaId || !db) return;
+    var metaB = (await idbGetMeta(empresaId)) || {};
+    var ultBorr = metaB.ultBorrados || null;
+    var qb = db.collection('empresas').doc(empresaId).collection('borrados');
+    if(ultBorr) qb = qb.where('ts', '>', ultBorr);
+    qb = qb.orderBy('ts').limit(5000);
+    var bsnap = await qb.get();
+    if(bsnap.empty){
+      if(!ultBorr){
+        var m3 = (await idbGetMeta(empresaId)) || {};
+        await idbSetMeta(empresaId, Object.assign({}, m3, { ultBorrados: new Date().toISOString() }));
+      }
+      return;
+    }
+    var idxB = {}; productos.forEach(function(p, i){ idxB[p._id] = i; });
+    var aQuitar = []; var lastBorr = ultBorr;
+    bsnap.forEach(function(d){
+      var t = (d.data() || {}).ts || '';
+      if(t && (!lastBorr || t > lastBorr)) lastBorr = t;
+      var li = idxB[d.id];
+      if(li !== undefined){
+        var pu = productos[li].updatedAt || '';
+        if(!pu || pu <= t) aQuitar.push(d.id); // borrado más nuevo que el producto local → eliminar
+      }
+    });
+    if(aQuitar.length){
+      var qset = {}; aQuitar.forEach(function(id){ qset[id] = 1; });
+      productos = productos.filter(function(p){ return !qset[p._id]; });
+      try{ await idbBorrarIds(empresaId, aQuitar); }catch(e){}
+      productosFiltered = productos.slice();
+      if(typeof renderProductos === 'function') renderProductos();
+      if(typeof actualizarStats === 'function') actualizarStats();
+    }
+    var metaB2 = (await idbGetMeta(empresaId)) || {};
+    await idbSetMeta(empresaId, Object.assign({}, metaB2, { ultBorrados: lastBorr || new Date().toISOString() }));
+  }catch(e){ console.warn('procesarBorrados:', e); }
+}
+
 // ─── LIMPIEZA DE PRODUCTOS VACÍOS (sin código NI descripción = basura de importación) ───
 function _esCampoVacio(v){
   var s = String(v == null ? '' : v).trim();
@@ -16324,6 +16399,7 @@ async function limpiarProductosVacios(vac){
       var idset = {}; lote.forEach(function(p){ idset[p._id] = 1; });
       productos = productos.filter(function(p){ return !idset[p._id]; });
       try{ await idbBorrarIds(currentEmpresaId, lote.map(function(p){ return p._id; })); }catch(e){}
+      await registrarBorrados(currentEmpresaId, lote.map(function(p){ return p._id; }));
       borrados += lote.length;
       mostrarSyncEstado('sincronizando', '(limpiando ' + borrados + '/' + vac.length + ')');
     }
@@ -26518,12 +26594,14 @@ async function lpBorrarProductosDesde(){
         batch.delete(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id));
       });
       await batch.commit();
+      await registrarBorrados(currentEmpresaId, slice.map(function(p){ return p._id; }));
       borrados += slice.length;
       toast('Borrando ' + borrados + ' / ' + aBorrar.length + '...', 'info');
     }
     var ids = {}; aBorrar.forEach(function(p){ ids[p._id] = true; });
     productos = (productos || []).filter(function(p){ return !ids[p._id]; });
     try{ await idbBorrarIds(currentEmpresaId, Object.keys(ids)); }catch(e){ console.warn('IDB', e); }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
     toast('Borrados ' + aBorrar.length + ' productos creados por la importación', 'success');
     lpCerrarLimpieza();
     if(typeof renderProductos === 'function') renderProductos();
