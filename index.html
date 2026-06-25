@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-5'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-6'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16247,6 +16247,8 @@ function iniciarSyncCatalogo(){
   setTimeout(function(){ if(typeof chequearDuplicadosAuto === 'function') chequearDuplicadosAuto(); }, 25000);
   // A los ~32s, revisa si hay productos vacíos (basura de importación) y ofrece limpiarlos.
   setTimeout(function(){ if(typeof chequearVaciosAuto === 'function') chequearVaciosAuto(); }, 32000);
+  // A los ~20s, verifica por proveedor que no falte contenido (ej: una lista cargada en otro dispositivo).
+  setTimeout(function(){ if(typeof verificarPorProveedor === 'function') verificarPorProveedor(currentEmpresaId); }, 20000);
 }
 // Chequeo de fondo, silencioso y liviano: ¿el catálogo local sigue igual a la nube?
 // Verificación POR PROVEEDOR: compara, proveedor por proveedor, cuántos productos tiene este
@@ -16277,7 +16279,7 @@ async function verificarPorProveedor(empresaId){
       var cloudN = null;
       try{ cloudN = (await colP.where('proveedor', '==', nom).count().get()).data().count; }catch(e){ continue; }
       var locN = localCount[nom] || 0;
-      if(cloudN != null && cloudN > locN + 1){
+      if(cloudN != null && cloudN > locN + 5){
         // Faltan productos de este proveedor → traerlos y sumar los que no tengo.
         try{
           var qs = await colP.where('proveedor', '==', nom).get();
@@ -16340,8 +16342,9 @@ async function verificarConsistenciaCatalogo(){
       if(typeof sincronizarProductos === 'function') await sincronizarProductos(currentEmpresaId);
     }
 
-    // Si la nube cambió, verificar por proveedor que no falte contenido (ej: una lista cargada en otro dispositivo).
-    if(hayCambioEnNube && typeof verificarPorProveedor === 'function'){
+    // Verificar SIEMPRE por proveedor que no falte contenido (ej: una lista cargada en otro
+    // dispositivo). No depende de la huella ni del número total: compara proveedor por proveedor.
+    if(typeof verificarPorProveedor === 'function'){
       await verificarPorProveedor(currentEmpresaId);
     }
 
