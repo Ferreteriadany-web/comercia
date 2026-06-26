@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-10'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-11'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16975,20 +16975,29 @@ function pedAddRow(i, id){
   agregarProductoPedido(id, cant);
 }
 
-function agregarProductoPedido(id, cant){
+async function agregarProductoPedido(id, cant){
   cant = parseInt(cant) || 1;
   if(cant < 1) cant = 1;
   var p = productos.find(function(x){ return x._id===id; });
   if(!p) return;
   var existing = pedItems.find(function(x){ return x.producto._id===id; });
   if(existing){
-    existing.cantidad += cant;
     hidePedDropdown();
     document.getElementById('pedSearch').value = '';
+    var nombre = p.descripcion ? p.descripcion : (p.codigo || 'Este producto');
+    var actual = existing.cantidad;
+    // Cartel de aviso: el pedido es COMPARTIDO en vivo, así que capaz lo agregó otro usuario.
+    var resp = await promptComercia(
+      '⚠️ "' + (nombre.length > 40 ? nombre.substring(0,40) + '…' : nombre) + '" YA está en el pedido (es compartido: puede haberlo agregado otro usuario). Cantidad actual: ' + actual + '. Escribí la cantidad TOTAL que querés que quede:',
+      String(actual)
+    );
+    if(resp === null) return; // canceló: no cambia nada
+    var nueva = parseInt(resp); if(isNaN(nueva) || nueva < 1) nueva = 1;
+    existing.cantidad = nueva;
     renderPedido();
     actualizarStatsPedido();
     guardarPedidoCompartido();
-    toast('Cantidad actualizada a '+existing.cantidad, 'success');
+    toast('Cantidad actualizada a ' + nueva, 'success');
     return;
   }
   pedItems.push({ producto: p, cantidad: cant });
