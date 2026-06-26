@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-9'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-10'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -26148,10 +26148,11 @@ async function lpAplicarCatalogo(){
       var slice = matches.slice(i, i + B);
       var batch = db.batch();
       slice.forEach(function(m){
+        var _nowIso = new Date().toISOString();
         var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(m.docId);
-        batch.set(ref, { proveedor: m.proveedor, moneda: m.moneda }, { merge: true });
+        batch.set(ref, { proveedor: m.proveedor, moneda: m.moneda, updatedAt: _nowIso }, { merge: true });
         var prodLocal = productos.find(function(p){ return p._id === m.docId; });
-        if(prodLocal) localUpdates.push(Object.assign({}, prodLocal, { proveedor: m.proveedor, moneda: m.moneda }));
+        if(prodLocal) localUpdates.push(Object.assign({}, prodLocal, { proveedor: m.proveedor, moneda: m.moneda, updatedAt: _nowIso }));
       });
       await batch.commit();
       btn.textContent = 'Aplicando ' + Math.min(i + B, matches.length) + ' / ' + matches.length + '...';
@@ -26401,16 +26402,19 @@ async function lpRecalcularProveedor(provId){
         batch.update(ref, {
           precioVenta: calc.final,
           precioCosto: Math.round(calc.conDesc),
+          updatedAt: nowIso,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         });
         p.precioVenta = calc.final;
         p.precioCosto = Math.round(calc.conDesc);
+        p.updatedAt = nowIso;
         p.fechaUltimoCambioPrecio = nowIso;
         actualizados.push(p);
       });
       await batch.commit();
     }
     try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
     var msg = '✅ ' + actualizados.length + ' precio(s) recalculado(s)';
     if(sinCosto > 0) msg += ' · ' + sinCosto + ' sin costo base (reimportá esos)';
     if(provQuiereUsd && usdAplicados < conCosto.length){ msg += ' · ⚠️ ' + (conCosto.length - usdAplicados) + ' en pesos (no se les aplicó el dólar)'; }
@@ -26448,6 +26452,7 @@ async function lpAumentarProveedor(provId){
         var data = {
           precioVenta: nuevaVenta,
           precioCosto: nuevoCosto,
+          updatedAt: nowIso,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         if(p.costoNeto != null) data.costoNeto = (Number(p.costoNeto) || 0) * factor;  // base para recalcular después
@@ -26456,12 +26461,14 @@ async function lpAumentarProveedor(provId){
         p.precioVenta = nuevaVenta;
         p.precioCosto = nuevoCosto;
         if(p.costoNeto != null) p.costoNeto = (Number(p.costoNeto) || 0) * factor;
+        p.updatedAt = nowIso;
         p.fechaUltimoCambioPrecio = nowIso;
         actualizados.push(p);
       });
       await batch.commit();
     }
     try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
     toast('Aplicado ' + (pct > 0 ? '+' : '') + pct + '% a ' + prods.length + ' productos de ' + provNombre, 'success');
   }catch(err){
     console.error(err);
@@ -26506,6 +26513,7 @@ async function lpConvertirPackUnitario(provId){
           precioCosto: nuevoCosto,
           unidadesPorBulto: nb,
           bultoConv: true,
+          updatedAt: nowIso,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         if(p.costoNeto != null) data.costoNeto = (Number(p.costoNeto) || 0) / nb;
@@ -26515,6 +26523,7 @@ async function lpConvertirPackUnitario(provId){
         p.precioCosto = nuevoCosto;
         p.unidadesPorBulto = nb;
         p.bultoConv = true;
+        p.updatedAt = nowIso;
         if(p.costoNeto != null) p.costoNeto = (Number(p.costoNeto) || 0) / nb;
         p.fechaUltimoCambioPrecio = nowIso;
         actualizados.push(p);
@@ -26522,6 +26531,7 @@ async function lpConvertirPackUnitario(provId){
       await batch.commit();
     }
     try{ await idbGuardarBatch(currentEmpresaId, actualizados); }catch(e){ console.warn('IDB', e); }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
     toast('Listo: ' + aConvertir.length + ' productos de ' + provNombre + ' pasados a precio unitario (con Unidad/Caja)', 'success');
   }catch(err){
     console.error(err);
@@ -28128,6 +28138,7 @@ async function lpEjecutarAplicar(filas){
           costoMoneda: r._monedaRaw || (r._prov && r._prov.moneda) || 'ARS',
           proveedor: provNombre,
           descuentoProducto: descProd,
+          updatedAt: nowIso,
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         if(margenGuardar != null) dataFs.margenProducto = margenGuardar;
@@ -28140,6 +28151,7 @@ async function lpEjecutarAplicar(filas){
           costoMoneda: r._monedaRaw || (r._prov && r._prov.moneda) || 'ARS',
           proveedor: provNombre,
           descuentoProducto: descProd,
+          updatedAt: nowIso,
           fechaUltimoCambioPrecio: nowIso
         };
         if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
