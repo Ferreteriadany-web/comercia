@@ -5215,9 +5215,6 @@
             <span class="nav-group-arrow">&#9662;</span>
           </div>
           <div class="nav-group-items">
-            <a class="nav-item nav-item-sub" data-module="empleados" onclick="navTo('empleados')">
-              <span class="nav-item-icon"><i class="ti ti-user-cog"></i></span><span>Empleados</span>
-            </a>
             <a class="nav-item nav-item-sub" data-module="configuracion" onclick="navTo('configuracion')">
               <span class="nav-item-icon"><i class="ti ti-adjustments"></i></span><span>Configuración</span>
             </a>
@@ -9300,7 +9297,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-19'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-20'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -9710,7 +9707,7 @@ var PERMISOS_DISPONIBLES = [
   { id: 'reportes',           modulo: 'reportes',          label: 'Reportes',                desc: 'Caja diaria y facturación mensual' },
   { id: 'integraciones',      modulo: 'integraciones',     label: 'Integraciones',           desc: 'Mercado Libre, Tienda Nube, etc.' },
   { id: 'afip',               modulo: 'afip',              label: 'Facturación AFIP',        desc: 'Configurar y emitir comprobantes' },
-  { id: 'empleados',          modulo: 'empleados',         label: 'Gestionar empleados',     desc: 'Invitar y administrar usuarios' },
+  { id: 'empleados',          modulo: 'configuracion',     label: 'Usuarios y empleados',    desc: 'Invitar y administrar usuarios (en Configuración)' },
   { id: 'configuracion',      modulo: 'configuracion',     label: 'Configuración',           desc: 'Ajustes de la empresa' }
 ];
 
