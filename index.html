@@ -9279,6 +9279,9 @@ async function cargarEmpresaUsuario(user){
       }));
     }catch(e){}
 
+    // Si quedaron facturas pendientes (de una sesión sin internet), intentamos emitirlas.
+    setTimeout(function(){ if(typeof procesarFacturasPendientes === 'function') procesarFacturasPendientes(); }, 8000);
+
     // ── Límite de dispositivos conectados ──
     var _dispOk = await chequearYRegistrarDispositivo();
     if(!_dispOk){ return; }  // la pantalla de bloqueo ya se mostró
@@ -9445,7 +9448,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-27'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-28'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -21435,12 +21438,25 @@ function fechaAfip(date){
  * Botón "Facturar AFIP" en el modal de venta.
  * Lee la venta actual, arma el payload y llama a la Cloud Function.
  */
-async function facturarEnAfip(){
-  if(!_ventaActualVer) return;
-  var v = _ventaActualVer;
+async function facturarEnAfip(opts){
+  opts = opts || {};
+  var v = opts.venta || _ventaActualVer;
+  if(!v) return;
+  var silencioso = !!opts.silencioso;
+
+  // Sin internet: la factura no se puede emitir ahora → queda PENDIENTE y se emite al volver la conexión.
+  if(!silencioso && typeof navigator !== 'undefined' && navigator.onLine === false){
+    if(v._id){
+      try{ await db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(v._id).update({ afipPendiente: true, afipPendienteTs: new Date().toISOString() }); }catch(e){}
+      var vlOff = (typeof ventas !== 'undefined') && ventas.find(function(x){ return x._id === v._id; }); if(vlOff) vlOff.afipPendiente = true;
+    }
+    toast('Sin internet: la factura quedó PENDIENTE. Se emite sola cuando vuelva la conexión.', 'success');
+    try{ closeModals(); }catch(e){}
+    return;
+  }
 
   // 1) Verificar config AFIP
-  if(!currentEmpresaId){ toast('No hay empresa cargada','error'); return; }
+  if(!currentEmpresaId){ if(!silencioso) toast('No hay empresa cargada','error'); return; }
   var cfgDoc;
   try{
     cfgDoc = await db.collection('empresas').doc(currentEmpresaId)
@@ -21448,21 +21464,20 @@ async function facturarEnAfip(){
   }catch(err){ toast('Error leyendo config AFIP','error'); return; }
 
   if(!cfgDoc.exists){
-    if(await confirmComercia('Todavía no configuraste AFIP en Comercia. ¿Te llevo a la configuración?')){
+    if(!silencioso && await confirmComercia('Todavía no configuraste AFIP en Comercia. ¿Te llevo a la configuración?')){
       navTo('afip');
     }
     return;
   }
   var cfg = cfgDoc.data();
   if(!cfg.certActivo || !cfg.keyActiva){
-    if(await confirmComercia('Falta cargar el certificado o la clave AFIP. ¿Vamos a la configuración?')){
+    if(!silencioso && await confirmComercia('Falta cargar el certificado o la clave AFIP. ¿Vamos a la configuración?')){
       navTo('afip');
     }
     return;
   }
   if(!cfg.cuit){
-    toast('Falta el CUIT en la config AFIP','error');
-    navTo('afip');
+    if(!silencioso){ toast('Falta el CUIT en la config AFIP','error'); navTo('afip'); }
     return;
   }
 
@@ -21470,7 +21485,7 @@ async function facturarEnAfip(){
   var pvSnap = await db.collection('empresas').doc(currentEmpresaId)
     .collection('afip_puntos_venta').limit(1).get();
   if(pvSnap.empty){
-    if(await confirmComercia('No tenés puntos de venta cargados. ¿Vamos a configurarlos?')){
+    if(!silencioso && await confirmComercia('No tenés puntos de venta cargados. ¿Vamos a configurarlos?')){
       navTo('afip');
     }
     return;
@@ -21529,10 +21544,10 @@ async function facturarEnAfip(){
     'Pto venta: '+String(ptoVta).padStart(4,'0')+'\n'+
     'Total: '+fmtPeso(v.total)+'\n'+
     'Cliente: '+(v.cliente && v.cliente.razonSocial ? v.cliente.razonSocial : 'Consumidor Final');
-  if(!await confirmComercia(msg)) return;
+  if(!silencioso && !await confirmComercia(msg)) return;
 
   // 6) Llamar a Cloud Function
-  toast('Solicitando CAE a AFIP...','success');
+  if(!silencioso) toast('Solicitando CAE a AFIP...','success');
   try{
     var emitir = functions.httpsCallable('afipEmitirComprobante');
     var res = await emitir({
@@ -21560,33 +21575,40 @@ async function facturarEnAfip(){
             afipCbteLetra: tipo.letra,
             afipAmbiente: cfg.ambiente,
             afipEmitidoEn: new Date().toISOString(),
+            afipPendiente: false,
           });
-        // Actualizar copia local
-        _ventaActualVer.afipCae = cae;
-        _ventaActualVer.afipCaeVto = caeVto;
-        _ventaActualVer.afipCbteNro = cbteNro;
-        _ventaActualVer.afipPtoVta = ptoVta;
-        _ventaActualVer.afipCbteTipo = tipo.codigo;
-        _ventaActualVer.afipCbteLetra = tipo.letra;
-        _ventaActualVer.afipAmbiente = cfg.ambiente;
+        // Actualizar copia local (la venta abierta y la de la lista)
+        var copias = [v];
+        if(_ventaActualVer && _ventaActualVer._id === v._id && _ventaActualVer !== v) copias.push(_ventaActualVer);
+        var vLista = (typeof ventas !== 'undefined') && ventas.find(function(x){ return x._id === v._id; });
+        if(vLista && copias.indexOf(vLista) < 0) copias.push(vLista);
+        copias.forEach(function(c){
+          c.afipCae = cae; c.afipCaeVto = caeVto; c.afipCbteNro = cbteNro;
+          c.afipPtoVta = ptoVta; c.afipCbteTipo = tipo.codigo; c.afipCbteLetra = tipo.letra;
+          c.afipAmbiente = cfg.ambiente; c.afipPendiente = false;
+        });
       }
 
       var obsMsg = observ.length > 0 ? '\n\nObservaciones AFIP:\n' + observ.join('\n') : '';
-      alert('✅ CAE obtenido correctamente\n\n'+
-        'CAE: '+cae+'\n'+
-        'Vencimiento: '+caeVto+'\n'+
-        'Comprobante: '+tipo.letra+' '+String(ptoVta).padStart(4,'0')+'-'+String(cbteNro).padStart(8,'0')+obsMsg);
-
-      // Refrescar el modal para mostrar el CAE
-      if(typeof verVenta === 'function' && v._id){
-        verVenta(v._id);
+      if(!silencioso){
+        alert('✅ CAE obtenido correctamente\n\n'+
+          'CAE: '+cae+'\n'+
+          'Vencimiento: '+caeVto+'\n'+
+          'Comprobante: '+tipo.letra+' '+String(ptoVta).padStart(4,'0')+'-'+String(cbteNro).padStart(8,'0')+obsMsg);
+        // Refrescar el modal para mostrar el CAE
+        if(typeof verVenta === 'function' && v._id){
+          verVenta(v._id);
+        }
       }
+      return true;
     } else {
       var errMsg = res.data && res.data.error ? res.data.error : 'Error desconocido';
-      alert('❌ Error al emitir factura:\n\n'+errMsg);
+      if(!silencioso) alert('❌ Error al emitir factura:\n\n'+errMsg);
+      else throw new Error(errMsg);
     }
   }catch(err){
     console.error('Error AFIP:', err);
+    if(silencioso) throw err;
     if(err.code === 'functions/not-found' || err.code === 'functions/internal'){
       alert('❌ La función de AFIP todavía no está desplegada.\n\nEjecutá:\n  firebase deploy --only functions\n\ndesde la carpeta del proyecto.');
     } else {
@@ -21595,6 +21617,34 @@ async function facturarEnAfip(){
   }
 }
 
+
+// Cola de facturación diferida: emite las facturas que quedaron PENDIENTES (por falta de internet)
+// apenas hay conexión Y la AFIP está configurada. Si todavía no hay AFIP, las deja pendientes.
+async function procesarFacturasPendientes(){
+  try{
+    if(!currentEmpresaId || !db) return;
+    if(typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if(window._facturandoPendientes) return;
+    window._facturandoPendientes = true;
+    try{
+      var snap = await db.collection('empresas').doc(currentEmpresaId).collection('ventas').where('afipPendiente', '==', true).limit(15).get();
+      if(snap.empty) return;
+      var cfgDoc = await db.collection('empresas').doc(currentEmpresaId).collection('afip_config').doc('config').get();
+      if(!cfgDoc.exists){ return; }
+      var cfg = cfgDoc.data();
+      if(!cfg.certActivo || !cfg.keyActiva || !cfg.cuit){ return; }  // sin AFIP lista: dejamos pendientes
+      var emitidas = 0;
+      var docs = snap.docs;
+      for(var i = 0; i < docs.length; i++){
+        var vp = docs[i].data(); vp._id = docs[i].id;
+        try{ var ok = await facturarEnAfip({ venta: vp, silencioso: true }); if(ok) emitidas++; }
+        catch(e){ console.warn('Factura pendiente no emitida:', vp._id, e && (e.message || e)); }
+      }
+      if(emitidas > 0 && typeof toast === 'function') toast('Se emitieron ' + emitidas + ' factura(s) que estaban pendientes \u2713', 'success');
+    } finally { window._facturandoPendientes = false; }
+  }catch(e){ console.warn('procesarFacturasPendientes', e); window._facturandoPendientes = false; }
+}
+window.addEventListener('online', function(){ setTimeout(procesarFacturasPendientes, 3000); });
 
 // ═══════════════════════════════════════════════════════
 // MÓDULO CUENTAS CORRIENTES
