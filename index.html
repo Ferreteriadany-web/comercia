@@ -4101,6 +4101,11 @@
     .hero-visual{display:none}
     .features-grid{grid-template-columns:1fr;gap:16px}
     .nav{padding:14px 16px}
+    .nav-links{gap:6px}
+    .nav-link{padding:6px 8px;font-size:14px}
+    .nav .btn-primary{padding:8px 12px;font-size:13px}
+    .nav-solo-desktop{display:none}
+    .landing{overflow-x:hidden}
     .hero{padding:24px 16px}
     .features-bar{padding:32px 16px}
     h1.hero-title{font-size:30px}
@@ -4888,8 +4893,8 @@
   <nav class="nav">
     <a href="#" class="logo"><span class="logo-mark"><svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gLand" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#f97316"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="6" fill="url(#gLand)"/><path d="M27 14a8 8 0 1 0 0 12" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/><circle cx="29" cy="20" r="2.4" fill="#fff"/></svg></span>Comercia</a>
     <div class="nav-links">
-      <a href="#features" class="nav-link">Funcionalidades</a>
-      <a href="#precios" class="nav-link">Precios</a>
+      <a href="#features" class="nav-link nav-solo-desktop">Funcionalidades</a>
+      <a href="#precios" class="nav-link nav-solo-desktop">Precios</a>
       <a class="nav-link" onclick="openLogin()">Iniciar sesión</a>
       <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleLanding" title="Cambiar tema">
         <span id="themeIconLanding">&#9728;</span>
@@ -9449,7 +9454,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-29'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-30'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
