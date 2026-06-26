@@ -8877,6 +8877,41 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Modo offline (Etapa 2): Firestore guarda los datos en el equipo y ENCOLA las escrituras
+// para subirlas solas cuando vuelve internet. Online no cambia nada; solo suma el offline.
+try{
+  db.enablePersistence({ synchronizeTabs: true }).catch(function(err){
+    console.warn('Persistencia offline no activada:', err && err.code);
+  });
+}catch(e){ console.warn('Persistencia offline:', e); }
+
+// ── Indicador de conexión (Etapa 2): avisa cuando estás sin internet ──
+function _comerciaOfflineBanner(mostrar){
+  var el = document.getElementById('comerciaOfflineBanner');
+  if(mostrar){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'comerciaOfflineBanner';
+      el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:99998;background:#8a3b00;color:#fff;padding:8px 16px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.3)';
+      el.textContent = '\uD83D\uDCF4 Sin internet — modo offline. Tus ventas se guardan y se suben solas al volver.';
+      document.body.appendChild(el);
+    }
+    el.style.display = 'block';
+  } else if(el){ el.style.display = 'none'; }
+}
+function _comerciaChequearConexion(){
+  var off = (typeof navigator !== 'undefined' && navigator.onLine === false);
+  _comerciaOfflineBanner(off);
+  if(!off){
+    if(window._estabaOffline && typeof toast === 'function') toast('Conexión restablecida — subiendo lo pendiente\u2026', 'success');
+    window._estabaOffline = false;
+  } else {
+    window._estabaOffline = true;
+  }
+}
+window.addEventListener('online', _comerciaChequearConexion);
+window.addEventListener('offline', _comerciaChequearConexion);
+window.addEventListener('load', _comerciaChequearConexion);
 const functions = firebase.app().functions('southamerica-east1');
 const storage = firebase.storage();
 
@@ -9312,7 +9347,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-21'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-23'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -19166,8 +19201,15 @@ async function confirmarVenta(){
     };
 
     var coleccionDestino = (modoVenta === 'presupuesto') ? 'presupuestos' : 'ventas';
-    var ref = await db.collection('empresas').doc(currentEmpresaId).collection(coleccionDestino).add(ventaData);
+    // ¿Estamos sin internet? Si es así, NO esperamos al servidor: guardamos local y se sube solo.
+    var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    var ref = db.collection('empresas').doc(currentEmpresaId).collection(coleccionDestino).doc();
     ventaData._id = ref.id;
+    if(_sinNet){
+      ref.set(ventaData).catch(function(e){ console.warn('Venta pendiente de subir:', e); });
+    } else {
+      await ref.set(ventaData);
+    }
 
     // Descontar stock (siempre, incluso si queda negativo)
     var batch = db.batch();
@@ -19207,7 +19249,11 @@ async function confirmarVenta(){
         }
       }
       try{
-        await batch.commit();
+        if(_sinNet){
+          batch.commit().catch(function(e){ console.warn('Stock pendiente de subir:', e); });
+        } else {
+          await batch.commit();
+        }
         await idbGuardarBatch(currentEmpresaId, cacheUpdates);
       }catch(stockErr){
         console.warn('No se pudo descontar stock:', stockErr);
@@ -19221,11 +19267,15 @@ async function confirmarVenta(){
       if(p.metodo === 'cta_corriente') montoCtaCte += (p.monto || 0);
     });
     if(modoVenta !== 'presupuesto' && montoCtaCte > 0 && clienteVenta){
-      try{
-        await registrarVentaEnCtaCte(clienteVenta, ventaData, montoCtaCte);
-      }catch(ccErr){
-        console.warn('No se pudo registrar en cta cte:', ccErr);
-        toast('Venta registrada pero falló cta cte', 'error');
+      if(_sinNet){
+        registrarVentaEnCtaCte(clienteVenta, ventaData, montoCtaCte).catch(function(e){ console.warn('Cta cte pendiente:', e); });
+      } else {
+        try{
+          await registrarVentaEnCtaCte(clienteVenta, ventaData, montoCtaCte);
+        }catch(ccErr){
+          console.warn('No se pudo registrar en cta cte:', ccErr);
+          toast('Venta registrada pero falló cta cte', 'error');
+        }
       }
     }
 
@@ -22096,6 +22146,7 @@ async function ccConfirmarCobro(){
 
     // Actualizar saldosPorObra
     var saldosPorObra = Object.assign({}, c.saldosPorObra || {});
+    var saldosPorObraOld = Object.assign({}, c.saldosPorObra || {});  // para calcular diferencias (suma atómica)
     if(obraSel){
       // Aplicar contra esa obra primero
       var saldoObra = saldosPorObra[obraSel] || 0;
@@ -22140,13 +22191,29 @@ async function ccConfirmarCobro(){
       .collection('movimientos').doc();
     var batch = db.batch();
     batch.set(movRef, movData);
-    batch.update(cliRef, {
-      saldoCC: nuevoSaldo,
-      saldosPorObra: saldosPorObra,
-      ultimoMovimientoCC: ahora.toISOString(),
-      updatedAt: ahora.toISOString()
+    // SUMA ATÓMICA: el total baja por "increment" y cada obra por su diferencia. Así es seguro
+    // aunque estés offline o cobren en otra caja a la vez (no se pisa ni se pierde plata).
+    var _inc = firebase.firestore.FieldValue.increment;
+    var args = [cliRef,
+      'saldoCC', _inc(-montoEfectivo),
+      'ultimoMovimientoCC', ahora.toISOString(),
+      'updatedAt', ahora.toISOString()
+    ];
+    var _keys = {};
+    Object.keys(saldosPorObra).forEach(function(k){ _keys[k] = 1; });
+    Object.keys(saldosPorObraOld).forEach(function(k){ _keys[k] = 1; });
+    delete _keys['']; delete _keys['__general__'];
+    Object.keys(_keys).forEach(function(k){
+      var d = (saldosPorObra[k] || 0) - (saldosPorObraOld[k] || 0);
+      if(Math.abs(d) > 0.0001){
+        args.push(new firebase.firestore.FieldPath('saldosPorObra', k));
+        args.push(_inc(d));
+      }
     });
-    await batch.commit();
+    batch.update.apply(batch, args);
+    var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    if(_sinNet){ batch.commit().catch(function(e){ console.warn('Cobro pendiente de subir:', e); }); }
+    else { await batch.commit(); }
 
     // Actualizar memoria
     c.saldoCC = nuevoSaldo;
@@ -24202,15 +24269,26 @@ async function registrarVentaEnCtaCte(cliente, ventaData, montoCtaCte){
     .collection('movimientos').doc();
   var batch = db.batch();
   batch.set(movRef, movData);
-  batch.update(cliRef, {
-    saldoCC: nuevoSaldo,
-    saldosPorObra: saldosPorObra,
-    ultimoMovimientoCC: ahora.toISOString(),
-    updatedAt: ahora.toISOString()
+  // SUMA ATÓMICA del saldo (a prueba de offline y de varias cajas a la vez): le decimos al
+  // servidor "sumá este monto a lo que haya", en vez de leer-sumar-pisar (que se pierde plata).
+  var _inc = firebase.firestore.FieldValue.increment;
+  var args = [cliRef,
+    'saldoCC', _inc(montoCtaCte),
+    'ultimoMovimientoCC', ahora.toISOString(),
+    'updatedAt', ahora.toISOString()
+  ];
+  Object.keys(prorrateoPorObra).forEach(function(o){
+    var key = (o && o.trim()) ? o : OBRA_GENERAL_KEY;
+    args.push(new firebase.firestore.FieldPath('saldosPorObra', key));
+    args.push(_inc(prorrateoPorObra[o]));
   });
-  await batch.commit();
+  batch.update.apply(batch, args);
+  // Si NO hay internet, no esperamos al servidor (la suma queda encolada y se aplica al volver).
+  var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+  if(_sinNet){ batch.commit().catch(function(e){ console.warn('Cta cte pendiente de subir:', e); }); }
+  else { await batch.commit(); }
 
-  // Actualizar memoria y cache
+  // Vista local optimista (se corrige sola cuando sincroniza el cliente)
   cliente.saldoCC = nuevoSaldo;
   cliente.saldosPorObra = saldosPorObra;
   cliente.ultimoMovimientoCC = ahora.toISOString();
