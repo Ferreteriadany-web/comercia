@@ -9283,7 +9283,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-11'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-12'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16809,6 +16809,17 @@ async function cargarAnotaciones(){
   }catch(e){}
 }
 
+// Busca un producto cuyo CÓDIGO o CÓDIGO DE BARRAS coincida EXACTO con lo escaneado/tipeado.
+// Sirve para la pistola lectora: escanea y manda Enter muy rápido, y esto agrega directo.
+function buscarProductoExacto(q){
+  var k = String(q || '').trim().toLowerCase();
+  if(!k) return null;
+  return productos.find(function(p){
+    return (p.codBarra && String(p.codBarra).trim().toLowerCase() === k) ||
+           (p.codigo && String(p.codigo).trim().toLowerCase() === k);
+  }) || null;
+}
+
 function smartSearchPed(query){
   var q = query.trim().toLowerCase();
   if(!q) return [];
@@ -16907,6 +16918,19 @@ function bindPedSearch(){
     if(inp.value.trim()) showPedDropdown(inp.value);
   });
   inp.addEventListener('keydown', function(e){
+    // PISTOLA LECTORA: si apretás Enter y lo tipeado coincide EXACTO con un código o código de
+    // barras, agregamos directo — aunque el dropdown todavía no haya aparecido (la pistola es muy rápida).
+    if(e.key === 'Enter'){
+      var q = inp.value.trim();
+      var exacto = (typeof buscarProductoExacto === 'function') ? buscarProductoExacto(q) : null;
+      if(exacto){
+        e.preventDefault();
+        agregarProductoPedido(exacto._id);
+        inp.value = '';
+        hidePedDropdown();
+        return;
+      }
+    }
     var dd = document.getElementById('pedDropdown');
     if(!dd.classList.contains('show')) return;
     var items = dd.querySelectorAll('.dd-item');
@@ -27280,6 +27304,9 @@ async function lpProcesarArchivo(file){
     if(colBulto >= 0) excl.push(colBulto);
     var colCodigo = lpDetectarCol(headers, ['codigo', 'código', 'cod', 'sku', 'articulo', 'artículo', 'referencia', 'ref'], excl);
     if(colCodigo >= 0) excl.push(colCodigo);
+    // Código de barras (columna aparte del código interno). Se excluye el código ya detectado.
+    var colCodBarra = lpDetectarCol(headers, ['cod barra', 'codigo de barras', 'código de barras', 'cod. barra', 'codbarra', 'cod barras', 'barcode', 'ean', 'gtin'], excl);
+    if(colCodBarra >= 0) excl.push(colCodBarra);
     var colDesc = lpDetectarCol(headers, ['descripcion', 'descripción', 'producto', 'detalle', 'nombre', 'desc'], excl);
     if(colDesc >= 0) excl.push(colDesc);
     // Detección del precio/costo:
@@ -27335,6 +27362,7 @@ async function lpProcesarArchivo(file){
       };
       var _v;
       if((_v=_find('codigo'))>=0) colCodigo=_v;
+      if((_v=_find('codBarra'))>=0) colCodBarra=_v;
       if((_v=_find('desc'))>=0) colDesc=_v;
       if((_v=_find('precio'))>=0) colPrecio=_v;
       if((_v=_find('iva'))>=0) colIva=_v;
@@ -27363,12 +27391,13 @@ async function lpProcesarArchivo(file){
     if(!_colTieneDatos(colIva)) colIva = -1;
     if(!_colTieneDatos(colBulto)) colBulto = -1;
     if(!_colTieneDatos(colVentaDirecto)) colVentaDirecto = -1;
+    if(!_colTieneDatos(colCodBarra)) colCodBarra = -1; // si la columna de barras viene vacía, la ignoramos
 
     // Guardar contexto para el mapeo manual (por si hay que corregir columnas)
     lpImpCtx = {
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
-      map: { codigo: colCodigo, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
+      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -27446,6 +27475,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colBulto = (colMap.bulto>=0?colMap.bulto:-1);
   var colPrecioNeto = (colMap.precioNeto>=0?colMap.precioNeto:-1);
   var colVentaDirecto = (colMap.precioVentaDirecto>=0?colMap.precioVentaDirecto:-1);
+  var colCodBarra = (colMap.codBarra>=0?colMap.codBarra:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
   // Si la lista trae su propia columna de moneda, esa manda por fila (no el selector global).
   lpState.tieneColMoneda = (colMoneda >= 0);
@@ -27483,6 +27513,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       }
     }
     var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
+      codBarraProv: (colCodBarra >= 0 ? String(r[colCodBarra] || '').trim() : ''),
       ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
     // Margen por producto desde el archivo (override del tramo del proveedor).
     // OJO: una celda vacía NO es 0% — debe caer al tramo del proveedor,
@@ -28165,6 +28196,8 @@ async function lpEjecutarAplicar(filas){
         };
         if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
         if(r.unidadesPorBulto) dataLocal.unidadesPorBulto = r.unidadesPorBulto;
+        // Código de barras: solo lo guardamos si la lista lo trae (no pisamos uno existente con vacío).
+        if(r.codBarraProv){ dataFs.codBarra = r.codBarraProv; dataLocal.codBarra = r.codBarraProv; }
         var esCrear = (r.estado === 'crear');
         if(esCrear){
           dataFs.codigo = r.codigoProv;
