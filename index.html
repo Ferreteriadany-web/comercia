@@ -9351,7 +9351,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-24'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-25'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -21913,11 +21913,15 @@ function ccRenderSabana(cliente){
     } else {
       obraCell = r.obra ? eH(r.obra) : '<span class="cc-sabana-muted">&mdash;</span>';
     }
+    var detalleCell = eH(r.detalle||'');
+    if(r.editable && r.ventaId != null && r.itemIdx != null){
+      detalleCell += ' <button class="cc-sabana-edit" title="Editar precio de este ítem" onclick="ccSabanaEditarPrecio(\''+escapeQ(r.ventaId)+'\','+r.itemIdx+')" style="border:none;background:none;cursor:pointer;font-size:13px;padding:0 3px">\u270F\uFE0F</button>';
+    }
     html += '<tr class="'+(r.pagada?'cc-sabana-pagada':'')+'">'+
       '<td class="cc-sabana-fecha">'+fechaStr+'</td>'+
       '<td>'+obraCell+'</td>'+
       '<td class="cc-sabana-comp">'+eH(r.comp||'')+(r.pagada?' <span class="cc-sabana-tag">contado</span>':'')+'</td>'+
-      '<td>'+eH(r.detalle||'')+'</td>'+
+      '<td>'+detalleCell+'</td>'+
       '<td class="num">'+(r.debe?fmtPeso(r.debe):'')+'</td>'+
       '<td class="num haber">'+(r.haber?fmtPeso(r.haber):'')+'</td>'+
       '<td class="num">'+(r.afecta?fmtPeso(acum):'<span class="cc-sabana-muted">&mdash;</span>')+'</td>'+
@@ -21981,6 +21985,93 @@ async function ccSabanaSetObra(ventaId, itemIdx, nuevaObra){
     console.error(err);
     toast('Error al editar: ' + (err.message||''), 'error');
   }
+}
+
+// Editar el PRECIO de un ítem en la sábana de cuenta corriente. Recalcula IVA y total de la
+// venta, y ajusta la deuda del cliente con SUMA ATÓMICA (exacta y segura offline/multi-caja).
+async function ccSabanaEditarPrecio(ventaId, itemIdx){
+  if(!ventaId || itemIdx == null){ toast('No se puede editar esta línea', 'error'); return; }
+  var cliente = clientes.find(function(x){ return x._id === ccClienteSelId; });
+  if(!cliente) return;
+  var ref = db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(ventaId);
+  var v = (typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === ventaId; }) : null;
+  if(!v){
+    try{ var doc = await ref.get(); if(!doc.exists){ toast('No se encontró la venta', 'error'); return; } v = doc.data(); v._id = doc.id; }
+    catch(e){ toast('No se pudo leer la venta', 'error'); return; }
+  }
+  if(!v.items || !v.items[itemIdx]){ toast('Ítem inexistente', 'error'); return; }
+  if(v.afipCae){ toast('Esta venta ya tiene factura legal (CAE): no se puede editar el precio.', 'error'); return; }
+  var it = v.items[itemIdx];
+  var cant = it.cantidad || 1;
+  var precioActual = (it.precioUnit != null) ? it.precioUnit : ((it.subtotal || 0) / cant);
+  var nombre = it.descripcion || it.codigo || 'ítem';
+
+  var resp = await promptComercia('Nuevo precio unitario para \u00ab' + nombre + '\u00bb (actual ' + fmtPeso(precioActual) + ', \u00d7' + cant + '). La deuda del cliente se ajusta por la diferencia.', String(Math.round(precioActual)));
+  if(resp === null) return;
+  var clean = String(resp).trim().replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+  var nuevoPrecio = parseFloat(clean);
+  if(isNaN(nuevoPrecio) || nuevoPrecio < 0){ toast('Precio inválido', 'error'); return; }
+
+  var subViejo = it.subtotal || 0;
+  var subNuevo = Math.round(nuevoPrecio * cant);
+  var diffNeto = subNuevo - subViejo;
+  if(diffNeto === 0){ return; }
+
+  // Recalcular neto / descuento / IVA / total de la venta
+  var neto = (v.neto != null) ? v.neto : v.items.reduce(function(s, x){ return s + (x.subtotal || 0); }, 0);
+  var descMonto = v.descuentoMonto || 0;
+  var descPct = v.descuentoPct || 0;
+  var ivaMonto = v.ivaMonto || 0;
+  var totalViejo = (v.total != null) ? v.total : (neto - descMonto + ivaMonto);
+  var netoNuevo = neto + diffNeto;
+  var descMontoNuevo = descPct ? Math.round(netoNuevo * descPct / 100) : descMonto;
+  var baseVieja = neto - descMonto;
+  var ivaRate = (baseVieja > 0) ? (ivaMonto / baseVieja) : 0;
+  var baseNueva = netoNuevo - descMontoNuevo;
+  var ivaNuevo = Math.round(baseNueva * ivaRate);
+  var totalNuevo = Math.round(baseNueva + ivaNuevo);
+  var diffTotal = totalNuevo - totalViejo;
+
+  var ok = await confirmComercia('Precio de \u00ab' + nombre + '\u00bb: ' + fmtPeso(precioActual) + ' \u2192 ' + fmtPeso(nuevoPrecio) + '\n\nLa deuda del cliente ' + (diffTotal >= 0 ? 'SUBE' : 'BAJA') + ' ' + fmtPeso(Math.abs(diffTotal)) + ' (esta venta pasa de ' + fmtPeso(totalViejo) + ' a ' + fmtPeso(totalNuevo) + ').\n\n\u00bfConfirm\u00e1s?');
+  if(!ok) return;
+
+  try{
+    it.precioUnit = nuevoPrecio;
+    it.subtotal = subNuevo;
+    var spo = {};
+    v.items.forEach(function(x){ var k = x.obra || OBRA_GENERAL_KEY; spo[k] = (spo[k] || 0) + (x.subtotal || 0); });
+    v.subtotalesPorObra = spo; v.neto = netoNuevo; v.ivaMonto = ivaNuevo; v.total = totalNuevo;
+    if(descPct) v.descuentoMonto = descMontoNuevo;
+    await ref.update({ items: v.items, subtotalesPorObra: spo, neto: netoNuevo, ivaMonto: ivaNuevo, total: totalNuevo, descuentoMonto: v.descuentoMonto || 0, updatedAt: new Date().toISOString() });
+
+    var movCC = ccMovimientos.find(function(m){ return m.ventaId === ventaId && m.tipo === 'venta'; });
+    var obraItem = it.obra || OBRA_GENERAL_KEY;
+    if(movCC && movCC._id){
+      if(movCC.items && movCC.items[itemIdx]){ movCC.items[itemIdx].precioUnit = nuevoPrecio; movCC.items[itemIdx].subtotal = subNuevo; }
+      movCC.monto = (movCC.monto || 0) + diffTotal;
+      var mspo = Object.assign({}, movCC.subtotalesPorObra || {});
+      mspo[obraItem] = (mspo[obraItem] || 0) + diffTotal;
+      movCC.subtotalesPorObra = mspo;
+      await db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(cliente._id).collection('movimientos').doc(movCC._id).update({ items: movCC.items, monto: movCC.monto, subtotalesPorObra: mspo });
+
+      // Saldo del cliente: SUMA ATÓMICA por la diferencia (exacta, segura offline y multi-caja)
+      var _inc = firebase.firestore.FieldValue.increment;
+      var b = db.batch();
+      b.update.apply(b, [db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(cliente._id),
+        'saldoCC', _inc(diffTotal),
+        new firebase.firestore.FieldPath('saldosPorObra', obraItem), _inc(diffTotal),
+        'updatedAt', new Date().toISOString()]);
+      await b.commit();
+      cliente.saldoCC = (cliente.saldoCC || 0) + diffTotal;
+      var sal = Object.assign({}, cliente.saldosPorObra || {});
+      sal[obraItem] = (sal[obraItem] || 0) + diffTotal;
+      cliente.saldosPorObra = sal;
+      if(typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [cliente]); }catch(e){} }
+    }
+    toast('Precio actualizado \u2713', 'success');
+    ccRenderSabanaRefresh();
+    if(typeof ccRenderDetalle === 'function') ccRenderDetalle(cliente);
+  }catch(err){ console.error(err); toast('Error al editar: ' + (err.message || ''), 'error'); }
 }
 
 function ccSwitchTab(tab){
@@ -29183,3 +29274,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+  
