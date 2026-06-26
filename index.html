@@ -5518,6 +5518,7 @@
 
         <div class="main-body">
           <div id="dashPendientesCard"></div>
+          <div style="margin-bottom:12px"><button onclick="_testFacturaPendiente()" style="font-size:12px;padding:7px 12px;border:1px dashed #c98a3c;background:#fff7ed;color:#8a4b00;border-radius:8px;cursor:pointer">🔧 Probar cartel: marcar/desmarcar última venta como pendiente</button></div>
           <div class="stats-row">
             <div class="stat-card" onclick="navTo('ventas')" style="cursor:pointer">
               <div class="stat-card-head"><div class="stat-label">Ventas hoy</div><div class="stat-icon">&#128722;</div></div>
@@ -9454,7 +9455,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-31'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-32'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -21679,6 +21680,20 @@ async function actualizarCartelPendientes(){
       '<button class="btn btn-primary btn-sm" onclick="emitirPendientesAhora()">Emitir ahora</button>' +
     '</div>';
 }
+// Botón de PRUEBA: marca/desmarca la última venta como pendiente para ver el cartel funcionando.
+async function _testFacturaPendiente(){
+  if(typeof ventas === 'undefined' || !ventas || !ventas.length){ toast('No hay ventas cargadas para probar', 'error'); return; }
+  var v = ventas[0];
+  var nuevo = !v.afipPendiente;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(v._id).update({ afipPendiente: nuevo });
+    v.afipPendiente = nuevo;
+    _ultChequeoPendientes = 0;
+    await actualizarCartelPendientes();
+    toast(nuevo ? 'Marqué la última venta como PENDIENTE (prueba). Mirá el cartel arriba.' : 'Listo, desmarcada. El cartel desaparece.', 'success');
+  }catch(e){ toast('Error: ' + (e.message || e), 'error'); }
+}
+
 function emitirPendientesAhora(){
   if(typeof navigator !== 'undefined' && navigator.onLine === false){ toast('Sin internet: se emiten cuando vuelva la conexión', 'error'); return; }
   toast('Revisando facturas pendientes\u2026', 'success');
@@ -29460,3 +29475,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+  
