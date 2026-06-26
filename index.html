@@ -9285,7 +9285,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-14'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-16'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16940,9 +16940,13 @@ function abrirTestEscaner(){
     if(!q){ res.innerHTML = ''; return; }
     var p = (typeof buscarProductoPorCodigo === 'function') ? buscarProductoPorCodigo(q) : buscarProductoExacto(q);
     if(p){
+      var tieneVenta = !!p.precioVenta;
       res.innerHTML = '<div style="padding:10px;background:#e7f7ec;border:1px solid #16a34a;border-radius:8px;color:#0a7a35">'+
         '&#10003; Leíste: <b>'+eH(q)+'</b><br>Encontré: <b>'+eH(String(p.descripcion||p.codigo||'').substring(0,55))+'</b><br>'+
-        '<span style="font-size:11px;opacity:.85">código interno: '+eH(p.codigo||'-')+' &middot; código de barras: '+eH(p.codBarra||'(vacío)')+'</span></div>';
+        '<span style="font-size:11px;opacity:.85">código interno: '+eH(p.codigo||'-')+' &middot; código de barras: '+eH(p.codBarra||'(vacío)')+'</span><br>'+
+        '<span style="font-size:12px">Precio de venta: <b>'+(tieneVenta?fmtPeso(p.precioVenta):'(sin precio)')+'</b> &middot; Costo: '+(p.precioCosto?fmtPeso(p.precioCosto):'-')+'</span>'+
+        (tieneVenta?'' : '<br><span style="color:#c0392b;font-weight:600;font-size:12px">&#9888; Este producto NO tiene precio de venta → en Ventas NO se puede agregar al carrito hasta ponerle un precio.</span>')+
+        '</div>';
     } else {
       res.innerHTML = '<div style="padding:10px;background:#fdecea;border:1px solid #e74c3c;border-radius:8px;color:#b03a2e">'+
         'Leíste: <b>'+eH(q)+'</b><br>&#10007; No hay ningún producto con ese código ni código de barras.</div>';
@@ -18100,9 +18104,23 @@ function bindVentasSearch(){
     var val = inp.value;
     _vSearchQuery = val;
     timer = setTimeout(function(){
+      var t = (val || '').trim();
+      // ESCÁNER SIN ENTER: si lo tipeado coincide EXACTO con un código o código de barras,
+      // lo agregamos directo al carrito (muchas pistolas no mandan Enter). Funciona aunque
+      // haya un filtro de proveedor puesto, porque busca en todo el catálogo.
+      if(t.length >= 3){
+        var m = buscarProductoPorCodigo(t);
+        if(m){
+          agregarAlCarrito(m._id);
+          inp.value = '';
+          _vSearchQuery = '';
+          renderGridVentas();
+          return;
+        }
+      }
       vGridPage = 0;
       renderGridVentas();
-    }, 120);
+    }, 130);
   });
   inp.addEventListener('keydown', function(e){
     if(e.key==='Enter'){
@@ -29002,4 +29020,3 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
-  
