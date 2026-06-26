@@ -5541,6 +5541,9 @@
 
           <div class="form-section-title" style="margin-top:24px">Últimas ventas</div>
           <div id="dashUltimasVentas"></div>
+
+          <div class="form-section-title" style="margin-top:24px">Tu plan</div>
+          <div id="dashPlanCard"></div>
         </div>
       </div>
 
@@ -9285,7 +9288,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-16'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-18'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -9771,6 +9774,14 @@ var PLANES = {
 // Precios mensuales (IVA incluido). null = "a definir".
 var PRECIOS_PLAN = { basico: '34.900', pro: '64.900', premium: '99.900' };
 var PRECIOS_DISPOSITIVO = { extra: '11.900', pack3: '29.900' };
+// Usuarios y dispositivos INCLUIDOS por plan. Infinity = ilimitado.
+// Un campo a mano en la empresa (maxUsuarios / maxDispositivos) puede SUMAR por encima
+// (se toma el mayor), para ventas de extras o cuentas especiales.
+var LIMITES_PLAN = {
+  basico:  { usuarios: 3,        dispositivos: 3 },
+  pro:     { usuarios: Infinity, dispositivos: 5 },
+  premium: { usuarios: Infinity, dispositivos: 5 }
+};
 // Qué módulo necesita qué función de plan
 var MODULO_FEATURE = { tienda:'tiendaOnline', tiendaOnline:'tiendaOnline' };
 
@@ -10779,7 +10790,9 @@ function renderPlan(){
       ['Asistente IA &mdash; ayuda del sistema', true, true, true],
       ['Asistente IA &mdash; consultas y comparador', false, true, true],
       ['Presupuesto Online', false, true, true],
-      ['<b>Te actualizamos las listas de proveedores</b>', false, false, true]
+      ['<b>Te actualizamos las listas de proveedores</b>', false, false, true],
+      ['Usuarios incluidos', '3', 'Ilimitados', 'Ilimitados'],
+      ['Dispositivos a la vez', '3', '5', '5']
     ];
     var colBas = (p === 'basico' && !cort) ? 'var(--accent)' : 'var(--text)';
     var colPro = (esPro || cort) ? 'var(--accent)' : 'var(--text)';
@@ -10787,7 +10800,7 @@ function renderPlan(){
     var th = function(nombre, precio, color){
       return '<th style="padding:8px 5px;text-align:center"><div style="font-weight:800;color:'+color+'">'+nombre+'</div><div style="font-size:10.5px;color:var(--text-mute);font-family:var(--mono)">'+precio+'</div></th>';
     };
-    var cell = function(v){ return '<td style="text-align:center;padding:8px 5px;border-top:1px solid var(--line)">'+(v?'\u2705':'\u2014')+'</td>'; };
+    var cell = function(v){ var c = (v===true)?'\u2705':(v===false)?'\u2014':('<b>'+eH(String(v))+'</b>'); return '<td style="text-align:center;padding:8px 5px;border-top:1px solid var(--line)">'+c+'</td>'; };
     var html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:420px">'+
       '<thead><tr>'+
         '<th style="text-align:left;padding:8px 5px;color:var(--text-mute);font-size:11px;text-transform:uppercase">Función</th>'+
@@ -10893,11 +10906,12 @@ function empRender(){
   // Contador con límite del plan
   var totalUsuarios = empState.empleados.length + empState.invitaciones.length;
   var maxU = empMaxUsuarios();
-  var lleno = totalUsuarios >= maxU;
+  var ilimitado = !isFinite(maxU);
+  var lleno = !ilimitado && totalUsuarios >= maxU;
   var color = lleno ? 'var(--danger)' : 'var(--text-mute)';
   var aviso = '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;flex-wrap:wrap">' +
     '<p style="color:' + color + ';font-size:13px;margin:0;font-weight:' + (lleno ? '600' : '400') + '">' +
-    totalUsuarios + ' de ' + maxU + ' usuarios usados' + (lleno ? ' · llegaste al límite' : '') + '</p>';
+    (ilimitado ? (totalUsuarios + ' usuarios · ilimitados con tu plan') : (totalUsuarios + ' de ' + maxU + ' usuarios usados' + (lleno ? ' · llegaste al límite' : ''))) + '</p>';
   if(lleno){
     aviso += '<button class="btn btn-xs btn-primary" onclick="empMostrarSumarUsuario()">&#10133; Sumar un usuario</button>';
   }
@@ -10907,10 +10921,19 @@ function empRender(){
   cont.innerHTML = html;
 }
 
-// Máximo de usuarios de la empresa (default 3: admin + 2 empleados)
+// Máximo de usuarios: lo define el PLAN (Pro/Premium = ilimitado). Un campo a mano
+// (maxUsuarios) puede sumar por encima. Cortesía = ilimitado.
 function empMaxUsuarios(){
-  var m = currentEmpresa && currentEmpresa.maxUsuarios;
-  return (typeof m === 'number' && m > 0) ? m : 3;
+  var base = 3;
+  try{
+    if(typeof esCortesia === 'function' && esCortesia()) base = Infinity;
+    else{
+      var plan = (typeof planActual === 'function') ? planActual() : 'basico';
+      base = (LIMITES_PLAN[plan] && LIMITES_PLAN[plan].usuarios != null) ? LIMITES_PLAN[plan].usuarios : 3;
+    }
+  }catch(e){}
+  var override = (currentEmpresa && typeof currentEmpresa.maxUsuarios === 'number' && currentEmpresa.maxUsuarios > 0) ? currentEmpresa.maxUsuarios : 0;
+  return Math.max(base, override);
 }
 
 // Mensaje para sumar usuarios extra (preparado para el cobro futuro)
@@ -19396,6 +19419,28 @@ function renderInicio(){
   dashSetTxt('dashProductos', (typeof productos !== 'undefined') ? productos.length : 0);
   dashSetTxt('dashClientes', (typeof clientes !== 'undefined') ? clientes.length : 0);
 
+  // Tarjeta "Tu plan": muestra qué incluye (usuarios + dispositivos)
+  var pcEl = document.getElementById('dashPlanCard');
+  if(pcEl){
+    var _plan = (typeof planActual === 'function') ? planActual() : 'basico';
+    var _cort = (typeof esCortesia === 'function') && esCortesia();
+    var _nombre = _cort ? 'Cortesía' : ((typeof PLANES !== 'undefined' && PLANES[_plan]) ? PLANES[_plan].nombre : 'Básico');
+    var _mu = (typeof empMaxUsuarios === 'function') ? empMaxUsuarios() : 3;
+    var _md = (typeof maxDispositivos === 'function') ? maxDispositivos() : 3;
+    var _muTxt = isFinite(_mu) ? (_mu + ' usuarios') : 'Usuarios ilimitados';
+    var _mdTxt = isFinite(_md) ? (_md + ' dispositivos') : 'Dispositivos ilimitados';
+    var _destacar = _cort || _plan === 'pro' || _plan === 'premium';
+    pcEl.innerHTML =
+      '<div style="border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--paper)">' +
+        '<span style="font-weight:800;font-size:14px;padding:5px 12px;border-radius:999px;' + (_destacar ? 'background:linear-gradient(135deg,#fbbf24,#f97316);color:#fff' : 'background:var(--bg-2);color:var(--text)') + '">' + eH(_nombre) + '</span>' +
+        '<div style="flex:1;min-width:160px;font-size:13px;color:var(--text);line-height:1.7">' +
+          '<div>&#128100; <b>' + _muTxt + '</b> incluidos</div>' +
+          '<div>&#128241; <b>' + _mdTxt + '</b> conectados a la vez</div>' +
+        '</div>' +
+        '<button class="btn btn-line btn-sm" onclick="navTo(\'configuracion\')">Ver planes</button>' +
+      '</div>';
+  }
+
   // Últimas 5 ventas
   var cont = document.getElementById('dashUltimasVentas');
   if(cont){
@@ -24569,7 +24614,16 @@ function getDeviceNombre(){
   return nombreDispositivoAuto();
 }
 function maxDispositivos(){
-  return (currentEmpresa && Number(currentEmpresa.maxDispositivos)) ? Number(currentEmpresa.maxDispositivos) : 3;
+  var base = 3;
+  try{
+    if(typeof esCortesia === 'function' && esCortesia()) base = Infinity;
+    else{
+      var plan = (typeof planActual === 'function') ? planActual() : 'basico';
+      base = (LIMITES_PLAN[plan] && LIMITES_PLAN[plan].dispositivos != null) ? LIMITES_PLAN[plan].dispositivos : 3;
+    }
+  }catch(e){}
+  var override = (currentEmpresa && Number(currentEmpresa.maxDispositivos) > 0) ? Number(currentEmpresa.maxDispositivos) : 0;
+  return Math.max(base, override);
 }
 function _dispRef(){
   return db.collection('empresas').doc(currentEmpresaId).collection('dispositivos');
@@ -24647,7 +24701,7 @@ function mostrarBloqueoDispositivos(activos){
     '</div>';
   });
   document.getElementById('bdLista').innerHTML = html || '<div class="bd-sub">No hay dispositivos para mostrar.</div>';
-  document.getElementById('bdMax').textContent = maxDispositivos();
+  document.getElementById('bdMax').textContent = isFinite(maxDispositivos()) ? maxDispositivos() : '∞';
   ov.style.display = 'flex';
 }
 function reintentarDispositivos(){ location.reload(); }
@@ -24668,8 +24722,9 @@ async function renderDispositivos(){
     var lista = await _dispCargar();
     var activos = lista.filter(_dispEsActivo);
     var max = maxDispositivos(), miId = getDeviceId();
-    var cEl = document.getElementById('dispContador'); if(cEl) cEl.textContent = activos.length + ' de ' + max + ' en uso';
-    var bEl = document.getElementById('dispBarFill'); if(bEl) bEl.style.width = Math.min(100, Math.round(activos.length/max*100)) + '%';
+    var maxTxt = isFinite(max) ? max : 'ilimitados';
+    var cEl = document.getElementById('dispContador'); if(cEl) cEl.textContent = activos.length + ' de ' + maxTxt + ' en uso';
+    var bEl = document.getElementById('dispBarFill'); if(bEl) bEl.style.width = (isFinite(max) ? Math.min(100, Math.round(activos.length/max*100)) : 0) + '%';
     var hEl = document.getElementById('dispPreciosHint');
     if(hEl && typeof PRECIOS_DISPOSITIVO !== 'undefined'){ hEl.innerHTML = 'Dispositivo extra: <b>$'+PRECIOS_DISPOSITIVO.extra+'</b>/mes &middot; Pack de 3: <b>$'+PRECIOS_DISPOSITIVO.pack3+'</b>/mes'; }
     lista.sort(function(a,b){ return (Date.parse(b.lastSeen||0)||0) - (Date.parse(a.lastSeen||0)||0); });
