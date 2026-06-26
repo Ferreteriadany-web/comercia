@@ -8876,6 +8876,10 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
+// Recordar la sesión en el dispositivo (clave para entrar sin internet la próxima vez).
+try{
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(e){ console.warn('Auth persistence:', e); });
+}catch(e){ console.warn('Auth persistence:', e); }
 const db = firebase.firestore();
 // Modo offline (Etapa 2): Firestore guarda los datos en el equipo y ENCOLA las escrituras
 // para subirlas solas cuando vuelve internet. Online no cambia nada; solo suma el offline.
@@ -9347,7 +9351,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-23'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-24'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
