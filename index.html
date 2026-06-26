@@ -7436,6 +7436,7 @@
             <button class="cfg-tab" id="cfgTabPref" onclick="cfgTab('pref')">Preferencias</button>
             <button class="cfg-tab" id="cfgTabDispositivos" onclick="cfgTab('dispositivos')">Dispositivos</button>
             <button class="cfg-tab" id="cfgTabPlan" onclick="cfgTab('plan')">Plan</button>
+            <button class="cfg-tab" id="cfgTabUsuarios" onclick="cfgTab('usuarios')">Usuarios</button>
           </div>
 
           <div class="cfg-pane" id="cfgPaneEmpresa">
@@ -7623,6 +7624,17 @@
               <div id="planComparativa"></div>
             </div>
           </div><!-- /cfgPanePlan -->
+
+          <div class="cfg-pane" id="cfgPaneUsuarios" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+              <div>
+                <h3 style="font-size:14px;font-weight:700;margin:0 0 2px;color:var(--text)">Usuarios</h3>
+                <div style="font-size:12px;color:var(--text-mute)">Invitá a tu equipo: cada uno entra con su propio usuario.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" id="cfgUsuariosInvitar" onclick="empAbrirInvitar()">&#10133; Invitar empleado</button>
+            </div>
+            <div id="cfgUsuariosContenido"></div>
+          </div><!-- /cfgPaneUsuarios -->
 
         </div>
       </div>
@@ -9288,7 +9300,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-18'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-19'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10842,9 +10854,9 @@ async function initEmpleados(){
   if(!currentEmpresaId) return;
   // Solo el admin (o quien tenga permiso 'empleados') puede entrar
   if(currentUserData && currentUserData.rol !== 'admin' && !tienePermiso('empleados')){
-    document.getElementById('empContenido').innerHTML =
-      '<div class="table-card"><div class="empty-table"><div class="empty-table-icon">&#128274;</div><div class="empty-table-title">Sin acceso</div><div class="empty-table-desc">Solo el administrador puede gestionar empleados.</div></div></div>';
-    var bi = document.getElementById('empBtnInvitar'); if(bi) bi.style.display = 'none';
+    var _nomsg = '<div class="table-card"><div class="empty-table"><div class="empty-table-icon">&#128274;</div><div class="empty-table-title">Sin acceso</div><div class="empty-table-desc">Solo el administrador puede gestionar empleados.</div></div></div>';
+    ['empContenido','cfgUsuariosContenido'].forEach(function(_id){ var _c = document.getElementById(_id); if(_c) _c.innerHTML = _nomsg; });
+    ['empBtnInvitar','cfgUsuariosInvitar'].forEach(function(_id){ var _b = document.getElementById(_id); if(_b) _b.style.display = 'none'; });
     return;
   }
   await empCargar();
@@ -10862,7 +10874,8 @@ async function empCargar(){
     empRender();
   }catch(err){
     console.error(err);
-    cont.innerHTML = '<div class="table-card"><div class="empty-table"><div class="empty-table-title">Error al cargar empleados</div><div class="empty-table-desc">' + eH(err.message) + '</div></div></div>';
+    var _emsg = '<div class="table-card"><div class="empty-table"><div class="empty-table-title">Error al cargar empleados</div><div class="empty-table-desc">' + eH(err.message) + '</div></div></div>';
+    ['empContenido','cfgUsuariosContenido'].forEach(function(_id){ var _c = document.getElementById(_id); if(_c) _c.innerHTML = _emsg; });
   }
 }
 
@@ -10918,7 +10931,7 @@ function empRender(){
   aviso += '</div>';
   html = aviso + html;
 
-  cont.innerHTML = html;
+  ['empContenido','cfgUsuariosContenido'].forEach(function(_id){ var _c = document.getElementById(_id); if(_c) _c.innerHTML = html; });
 }
 
 // Máximo de usuarios: lo define el PLAN (Pro/Premium = ilimitado). Un campo a mano
@@ -24569,7 +24582,7 @@ function actualizarPreviewRedondeo(){
 
 // Pestañas de la pantalla de Configuración
 function cfgTab(tab){
-  var caps = { empresa:'Empresa', pref:'Pref', dispositivos:'Dispositivos', plan:'Plan' };
+  var caps = { empresa:'Empresa', pref:'Pref', dispositivos:'Dispositivos', plan:'Plan', usuarios:'Usuarios' };
   Object.keys(caps).forEach(function(t){
     var btn = document.getElementById('cfgTab'+caps[t]);
     var pane = document.getElementById('cfgPane'+caps[t]);
@@ -24578,6 +24591,7 @@ function cfgTab(tab){
   });
   if(tab === 'dispositivos' && typeof renderDispositivos === 'function') renderDispositivos();
   if(tab === 'plan' && typeof renderPlan === 'function') renderPlan();
+  if(tab === 'usuarios' && typeof initEmpleados === 'function') initEmpleados();
 }
 
 // ═══════════════════════════════════════════════════════
