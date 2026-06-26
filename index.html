@@ -5512,6 +5512,7 @@
 <details class="ayuda-mod"><summary><span class="ay-ico">&#127968;</span><span>¿Cómo funciona el Inicio?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Es tu <b>tablero del d&iacute;a</b>. De un vistazo ves las ventas de hoy, lo que entr&oacute; en caja, cu&aacute;nto te deben los clientes y qu&eacute; productos quedan con poco stock. <b>Toc&aacute; cualquier tarjeta</b> para ir directo a esa secci&oacute;n.</div></details>
 
         <div class="main-body">
+          <div id="dashPendientesCard"></div>
           <div class="stats-row">
             <div class="stat-card" onclick="navTo('ventas')" style="cursor:pointer">
               <div class="stat-card-head"><div class="stat-label">Ventas hoy</div><div class="stat-icon">&#128722;</div></div>
@@ -9448,7 +9449,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-28'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-29'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -19596,6 +19597,7 @@ function renderInicio(){
   dashSetTxt('dashClientes', (typeof clientes !== 'undefined') ? clientes.length : 0);
 
   // Tarjeta "Tu plan": muestra qué incluye (usuarios + dispositivos)
+  try{ if(typeof actualizarCartelPendientes === 'function') actualizarCartelPendientes(); }catch(e){}
   var pcEl = document.getElementById('dashPlanCard');
   if(pcEl){
     var _plan = (typeof planActual === 'function') ? planActual() : 'basico';
@@ -21641,10 +21643,43 @@ async function procesarFacturasPendientes(){
         catch(e){ console.warn('Factura pendiente no emitida:', vp._id, e && (e.message || e)); }
       }
       if(emitidas > 0 && typeof toast === 'function') toast('Se emitieron ' + emitidas + ' factura(s) que estaban pendientes \u2713', 'success');
+      try{ if(typeof actualizarCartelPendientes === 'function'){ _ultChequeoPendientes = 0; actualizarCartelPendientes(); } }catch(e){}
     } finally { window._facturandoPendientes = false; }
   }catch(e){ console.warn('procesarFacturasPendientes', e); window._facturandoPendientes = false; }
 }
 window.addEventListener('online', function(){ setTimeout(procesarFacturasPendientes, 3000); });
+
+// Cartel en el Inicio: muestra cuántas facturas quedaron pendientes de emitir.
+var _ultChequeoPendientes = 0;
+async function actualizarCartelPendientes(){
+  var cont = document.getElementById('dashPendientesCard');
+  if(!cont || !currentEmpresaId || !db) return;
+  // throttle: como mucho una consulta cada 20s
+  if(Date.now() - _ultChequeoPendientes < 20000 && cont.getAttribute('data-cargado') === '1') return;
+  _ultChequeoPendientes = Date.now();
+  var n = 0;
+  try{
+    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('ventas').where('afipPendiente', '==', true).limit(50).get();
+    n = snap.size;
+  }catch(e){ cont.innerHTML = ''; return; }
+  cont.setAttribute('data-cargado', '1');
+  if(n <= 0){ cont.innerHTML = ''; return; }
+  cont.innerHTML =
+    '<div style="border:1px solid #e0a23c;background:#fff7ed;border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+      '<div style="font-size:22px">\u23F3</div>' +
+      '<div style="flex:1;min-width:180px">' +
+        '<div style="font-weight:700;color:#7a3a00">Ten\u00e9s ' + n + ' factura' + (n > 1 ? 's' : '') + ' pendiente' + (n > 1 ? 's' : '') + ' de emitir</div>' +
+        '<div style="font-size:12px;color:#9a5a1a">Se emiten solas cuando haya internet y la AFIP est\u00e9 conectada.</div>' +
+      '</div>' +
+      '<button class="btn btn-primary btn-sm" onclick="emitirPendientesAhora()">Emitir ahora</button>' +
+    '</div>';
+}
+function emitirPendientesAhora(){
+  if(typeof navigator !== 'undefined' && navigator.onLine === false){ toast('Sin internet: se emiten cuando vuelva la conexión', 'error'); return; }
+  toast('Revisando facturas pendientes\u2026', 'success');
+  _ultChequeoPendientes = 0;
+  if(typeof procesarFacturasPendientes === 'function') procesarFacturasPendientes().then(function(){ actualizarCartelPendientes(); });
+}
 
 // ═══════════════════════════════════════════════════════
 // MÓDULO CUENTAS CORRIENTES
