@@ -8916,6 +8916,10 @@ function _comerciaChequearConexion(){
 window.addEventListener('online', _comerciaChequearConexion);
 window.addEventListener('offline', _comerciaChequearConexion);
 window.addEventListener('load', _comerciaChequearConexion);
+// Red de seguridad: si a los ~2.5s seguimos sin internet y sin sesión abierta, abrimos con la guardada.
+window.addEventListener('load', function(){
+  setTimeout(function(){ try{ if(typeof bootOfflineSiCorresponde === 'function') bootOfflineSiCorresponde(); }catch(e){} }, 2500);
+});
 const functions = firebase.app().functions('southamerica-east1');
 const storage = firebase.storage();
 
@@ -9264,6 +9268,14 @@ async function cargarEmpresaUsuario(user){
     currentEmpresaId = u.empresaId;
     currentUserData = u;
 
+    // Guardar una "foto" de la sesión para poder ABRIR SIN INTERNET la próxima vez.
+    try{
+      localStorage.setItem('comercia_sesion_v1', JSON.stringify({
+        uid: user.uid, email: user.email, nombre: (u.nombre || ''),
+        empresaId: u.empresaId, empresa: empData, userData: u, ts: Date.now()
+      }));
+    }catch(e){}
+
     // ── Límite de dispositivos conectados ──
     var _dispOk = await chequearYRegistrarDispositivo();
     if(!_dispOk){ return; }  // la pantalla de bloqueo ya se mostró
@@ -9296,6 +9308,39 @@ async function cargarEmpresaUsuario(user){
   }
 }
 
+// Abre la app SIN INTERNET usando la sesión guardada (si ya entraste antes en este dispositivo).
+// Cuando vuelve internet, Firebase revalida solo y las ventas encoladas se suben autenticadas.
+function bootOfflineSiCorresponde(){
+  try{
+    if(window.STORE_MODE) return false;
+    if(auth.currentUser) return false;        // Firebase ya tiene sesión: que siga el flujo normal
+    var _appEl = document.getElementById('app');
+    if(_appEl && _appEl.classList.contains('show')) return false;  // ya está abierta
+    if(navigator.onLine) return false;        // hay internet: dejamos que Firebase maneje el login
+    var raw = localStorage.getItem('comercia_sesion_v1');
+    if(!raw) return false;
+    var s = JSON.parse(raw);
+    if(!s || !s.uid || !s.empresaId) return false;
+
+    currentUser = { uid: s.uid, email: s.email, emailVerified: true, _offline: true };
+    currentUserData = s.userData || {};
+    currentEmpresa = s.empresa || {};
+    currentEmpresaId = s.empresaId;
+
+    var landing = document.getElementById('landing'); if(landing) landing.style.display = 'none';
+    var app = document.getElementById('app'); if(app) app.classList.add('show');
+    try{ document.getElementById('appUserName').textContent = s.nombre || s.email; }catch(e){}
+    try{ document.getElementById('appUserBusiness').textContent = (s.empresa && s.empresa.nombre) || ''; }catch(e){}
+    try{ document.getElementById('appUserAvatar').textContent = (s.nombre || s.email || '?').charAt(0).toUpperCase(); }catch(e){}
+    try{ if(typeof aplicarPermisosUI === 'function') aplicarPermisosUI(); }catch(e){}
+    try{ if(typeof cargarProductos === 'function') cargarProductos(); }catch(e){}
+    try{ if(typeof cargarClientes === 'function') cargarClientes(); }catch(e){}
+    try{ if(typeof navTo === 'function') navTo('inicio'); }catch(e){}
+    try{ _comerciaOfflineBanner(true); }catch(e){}
+    return true;
+  }catch(e){ console.warn('boot offline:', e); return false; }
+}
+
 auth.onAuthStateChanged(async function(user){
   if(window.STORE_MODE) return;  // en modo tienda pública no tocamos el login
   var landing = document.getElementById('landing');
@@ -9317,6 +9362,9 @@ auth.onAuthStateChanged(async function(user){
       if(_tn){ history.replaceState(null,'',location.pathname); }
     }catch(e){}
   } else {
+    // Sin sesión de Firebase. Si estamos SIN INTERNET y ya entraste antes en este dispositivo,
+    // abrimos con la sesión guardada en vez de mostrar el login.
+    if(typeof bootOfflineSiCorresponde === 'function' && bootOfflineSiCorresponde()) return;
     try{ if(typeof detenerLatidoDispositivo === 'function') detenerLatidoDispositivo(); }catch(e){}
     landing.style.display='flex';
     app.classList.remove('show');
@@ -9333,6 +9381,7 @@ auth.onAuthStateChanged(async function(user){
 });
 
 async function logout(){
+  try{ localStorage.removeItem('comercia_sesion_v1'); }catch(e){}
   try{ if(typeof detenerSyncPedido === 'function') detenerSyncPedido(); }catch(e){}
   try{ if(typeof detenerSyncCatalogo === 'function') detenerSyncCatalogo(); }catch(e){}
   try{ if(typeof detenerSyncClientesVivo === 'function') detenerSyncClientesVivo(); }catch(e){}
@@ -9351,7 +9400,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-25'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-26'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -29274,4 +29323,3 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
-  
