@@ -5300,6 +5300,8 @@
             <button class="btn btn-line btn-sm" onclick="openImportModal()">&#128190; Importar Excel</button>
             <button class="btn btn-line btn-sm" onclick="prodFotosMasivasAbrir()">&#128247; Cargar fotos</button>
             <button class="btn btn-line btn-sm" onclick="reconstruirBaseLocal()" title="Si ves productos raros o faltantes, esto baja todo de nuevo desde la nube">&#128260; Reconstruir base</button>
+            <button class="btn btn-line btn-sm" onclick="abrirTestEscaner()" title="Probar la pistola lectora / escáner">&#128270; Probar escáner</button>
+            <button class="btn btn-line btn-sm" onclick="abrirCargarBarras()" title="Cargar códigos de barras desde un Excel (no toca precios)">&#128194; Cargar códigos de barras</button>
             <button class="btn btn-primary btn-sm" onclick="openProductModal()">&#43; Nuevo producto</button>
           </div>
         </header>
@@ -9283,7 +9285,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-12'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-14'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -16818,6 +16820,139 @@ function buscarProductoExacto(q){
     return (p.codBarra && String(p.codBarra).trim().toLowerCase() === k) ||
            (p.codigo && String(p.codigo).trim().toLowerCase() === k);
   }) || null;
+}
+
+// ── Cargador dedicado de CÓDIGOS DE BARRAS desde un Excel ──────────────────
+// Cruza por CÓDIGO y completa SOLO el código de barras. No toca precios ni costos.
+function abrirCargarBarras(){
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.xlsx,.xls,.csv';
+  inp.style.display = 'none';
+  inp.onchange = function(){ if(inp.files && inp.files[0]) cargarBarrasDesdeArchivo(inp.files[0]); inp.remove(); };
+  document.body.appendChild(inp);
+  inp.click();
+}
+
+async function cargarBarrasDesdeArchivo(file){
+  if(!currentEmpresaId || !db){ toast('No disponible', 'error'); return; }
+  if(typeof XLSX === 'undefined'){ toast('No se pudo leer el Excel (librería no cargada)', 'error'); return; }
+  toast('Leyendo archivo…', 'info');
+  try{
+    var data = await lpLeerArchivo(file);
+    var wb = XLSX.read(data, { type: 'array' });
+    var sheet = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+    if(!rows || !rows.length){ toast('El archivo está vacío', 'error'); return; }
+    // Detectar fila de encabezados con CÓDIGO + (COD BARRA/EAN)
+    var headerRow = -1, colCod = -1, colBar = -1;
+    for(var i = 0; i < Math.min(rows.length, 20); i++){
+      var hs = (rows[i] || []).map(function(h){ return String(h || '').trim().toLowerCase(); });
+      var ci = -1, bi = -1;
+      for(var c = 0; c < hs.length; c++){
+        var h = hs[c];
+        if(ci < 0 && (h === 'codigo' || h === 'código' || h === 'cod' || h === 'sku' || h === 'codigo interno')) ci = c;
+      }
+      for(var c2 = 0; c2 < hs.length; c2++){
+        var h2 = hs[c2];
+        if(bi < 0 && c2 !== ci && (h2.indexOf('barra') >= 0 || h2 === 'ean' || h2 === 'gtin' || h2.indexOf('barcode') >= 0)) bi = c2;
+      }
+      if(ci >= 0 && bi >= 0){ headerRow = i; colCod = ci; colBar = bi; break; }
+    }
+    if(headerRow < 0){ toast('No encontré las columnas CÓDIGO y CÓD BARRA en el archivo', 'error'); return; }
+    // Mapa: codigo (minúsculas) → código de barras
+    var mapa = {}, conBarra = 0;
+    for(var j = headerRow + 1; j < rows.length; j++){
+      var r = rows[j]; if(!r) continue;
+      var cod = String(r[colCod] || '').trim().toLowerCase();
+      var bar = String(r[colBar] || '').trim();
+      if(cod && bar){ mapa[cod] = bar; conBarra++; }
+    }
+    if(!conBarra){ toast('El archivo no trae ningún código de barras cargado', 'error'); return; }
+    // Cruzar con los productos locales (por código) y juntar los que falta completar
+    var aActualizar = [];
+    for(var k = 0; k < productos.length; k++){
+      var p = productos[k];
+      var cod2 = String(p.codigo || '').trim().toLowerCase();
+      if(!cod2) continue;
+      var bar2 = mapa[cod2];
+      if(bar2 && String(p.codBarra || '').trim() !== bar2){ aActualizar.push({ p: p, bar: bar2 }); }
+    }
+    if(!aActualizar.length){
+      toast('El archivo tiene ' + conBarra.toLocaleString('es-AR') + ' barras, pero tus productos ya las tienen (o no coincide ningún código)', 'info');
+      return;
+    }
+    var ok = await confirmComercia('Encontré ' + aActualizar.length.toLocaleString('es-AR') + ' productos a los que les puedo cargar el código de barras (de ' + conBarra.toLocaleString('es-AR') + ' barras en el archivo).\n\nSe cargan SOLO los códigos de barras. NO se toca ningún precio ni costo.\n\n¿Lo hago?');
+    if(!ok) return;
+    var nowIso = new Date().toISOString();
+    var B = 400, hechos = 0;
+    for(var s = 0; s < aActualizar.length; s += B){
+      var slice = aActualizar.slice(s, s + B);
+      var batch = db.batch();
+      slice.forEach(function(it){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(it.p._id);
+        batch.set(ref, { codBarra: it.bar, updatedAt: nowIso }, { merge: true });
+        it.p.codBarra = it.bar;
+        it.p.updatedAt = nowIso;
+      });
+      await batch.commit();
+      try{ await idbGuardarBatch(currentEmpresaId, slice.map(function(it){ return it.p; })); }catch(e){}
+      hechos += slice.length;
+      toast('Cargando códigos de barras… ' + hechos.toLocaleString('es-AR') + '/' + aActualizar.length.toLocaleString('es-AR'), 'info');
+    }
+    if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
+    if(typeof renderProductos === 'function') renderProductos();
+    if(typeof actualizarStats === 'function') actualizarStats();
+    toast('✓ Cargué el código de barras en ' + hechos.toLocaleString('es-AR') + ' productos. Probá la pistola ahora.', 'success');
+  }catch(e){ console.warn('cargarBarras', e); toast('Error leyendo el archivo: ' + (e.message || e), 'error'); }
+}
+
+// Probador de escáner/pistola: muestra qué se leyó, si encuentra el producto y cuántos productos
+// tienen código de barras cargado. Sirve para diagnosticar por qué "la pistola no funciona".
+function abrirTestEscaner(){
+  var viejo = document.getElementById('testEscanerOverlay'); if(viejo) viejo.remove();
+  var conBarras = 0;
+  for(var i=0;i<productos.length;i++){ if(productos[i].codBarra && String(productos[i].codBarra).trim()) conBarras++; }
+  var ov = document.createElement('div');
+  ov.id = 'testEscanerOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding-top:8vh';
+  ov.innerHTML =
+    '<div style="background:#fff;border-radius:14px;max-width:520px;width:92%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+        '<h3 style="margin:0;font-size:16px;color:#333">&#128270; Probar escáner / pistola</h3>'+
+        '<button id="testEscCerrar" style="border:none;background:none;font-size:24px;cursor:pointer;color:#999;line-height:1">&times;</button>'+
+      '</div>'+
+      '<div style="font-size:12px;color:#666;margin-bottom:10px">Hacé clic en el campo y escaneá un producto con la pistola. Te digo qué leyó y si lo encuentra.</div>'+
+      '<input id="testEscanerInput" placeholder="Escaneá o tipeá acá…" autocomplete="off" style="width:100%;padding:11px;border:2px solid #e08e3c;border-radius:10px;box-sizing:border-box;font-size:15px;font-family:monospace">'+
+      '<div id="testEscanerResult" style="margin-top:14px;font-size:13px;min-height:10px"></div>'+
+      '<div style="margin-top:12px;padding:10px;background:#f5f5f5;border-radius:8px;font-size:12px;color:#555">'+
+        'Productos con código de barras cargado: <b>'+conBarras.toLocaleString('es-AR')+'</b> de <b>'+productos.length.toLocaleString('es-AR')+'</b>'+
+        (conBarras===0 ? '<br><span style="color:#c0392b;font-weight:600">&#9888; Ningún producto tiene código de barras guardado. Por eso la pistola no encuentra nada.</span><br><button onclick="document.getElementById(\'testEscanerOverlay\').remove(); abrirCargarBarras();" style="margin-top:10px;padding:9px 14px;border:none;border-radius:9px;background:#e08e3c;color:#fff;font-weight:600;cursor:pointer">&#128194; Cargar códigos de barras desde un Excel</button>' : '')+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(ov);
+  var inp = document.getElementById('testEscanerInput');
+  var res = document.getElementById('testEscanerResult');
+  document.getElementById('testEscCerrar').onclick = function(){ ov.remove(); };
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  function procesar(){
+    var q = (inp.value || '').trim();
+    if(!q){ res.innerHTML = ''; return; }
+    var p = (typeof buscarProductoPorCodigo === 'function') ? buscarProductoPorCodigo(q) : buscarProductoExacto(q);
+    if(p){
+      res.innerHTML = '<div style="padding:10px;background:#e7f7ec;border:1px solid #16a34a;border-radius:8px;color:#0a7a35">'+
+        '&#10003; Leíste: <b>'+eH(q)+'</b><br>Encontré: <b>'+eH(String(p.descripcion||p.codigo||'').substring(0,55))+'</b><br>'+
+        '<span style="font-size:11px;opacity:.85">código interno: '+eH(p.codigo||'-')+' &middot; código de barras: '+eH(p.codBarra||'(vacío)')+'</span></div>';
+    } else {
+      res.innerHTML = '<div style="padding:10px;background:#fdecea;border:1px solid #e74c3c;border-radius:8px;color:#b03a2e">'+
+        'Leíste: <b>'+eH(q)+'</b><br>&#10007; No hay ningún producto con ese código ni código de barras.</div>';
+    }
+  }
+  inp.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); procesar(); inp.select(); }
+  });
+  inp.addEventListener('input', function(){ if((inp.value||'').length >= 3) procesar(); });
+  setTimeout(function(){ inp.focus(); }, 60);
 }
 
 function smartSearchPed(query){
@@ -28867,3 +29002,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+  
