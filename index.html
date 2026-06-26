@@ -5111,6 +5111,7 @@
     <h2 class="modal-title">Iniciar sesión</h2>
     <p class="modal-subtitle">Ingresá tus datos para acceder a tu cuenta de Comercia.</p>
     <div class="alert error" id="loginAlert"></div>
+    <div id="loginDiagOffline" style="display:none;margin:0 0 12px;padding:10px 12px;border:1px solid #e08e3c;border-radius:10px;background:#fff7ed;font-size:12px;color:#7a3a00"></div>
     <div class="form-group">
       <label class="form-label">Email</label>
       <input class="form-input" type="email" id="loginEmail" placeholder="vos@ejemplo.com" autocomplete="email">
@@ -9048,7 +9049,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 function openRegister(){ closeModals(); document.getElementById('modalRegister').classList.add('show'); }
-function openLogin(){ closeModals(); document.getElementById('modalLogin').classList.add('show'); }
+function openLogin(){ closeModals(); document.getElementById('modalLogin').classList.add('show'); try{ if(typeof diagLoginOffline==='function') diagLoginOffline(); }catch(e){} }
 function closeModals(){ document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('show')); hideAlerts(); restoreAutoSidebar(); }
 function switchToLogin(){ closeModals(); openLogin(); }
 function switchToRegister(){ closeModals(); openRegister(); }
@@ -9224,6 +9225,8 @@ async function login(){
   }catch(err){
     showAlert('loginAlert', traducirError(err.code));
     btn.disabled=false; btn.textContent='Entrar';
+    // Si falló por falta de internet y hay sesión guardada, ofrecemos entrar sin conexión.
+    try{ if(typeof diagLoginOffline==='function') diagLoginOffline(); }catch(e){}
   }
 }
 
@@ -9306,6 +9309,48 @@ async function cargarEmpresaUsuario(user){
     console.error('Error cargando datos de usuario:', err);
     alert('Hubo un problema al cargar tus datos. Reintentá refrescando la página.');
   }
+}
+
+// Muestra en el login si hay sesión guardada / internet, y ofrece entrar sin conexión.
+function diagLoginOffline(){
+  var box = document.getElementById('loginDiagOffline');
+  if(!box) return;
+  var online = navigator.onLine;
+  var raw = null; try{ raw = localStorage.getItem('comercia_sesion_v1'); }catch(e){}
+  var s = null; try{ s = raw ? JSON.parse(raw) : null; }catch(e){}
+  var tieneSesion = !!(s && s.uid && s.empresaId);
+  if(online && !tieneSesion){ box.style.display = 'none'; return; }
+  var html = 'Internet: <b>' + (online ? 'Sí' : 'No') + '</b> &middot; Sesión guardada en este dispositivo: <b>' + (tieneSesion ? ('Sí (' + eH(s.email || '') + ')') : 'No') + '</b>';
+  if(tieneSesion){
+    html += '<br><button onclick="entrarSinInternet()" style="margin-top:8px;padding:9px 16px;border:none;border-radius:9px;background:#e08e3c;color:#fff;font-weight:700;cursor:pointer">Entrar sin internet</button>';
+  } else {
+    html += '<br><span style="color:#b03a2e">Todavía no hay sesión guardada en ESTA app. Entrá una vez CON internet (en esta misma app) para habilitar el modo sin conexión.</span>';
+  }
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+// Fuerza la apertura con la sesión guardada (aunque el navegador diga que hay internet).
+function entrarSinInternet(){
+  try{
+    var raw = localStorage.getItem('comercia_sesion_v1');
+    var s = raw ? JSON.parse(raw) : null;
+    if(!s || !s.uid || !s.empresaId){ toast('No hay sesión guardada en este dispositivo', 'error'); return; }
+    currentUser = { uid: s.uid, email: s.email, emailVerified: true, _offline: true };
+    currentUserData = s.userData || {};
+    currentEmpresa = s.empresa || {};
+    currentEmpresaId = s.empresaId;
+    try{ closeModals(); }catch(e){}
+    var landing = document.getElementById('landing'); if(landing) landing.style.display = 'none';
+    var app = document.getElementById('app'); if(app) app.classList.add('show');
+    try{ document.getElementById('appUserName').textContent = s.nombre || s.email; }catch(e){}
+    try{ document.getElementById('appUserBusiness').textContent = (s.empresa && s.empresa.nombre) || ''; }catch(e){}
+    try{ document.getElementById('appUserAvatar').textContent = (s.nombre || s.email || '?').charAt(0).toUpperCase(); }catch(e){}
+    try{ if(typeof aplicarPermisosUI === 'function') aplicarPermisosUI(); }catch(e){}
+    try{ if(typeof cargarProductos === 'function') cargarProductos(); }catch(e){}
+    try{ if(typeof cargarClientes === 'function') cargarClientes(); }catch(e){}
+    try{ if(typeof navTo === 'function') navTo('inicio'); }catch(e){}
+    try{ _comerciaOfflineBanner(true); }catch(e){}
+  }catch(e){ toast('No se pudo entrar sin internet: ' + (e.message || e), 'error'); }
 }
 
 // Abre la app SIN INTERNET usando la sesión guardada (si ya entraste antes en este dispositivo).
@@ -9400,7 +9445,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-26'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-27'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
