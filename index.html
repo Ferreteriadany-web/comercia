@@ -9455,7 +9455,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-37'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-39'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -23063,15 +23063,20 @@ function _ccBuildEstadoData(c, opts){
   var pagos = [];
   (ccMovimientos || []).forEach(function(m){
     if(m.tipo === 'venta' || m.tipo === 'ajuste'){
+      var _norm = function(x){ return (x === '' || x == null || x === '__general__') ? OBRA_GENERAL_KEY : x; };
       var spo = m.subtotalesPorObra;
+      var allItems = m.items || [];
       if(spo && Object.keys(spo).length){
-        Object.keys(spo).forEach(function(k){
-          var key = (k === '' || k === '__general__') ? OBRA_GENERAL_KEY : k;
-          (comprasPorObra[key] = comprasPorObra[key] || []).push({ fecha: m.fecha, desc: (m.descripcion || ('Comprobante ' + (m.numero || ''))), monto: (spo[k] || 0) });
+        var _spoKeys = Object.keys(spo);
+        _spoKeys.forEach(function(k){
+          var key = _norm(k);
+          // Si la venta toca UNA sola obra, mostramos todos sus productos. Si toca varias, filtramos por obra.
+          var its = (_spoKeys.length === 1) ? allItems : allItems.filter(function(it){ return _norm(it.obra) === key; });
+          (comprasPorObra[key] = comprasPorObra[key] || []).push({ fecha: m.fecha, desc: (m.descripcion || ('Comprobante ' + (m.numero || ''))), monto: (spo[k] || 0), items: its });
         });
       } else {
-        var key2 = (m.obra || OBRA_GENERAL_KEY); if(key2 === '' || key2 === '__general__') key2 = OBRA_GENERAL_KEY;
-        (comprasPorObra[key2] = comprasPorObra[key2] || []).push({ fecha: m.fecha, desc: (m.descripcion || ('Comprobante ' + (m.numero || ''))), monto: (m.monto || 0) });
+        var key2 = _norm(m.obra);
+        (comprasPorObra[key2] = comprasPorObra[key2] || []).push({ fecha: m.fecha, desc: (m.descripcion || ('Comprobante ' + (m.numero || ''))), monto: (m.monto || 0), items: allItems });
       }
     } else if(m.tipo === 'pago' || m.tipo === 'cierre' || m.tipo === 'devolucion'){
       pagos.push({ fecha: m.fecha, desc: (m.descripcion || (m.tipo === 'devolucion' ? 'Devoluci\u00f3n' : 'Pago')), monto: (m.monto || 0), metodo: (m.metodo || m.modo || '') });
@@ -23118,8 +23123,15 @@ function _ccEstadoHTML(){
     if(compras.length){
       compras.forEach(function(l){
         html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f5f5f5">' +
-                  '<span style="color:#555">' + _ccEstadoFechaCorta(l.fecha) + ' &middot; ' + eH((l.desc || '').substring(0, 40)) + '</span>' +
-                  '<span style="font-weight:600">' + fmtPeso(l.monto) + '</span></div>';
+                  '<span style="color:#444;font-weight:600">' + _ccEstadoFechaCorta(l.fecha) + ' &middot; ' + eH(l.desc || '') + '</span>' +
+                  '<span style="font-weight:700">' + fmtPeso(l.monto) + '</span></div>';
+        if(l.items && l.items.length){
+          l.items.forEach(function(it){
+            html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;padding:1px 0 1px 12px">' +
+                      '<span>&middot; ' + eH(it.descripcion || it.codigo || '') + ' \u00d7' + (it.cantidad || 1) + '</span>' +
+                      '<span>' + fmtPeso(it.subtotal || 0) + '</span></div>';
+          });
+        }
       });
     } else {
       html += '<div style="font-size:12px;color:#999;padding:3px 0">Sin compras registradas en esta obra</div>';
