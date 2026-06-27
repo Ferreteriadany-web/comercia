@@ -9455,7 +9455,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-36'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-37'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -23057,9 +23057,8 @@ var _ccUltimoEstado = null;
 function _ccObraNombre(k){ return (!k || k === OBRA_GENERAL_KEY || k === '__general__') ? 'General' : k; }
 function _ccEstadoFechaCorta(f){ try{ return new Date(f).toLocaleDateString('es-AR'); }catch(e){ return ''; } }
 
-function ccEstadoCuentaCliente(){
-  var c = clientes.find(function(x){ return x._id === ccClienteSelId; });
-  if(!c){ toast('Eleg\u00ed un cliente primero', 'error'); return; }
+function _ccBuildEstadoData(c, opts){
+  opts = opts || {};
   var comprasPorObra = {};
   var pagos = [];
   (ccMovimientos || []).forEach(function(m){
@@ -23083,7 +23082,13 @@ function ccEstadoCuentaCliente(){
   Object.keys(comprasPorObra).forEach(function(k){ obrasSet[k] = 1; });
   Object.keys(saldos).forEach(function(k){ if(k !== '' && k !== '__general__' && Math.abs(saldos[k] || 0) > 0.005) obrasSet[k] = 1; });
   var obras = Object.keys(obrasSet).sort(function(a, b){ if(a === OBRA_GENERAL_KEY) return -1; if(b === OBRA_GENERAL_KEY) return 1; return _ccObraNombre(a).localeCompare(_ccObraNombre(b)); });
-  _ccUltimoEstado = { cliente: c, comprasPorObra: comprasPorObra, pagos: pagos, saldos: saldos, obras: obras, total: (c.saldoCC != null ? c.saldoCC : 0), fecha: new Date() };
+  return { cliente: c, comprasPorObra: comprasPorObra, pagos: pagos, saldos: saldos, obras: obras, total: (c.saldoCC != null ? c.saldoCC : 0), fecha: new Date(), cerrada: !!opts.cerrada, fechaCierre: opts.fechaCierre || null };
+}
+
+function ccEstadoCuentaCliente(){
+  var c = clientes.find(function(x){ return x._id === ccClienteSelId; });
+  if(!c){ toast('Eleg\u00ed un cliente primero', 'error'); return; }
+  _ccUltimoEstado = _ccBuildEstadoData(c);
   _ccMostrarEstadoModal();
 }
 
@@ -23094,6 +23099,10 @@ function _ccEstadoHTML(){
   var nombreEmp = emp.nombre || emp.razonSocial || 'Comercia';
   var nombreCli = c.razonSocial || c.nombre || 'Cliente';
   var html = '<div style="font-family:system-ui,Arial,sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto">';
+  if(e.cerrada){
+    html += '<div style="background:#e8f7ee;border:1px solid #1a7a3a;color:#1a7a3a;border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-weight:800;font-size:14px">\u2705 CUENTA SALDADA' +
+      (e.fechaCierre ? ' &middot; ' + new Date(e.fechaCierre).toLocaleDateString('es-AR') : '') + '</div>';
+  }
   html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #f0a23c;padding-bottom:10px;margin-bottom:12px">' +
             '<div><div style="font-size:18px;font-weight:800">' + eH(nombreEmp) + '</div>' +
             (emp.telefono ? '<div style="font-size:12px;color:#666">Tel: ' + eH(emp.telefono) + '</div>' : '') + '</div>' +
@@ -23175,7 +23184,17 @@ function ccEstadoCuentaTexto(){
   return t;
 }
 
-function ccEstadoCuentaWhatsApp(){
+// Documento HTML completo (standalone) del estado de cuenta — para subir a la nube / imprimir.
+function _ccEstadoDocHTML(){
+  return '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>Estado de cuenta</title></head>' +
+    '<body style="margin:0;padding:24px;background:#f5f5f5;font-family:system-ui,Arial,sans-serif">' +
+    '<div style="background:#fff;max-width:680px;margin:0 auto;padding:24px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.08)">' +
+    _ccEstadoHTML() + '</div></body></html>';
+}
+
+async function ccEstadoCuentaWhatsApp(){
   var e = _ccUltimoEstado; if(!e) return;
   var tel = '';
   try{ var full = clientes.find(function(x){ return x._id === e.cliente._id; }); tel = (e.cliente.telefono || (full && full.telefono) || ''); }catch(x){}
@@ -23185,6 +23204,19 @@ function ccEstadoCuentaWhatsApp(){
     if(raw.charAt(2) !== '9') raw = '549' + raw.substring(2);
     if(raw.length < 11 || raw.length > 15) raw = '';
   }
+  var nombreCli = e.cliente.razonSocial || e.cliente.nombre || '';
+  // Como en ventas: subimos el documento a la nube y mandamos un LINK.
+  try{
+    if(storage && typeof subirHtmlAStorage === 'function'){
+      toast('Subiendo estado de cuenta a la nube (v\u00e1lido 30 d\u00edas)\u2026', 'success');
+      var pseudo = { modo: 'estado-cuenta', numero: 'EC-' + Date.now(), _id: (e.cliente._id || 'cli') + '-' + Date.now() };
+      var info = await subirHtmlAStorage(_ccEstadoDocHTML(), pseudo);
+      var msg = 'Hola ' + nombreCli + '! \uD83D\uDC4B Te paso tu estado de cuenta:\n' + info.url + '\n\nTotal adeudado: ' + fmtPeso(Math.max(0, e.total));
+      window.open('https://wa.me/' + (raw || '') + '?text=' + encodeURIComponent(msg), '_blank');
+      return;
+    }
+  }catch(err){ console.warn('Estado a Storage falló, mando texto:', err); }
+  // Fallback: si no hay Storage, mandamos el texto.
   if(!raw) toast('El cliente no tiene tel\u00e9fono v\u00e1lido: eleg\u00ed el contacto en WhatsApp', 'success');
   window.open('https://wa.me/' + (raw || '') + '?text=' + encodeURIComponent(ccEstadoCuentaTexto()), '_blank');
 }
@@ -23193,7 +23225,7 @@ function ccEstadoCuentaImprimir(){
   var e = _ccUltimoEstado; if(!e) return;
   var w = window.open('', '_blank');
   if(!w){ toast('Habilit\u00e1 las ventanas emergentes para imprimir', 'error'); return; }
-  w.document.write('<html><head><title>Estado de cuenta</title><meta charset="utf-8"></head><body style="margin:24px">' + _ccEstadoHTML() + '</body></html>');
+  w.document.write(_ccEstadoDocHTML());
   w.document.close();
   setTimeout(function(){ try{ w.print(); }catch(e){} }, 400);
 }
@@ -23342,6 +23374,10 @@ async function ccConfirmarCierre(){
   var c = clientes.find(function(x){ return x._id===ccClienteSelId; });
   if(!c) return;
 
+  // Comprobante de cierre: capturamos el estado COMPLETO antes de que se borren los movimientos.
+  var _snapCierre = _ccBuildEstadoData(c, { cerrada: true, fechaCierre: new Date() });
+  var _fueCierreTotal = false;
+
   var scopeVal = document.getElementById('ccCierreScope').value;
   var btn = document.getElementById('ccBtnConfirmarCierre');
   btn.disabled = true;
@@ -23351,6 +23387,7 @@ async function ccConfirmarCierre(){
     var descargarExcel = document.getElementById('ccCierreDescargarExcel').checked;
 
     if(scopeVal === 'todo'){
+      _fueCierreTotal = true;
       // Cerrar cuenta completa (como antes)
       if(descargarExcel && ccMovimientos.length > 0){
         await ccExportarExcel(true);
@@ -23416,6 +23453,12 @@ async function ccConfirmarCierre(){
     ccRenderDetalle(c);
     ccRenderLista();
     closeModals();
+
+    // Comprobante de cierre: mostramos el estado de cuenta saldado (PDF / WhatsApp).
+    if(_fueCierreTotal && _snapCierre){
+      _ccUltimoEstado = _snapCierre;
+      setTimeout(function(){ _ccMostrarEstadoModal(); }, 300);
+    }
 
   }catch(err){
     console.error('Error cerrando:', err);
@@ -29669,4 +29712,3 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
-  
