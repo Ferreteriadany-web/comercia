@@ -9454,7 +9454,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-33'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-34'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -20348,8 +20348,17 @@ async function ajustarCtaCteNota(cliente, montoSigned, nota){
   var movRef = db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(cliente._id).collection('movimientos').doc();
   var batch = db.batch();
   batch.set(movRef, movData);
-  batch.update(cliRef, { saldoCC: nuevoSaldo, saldosPorObra: saldosPorObra, ultimoMovimientoCC: ahora.toISOString(), updatedAt: ahora.toISOString() });
-  await batch.commit();
+  // SUMA ATÓMICA (segura offline y entre varias cajas): el saldo cambia por montoSigned.
+  var _inc = firebase.firestore.FieldValue.increment;
+  batch.update.apply(batch, [cliRef,
+    'saldoCC', _inc(montoSigned),
+    new firebase.firestore.FieldPath('saldosPorObra', OBRA_GENERAL_KEY), _inc(montoSigned),
+    'ultimoMovimientoCC', ahora.toISOString(),
+    'updatedAt', ahora.toISOString()
+  ]);
+  var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+  if(_sinNet){ batch.commit().catch(function(e){ console.warn('Ajuste pendiente de subir:', e); }); }
+  else { await batch.commit(); }
   cliente.saldoCC = nuevoSaldo;
   cliente.saldosPorObra = saldosPorObra;
   if(typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [cliente]); }catch(e){} }
@@ -22680,6 +22689,7 @@ async function ccConfirmarDevolucion(){
 
     // Ajustar saldosPorObra (igual que un cobro: descuenta de la obra elegida, o del general y prorratea)
     var saldosPorObra = Object.assign({}, c.saldosPorObra || {});
+    var saldosPorObraOld = Object.assign({}, c.saldosPorObra || {});  // para las diferencias (suma atómica)
     var montoAplicar = Math.min(total, Math.max(0, saldo));  // lo que efectivamente reduce deuda
     if(obraSel){
       var saldoObra = saldosPorObra[obraSel] || 0;
@@ -22712,12 +22722,22 @@ async function ccConfirmarDevolucion(){
     var movRef = db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(ccClienteSelId).collection('movimientos').doc();
     var batch = db.batch();
     batch.set(movRef, movData);
-    batch.update(cliRef, {
-      saldoCC: nuevoSaldo,
-      saldosPorObra: saldosPorObra,
-      ultimoMovimientoCC: ahora.toISOString(),
-      updatedAt: ahora.toISOString()
+    // SUMA ATÓMICA: el total baja por la devolución, y cada obra por su diferencia (seguro offline).
+    var _incDev = firebase.firestore.FieldValue.increment;
+    var _argsDev = [cliRef,
+      'saldoCC', _incDev(-total),
+      'ultimoMovimientoCC', ahora.toISOString(),
+      'updatedAt', ahora.toISOString()
+    ];
+    var _keysDev = {};
+    Object.keys(saldosPorObra).forEach(function(k){ _keysDev[k] = 1; });
+    Object.keys(saldosPorObraOld).forEach(function(k){ _keysDev[k] = 1; });
+    delete _keysDev['']; delete _keysDev['__general__'];
+    Object.keys(_keysDev).forEach(function(k){
+      var d = (saldosPorObra[k] || 0) - (saldosPorObraOld[k] || 0);
+      if(Math.abs(d) > 0.0001){ _argsDev.push(new firebase.firestore.FieldPath('saldosPorObra', k)); _argsDev.push(_incDev(d)); }
     });
+    batch.update.apply(batch, _argsDev);
 
     // Reponer stock de los productos devueltos
     var prodsActualizados = [];
@@ -22735,7 +22755,9 @@ async function ccConfirmarDevolucion(){
       });
     }
 
-    await batch.commit();
+    var _sinNetDev = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    if(_sinNetDev){ batch.commit().catch(function(e){ console.warn('Devolución pendiente de subir:', e); }); }
+    else { await batch.commit(); }
 
     // Memoria local
     c.saldoCC = nuevoSaldo;
@@ -22985,8 +23007,18 @@ async function ccActAplicar(){
     var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(c._id);
     var batch = db.batch();
     batch.set(movRef, mov);
-    batch.update(cliRef, { saldoCC: nuevoSaldo, saldosPorObra: saldos, ultimoMovimientoCC: ahora.toISOString(), updatedAt: ahora.toISOString() });
-    await batch.commit();
+    // SUMA ATÓMICA: el total cambia por act.diferencia y cada obra por su diferencia (seguro offline).
+    var _incAct = firebase.firestore.FieldValue.increment;
+    var _argsAct = [cliRef, 'saldoCC', _incAct(act.diferencia), 'ultimoMovimientoCC', ahora.toISOString(), 'updatedAt', ahora.toISOString()];
+    Object.keys(act.porObra || {}).forEach(function(k){
+      if(k === '' || k === '__general__') return;
+      var d = act.porObra[k] || 0;
+      if(Math.abs(d) > 0.0001){ _argsAct.push(new firebase.firestore.FieldPath('saldosPorObra', k)); _argsAct.push(_incAct(d)); }
+    });
+    batch.update.apply(batch, _argsAct);
+    var _sinNetAct = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    if(_sinNetAct){ batch.commit().catch(function(e){ console.warn('Actualización pendiente de subir:', e); }); }
+    else { await batch.commit(); }
     mov._id = movRef.id;
     ccMovimientos.unshift(mov);
     c.saldoCC = nuevoSaldo; c.saldosPorObra = saldos;
