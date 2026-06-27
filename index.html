@@ -9451,7 +9451,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-47'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-48'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -13967,14 +13967,14 @@ async function iaDescripcionProducto(info){
        'Tomá las especificaciones (medidas, material, potencia, capacidad, contenido, etc.) SOLO de esas fuentes oficiales; no uses datos de productos parecidos pero distintos.\n');
   var prompt = 'Tarea: escribir la descripción de venta de un producto para una tienda online.\n' +
     instrBusqueda +
-    'Basá la descripción SOLO en datos que puedas confirmar del producto (no inventes medidas, materiales ni potencias).\n\n' +
+    'Basá la descripción SOLO en datos que puedas CONFIRMAR en una fuente oficial del producto exacto. PROHIBIDO improvisar, suponer, deducir o completar con datos de productos parecidos. Si dudás de un dato, NO lo pongas.\n\n' +
     'Formato OBLIGATORIO, SIEMPRE EXACTAMENTE EL MISMO para todos los productos:\n' +
     '1) Primera línea: UNA sola frase concreta que diga qué es el producto y para qué sirve. Sin exagerar, sin adjetivos vacíos, sin mencionar precio. Puede empezar con 1 emoji.\n' +
     '2) Una línea en blanco, después el título exacto "Ficha técnica:" y debajo un listado de 3 a 6 ítems, uno por línea, con el formato "• Atributo: valor" (atributos posibles: Material, Medidas, Peso, Color, Potencia, Capacidad, Contenido, Uso, Compatibilidad). Incluí SOLO atributos que puedas confirmar de ESTE producto puntual; no inventes ni pongas valores como "no especificado".\n' +
     '3) Una línea en blanco y una frase final que empiece con "Ideal para" indicando el uso o el usuario típico.\n' +
     'Tono concreto y profesional, en español rioplatense neutro, emojis con mucha moderación (como máximo el del inicio). ' +
     'Devolvé ÚNICAMENTE la descripción (sin introducciones, comentarios, advertencias, aclaraciones, títulos extra ni comillas). ' +
-    'Si NO encontrás información concreta y específica de ESTE producto puntual (ni por nombre, ni por código, ni por código de barras), respondé EXACTAMENTE con la palabra: SIN_INFO\n\n' +
+    'Regla clave: si NO podés confirmar con certeza al menos 2 datos técnicos concretos de ESTE producto puntual (ni por nombre, ni por código, ni por código de barras), NO inventes una ficha: respondé EXACTAMENTE con la palabra SIN_INFO. Es preferible avisar que no hay datos claros antes que poner información que podría estar equivocada.\n\n' +
     'Datos del producto:\n' +
     '- Nombre: ' + nombre + '\n' +
     (prov ? ('- Marca/Proveedor: ' + prov + '\n') : '') +
@@ -14012,7 +14012,7 @@ async function prodGenerarDescripcionIA(){
     if(area){ area.value = r.texto; }
     if(typeof toast === 'function') toast('Descripción generada — revisala y editá si querés', 'success');
   } else if(r.sinInfo){
-    showAlert('prodAlert','No encontré información concreta de este producto. Escribí la descripción a mano, o agregá más datos al nombre/marca y volvé a probar.');
+    showAlert('prodAlert','⚠️ No encontré datos claros y confirmados de este producto en fuentes oficiales. Para no cargar información inventada, dejé la descripción sin generar. Probá agregando la marca o el código de barras, o escribila a mano.');
   } else {
     showAlert('prodAlert','No pude generar la descripción: ' + (r.error || 'error') + '. Revisá la conexión con la IA.');
   }
