@@ -9451,7 +9451,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-48'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-49'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -14019,18 +14019,20 @@ async function prodGenerarDescripcionIA(){
   if(btn){ btn.disabled = false; btn.innerHTML = btn.dataset.txt || '&#10024; Generar con IA'; }
 }
 
-// Generación MASIVA: completa las descripciones que la IA tenga claras y reporta las que no.
+// Versión de campaña de regeneración: marca qué productos ya se rehicieron con las pautas nuevas.
+var DESC_GEN_VERSION = 'fichatec1';
+// Generación MASIVA: rehace TODAS las descripciones (viejas + faltantes) con búsqueda web, por tandas.
 async function tnGenerarDescripcionesMasivo(){
   if(!currentEmpresaId) return;
   var prog = document.getElementById('tnGenDescProgress');
-  var lista = (typeof productos !== 'undefined' && productos ? productos : []).filter(function(p){
-    return Number(p.precioVenta) > 0 && !((p.detalle || '').trim());
+  var todos = (typeof productos !== 'undefined' && productos ? productos : []).filter(function(p){
+    return Number(p.precioVenta) > 0 && p.detalleGenV !== DESC_GEN_VERSION;
   });
-  if(!lista.length){ if(prog) prog.innerHTML = '&#9989; Todos tus productos con precio ya tienen descripción.'; return; }
-  var MAX = 600, recortado = lista.length > MAX;
-  if(recortado) lista = lista.slice(0, MAX);
+  if(!todos.length){ if(prog) prog.innerHTML = '&#9989; Ya regeneraste todas las descripciones con las pautas nuevas (ficha técnica).'; return; }
+  var MAX = 150, recortado = todos.length > MAX;
+  var lista = recortado ? todos.slice(0, MAX) : todos;
   var ok = (typeof confirmComercia === 'function')
-    ? await confirmComercia('La IA va a generar la descripción de ' + lista.length + ' producto(s) que todavía no tienen. Puede tardar un rato. ¿Arrancamos?')
+    ? await confirmComercia('La IA va a generar/mejorar la descripción de ' + lista.length + ' producto(s), buscando los datos en páginas oficiales del proveedor y la marca.\n\nQuedan ' + todos.length + ' en total por procesar. Va por tandas: cada vez que toques el botón hace la siguiente.\n\nUsa búsqueda web, así que tarda un rato y consume de tu cuenta de IA. ¿Arrancamos?')
     : confirm('Generar ' + lista.length + ' descripciones con IA?');
   if(!ok) return;
   var btn = document.getElementById('tnGenDescBtn');
@@ -14045,7 +14047,7 @@ async function tnGenerarDescripcionesMasivo(){
     while(intento < 3){
       r = await iaDescripcionProducto({
         nombre: p.descripcion || '', rubro: p.rubro || '', prov: p.proveedor || '',
-        codigo: p.codigo || '', codBarra: p.codBarra || '', liviano: true
+        codigo: p.codigo || '', codBarra: p.codBarra || '', liviano: false
       });
       if(r && (r.ok || r.sinInfo)) break;
       intento++;
@@ -14053,12 +14055,13 @@ async function tnGenerarDescripcionesMasivo(){
     }
     if(r && r.ok){
       try{
-        await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto, updatedAt: new Date().toISOString() }, { merge: true });
-        p.detalle = r.texto; // reflejar en memoria para la sync/publicación
+        await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalle: r.texto, detalleGenV: DESC_GEN_VERSION, updatedAt: new Date().toISOString() }, { merge: true });
+        p.detalle = r.texto; p.detalleGenV = DESC_GEN_VERSION; // reflejar en memoria para la sync/publicación
         generadas++;
       }catch(e){ errores++; if(erroresMuestra.length < 5) erroresMuestra.push('guardar: ' + (e.message || e)); }
       consecutivos = 0;
     } else if(r && r.sinInfo){
+      try{ await db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id).set({ detalleGenV: DESC_GEN_VERSION, updatedAt: new Date().toISOString() }, { merge: true }); p.detalleGenV = DESC_GEN_VERSION; }catch(e){}
       sinInfo.push(p.descripcion || p.codigo || p._id);
       consecutivos = 0;
     } else {
@@ -14069,8 +14072,8 @@ async function tnGenerarDescripcionesMasivo(){
     }
     await new Promise(function(res){ setTimeout(res, 1200); });
   }
-  if(btn){ btn.disabled = false; btn.innerHTML = '&#10024; Generar descripciones faltantes con IA'; }
-  var rep = '&#9989; Generadas: ' + generadas;
+  if(btn){ btn.disabled = false; btn.innerHTML = '&#10024; Generar / mejorar descripciones con IA'; }
+  var rep = '&#9989; Generadas/mejoradas: ' + generadas;
   if(errores) rep += ' &middot; con error: ' + errores;
   if(cortado){
     rep += '<div style="margin-top:10px;padding:10px 12px;background:#fff4f4;border:1px solid #f3c2c2;border-radius:8px;font-size:12px">' +
@@ -14083,13 +14086,13 @@ async function tnGenerarDescripcionesMasivo(){
   if(sinInfo.length){
     var muestra = sinInfo.slice(0, 40).map(function(n){ return '• ' + eH(n); }).join('<br>');
     rep += '<div style="margin-top:10px;padding:10px 12px;background:var(--bg-2,#f7f7f8);border:1px solid var(--line,#eee);border-radius:8px;max-height:200px;overflow:auto;font-size:12px">' +
-      '<b>&#9888;&#65039; Estos no los pude generar (' + sinInfo.length + ') — hacelos a mano:</b><br>' + muestra +
+      '<b>&#9888;&#65039; Sin datos claros (' + sinInfo.length + ') — quedó la descripción anterior; revisalos a mano:</b><br>' + muestra +
       (sinInfo.length > 40 ? ('<br>…y ' + (sinInfo.length - 40) + ' más') : '') + '</div>';
   }
-  if(recortado && !cortado) rep += '<div style="margin-top:6px;font-size:12px">Generé las primeras ' + MAX + '. Volvé a tocar el botón para seguir con el resto.</div>';
+  if(recortado && !cortado) rep += '<div style="margin-top:6px;font-size:12px">Hice esta tanda de ' + MAX + '. Quedan ' + (todos.length - lista.length) + ' por procesar. Volvé a tocar el botón para seguir con la próxima.</div>';
   if(prog) prog.innerHTML = rep;
   // Guardar en la copia local y avisar a todos los dispositivos.
-  try{ if(generadas && typeof idbGuardarBatch === 'function') await idbGuardarBatch(currentEmpresaId, lista); }catch(e){}
+  try{ if((generadas || sinInfo.length) && typeof idbGuardarBatch === 'function') await idbGuardarBatch(currentEmpresaId, lista); }catch(e){}
   if(generadas && typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
   if(typeof toast === 'function') toast('Listo: ' + generadas + ' descripciones generadas', generadas ? 'success' : 'error');
   if(erroresMuestra.length) console.log('Muestra de errores de generación:', erroresMuestra);
@@ -26122,7 +26125,7 @@ function tnCargarEstado(){
           (s.ultimaSync?('<div class="int-conf-hint" style="margin-top:4px">&Uacute;ltima sincronizaci&oacute;n: '+eH(new Date(s.ultimaSync).toLocaleString('es-AR'))+' &middot; '+(s.productosSync||0)+' productos.</div>'):'')+
           '<button class="btn-form" style="margin-top:12px" id="tnSyncBtn" onclick="tnSincronizarProductos()">&#128260; Sincronizar productos a Tienda Nube</button>'+
           '<div id="tnSyncProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
-          '<button class="btn btn-line btn-sm" style="margin-top:12px;width:100%;justify-content:center" id="tnGenDescBtn" onclick="tnGenerarDescripcionesMasivo()">&#10024; Generar descripciones faltantes con IA</button>'+
+          '<button class="btn btn-line btn-sm" style="margin-top:12px;width:100%;justify-content:center" id="tnGenDescBtn" onclick="tnGenerarDescripcionesMasivo()">&#10024; Generar / mejorar descripciones con IA</button>'+
           '<div id="tnGenDescProgress" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>'+
           '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line,#eee)">'+
             '<div style="font-size:12px;color:var(--text-mute);margin-bottom:6px">¿Tu tienda ya tenía productos cargados (otra plataforma o sistema)? Vinculalos por código <b>una sola vez</b> para no duplicarlos.</div>'+
