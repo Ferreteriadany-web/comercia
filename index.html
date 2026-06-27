@@ -7893,7 +7893,8 @@
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Proveedor *</label>
-        <input class="form-input" type="text" id="prodProveedor" placeholder="">
+        <select class="form-input" id="prodProveedorSelect" onchange="prodProveedorElegido(this.value)" style="margin-bottom:6px"></select>
+        <input class="form-input" type="text" id="prodProveedor" placeholder="o escribí uno nuevo…">
       </div>
       <div class="form-group">
         <label class="form-label">Rubro</label>
@@ -9450,7 +9451,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-44'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-45'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -13852,6 +13853,25 @@ function fmtPeso(n){ if(!n||n===0) return '-'; return '$'+Math.round(Number(n)).
 // ═══════════════════════════════════════════════════════
 // MODAL: AGREGAR/EDITAR PRODUCTO
 // ═══════════════════════════════════════════════════════
+// Selector de proveedor en el formulario de producto
+function prodLlenarSelectorProveedores(selected){
+  var sel = document.getElementById('prodProveedorSelect'); if(!sel) return;
+  selected = (selected || '').trim();
+  var set = {};
+  (productos || []).forEach(function(p){ var pr = (p.proveedor || '').trim(); if(pr) set[pr] = 1; });
+  var lista = Object.keys(set).sort(function(a, b){ return a.localeCompare(b, 'es', { sensitivity: 'base' }); });
+  if(selected && !set[selected]) lista.unshift(selected);
+  var html = '<option value="">— Elegir proveedor —</option>';
+  lista.forEach(function(pr){ html += '<option value="' + eH(pr) + '"' + (pr === selected ? ' selected' : '') + '>' + eH(pr) + '</option>'; });
+  html += '<option value="__nuevo__">+ Otro (escribir nuevo)…</option>';
+  sel.innerHTML = html;
+}
+function prodProveedorElegido(val){
+  var inp = document.getElementById('prodProveedor'); if(!inp) return;
+  if(val === '__nuevo__'){ inp.value = ''; inp.focus(); }
+  else if(val){ inp.value = val; }
+}
+
 function openProductModal(){
   document.getElementById('prodModalEyebrow').textContent = 'Nuevo producto';
   document.getElementById('prodModalTitle').textContent = 'Agregar producto';
@@ -13861,6 +13881,8 @@ function openProductModal(){
   document.getElementById('prodDescripcion').value = '';
   document.getElementById('prodDetalle').value = '';
   document.getElementById('prodRubro').value = '';
+  document.getElementById('prodProveedor').value = '';
+  prodLlenarSelectorProveedores('');
   document.getElementById('prodCosto').value = '';
   document.getElementById('prodVenta').value = '';
   document.getElementById('prodMayorista').value = '';
@@ -13894,6 +13916,8 @@ function editProduct(id){
   document.getElementById('prodDescripcion').value = p.descripcion || '';
   document.getElementById('prodDetalle').value = p.detalle || '';
   document.getElementById('prodRubro').value = p.rubro || '';
+  document.getElementById('prodProveedor').value = p.proveedor || '';
+  prodLlenarSelectorProveedores(p.proveedor || '');
   document.getElementById('prodCosto').value = p.precioCosto || '';
   document.getElementById('prodVenta').value = p.precioVenta || '';
   document.getElementById('prodMayorista').value = p.precioMayorista || '';
