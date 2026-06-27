@@ -9455,7 +9455,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-35'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-36'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -20220,6 +20220,21 @@ function mostrarTicket(v){
       (v.motivo ? '<div class="ticket-print-line"><span class="l">Motivo:</span><span class="r">'+eH(v.motivo)+'</span></div>' : '')
     : '';
 
+  // ¿Esta venta fue (total o parcial) a CUENTA CORRIENTE? Lo dejamos bien visible.
+  var montoCC = (v.pagos || []).filter(function(p){ return p.metodo === 'cta_corriente'; }).reduce(function(s, p){ return s + (p.monto || 0); }, 0);
+  var ccBannerHtml = '';
+  if(montoCC > 0 && v.cliente){
+    var cliRefBanner = (v.cliente.id) ? clientes.find(function(x){ return x._id === v.cliente.id; }) : null;
+    var saldoNuevo = (cliRefBanner && cliRefBanner.saldoCC != null) ? cliRefBanner.saldoCC : null;
+    var nombreCliBanner = (v.cliente.razonSocial || v.cliente.nombre || 'Cliente');
+    ccBannerHtml =
+      '<div style="background:linear-gradient(135deg,#7a3a00,#b06a00);color:#fff;border-radius:12px;padding:14px 16px;margin:0 0 14px;text-align:center">' +
+        '<div style="font-size:13px;font-weight:800;letter-spacing:.04em">\uD83D\uDCD2 VENTA A CUENTA CORRIENTE</div>' +
+        '<div style="font-size:12px;opacity:.95;margin-top:4px">Se carg\u00f3 <b>' + fmtPeso(montoCC) + '</b> a la cuenta de <b>' + eH(nombreCliBanner) + '</b></div>' +
+        (saldoNuevo != null ? '<div style="font-size:13px;margin-top:8px;background:rgba(255,255,255,.18);border-radius:8px;padding:7px 10px">Nuevo saldo del cliente: <b>' + fmtPeso(Math.max(0, saldoNuevo)) + '</b></div>' : '') +
+      '</div>';
+  }
+
   document.getElementById('vDetBody').innerHTML =
     '<div class="ticket-print" id="vTicketPrint">'+
       '<div class="ticket-print-header">'+
@@ -20228,6 +20243,7 @@ function mostrarTicket(v){
         '<div style="font-size:11px;color:var(--text-mute);margin-top:4px">N° '+eH(v.numero)+'</div>'+
         '<div style="font-size:11px;color:var(--text-mute)">'+fechaStr+'</div>'+
       '</div>'+
+      ccBannerHtml+
       clienteHtml+
       entregaHtml+
       notaRefHtml+
@@ -29653,3 +29669,4 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
+  
