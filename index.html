@@ -6152,7 +6152,6 @@
                   <button class="btn btn-primary btn-sm" onclick="ccAbrirCobro()">&#128181; Registrar cobro</button>
                   <button class="btn btn-line btn-sm" onclick="ccAbrirDevolucion()">&#8617; Registrar devolución</button>
                   <button class="btn btn-line btn-sm" onclick="ccAbrirObras()">&#127959; Gestionar obras</button>
-                  <button class="btn btn-line btn-sm" onclick="ccExportarExcel()">&#128190; Exportar Excel</button>
                   <button class="btn btn-line btn-sm" onclick="ccEstadoCuentaCliente()" id="ccBtnEstado" style="color:var(--accent);border-color:var(--accent)">&#128203; Estado de cuenta</button>
                   <button class="btn btn-line btn-sm" onclick="ccCerrarCuenta()" id="ccBtnCerrar" style="color:var(--danger);border-color:var(--danger)">&#128274; Cerrar cuenta</button>
                   <div style="flex:1"></div>
@@ -8548,10 +8547,6 @@
       </ul>
     </div>
 
-    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-soft);cursor:pointer;margin-bottom:14px;padding:8px 10px;background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-md)">
-      <input type="checkbox" id="ccCierreDescargarExcel" checked style="accent-color:var(--accent)">
-      <span><strong>Descargar Excel como respaldo</strong> antes de borrar (recomendado)</span>
-    </label>
 
     <div class="form-group">
       <label class="form-label" id="ccCierreConfirmLabel">Para confirmar, escribí el nombre del cliente:</label>
@@ -9455,7 +9450,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-39'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-40'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -23282,7 +23277,6 @@ function _ccAbrirModalCierre(c){
   document.getElementById('ccCierreConfirmInput').value = '';
   document.getElementById('ccBtnConfirmarCierre').disabled = true;
   document.getElementById('ccBtnConfirmarCierre').style.opacity = '.5';
-  document.getElementById('ccCierreDescargarExcel').checked = true;
   ccCierreUpdateScope();
   hideAlerts();
   closeModals();
@@ -23396,7 +23390,7 @@ async function ccConfirmarCierre(){
   btn.textContent = 'Procesando...';
 
   try{
-    var descargarExcel = document.getElementById('ccCierreDescargarExcel').checked;
+    var descargarExcel = false;
 
     if(scopeVal === 'todo'){
       _fueCierreTotal = true;
