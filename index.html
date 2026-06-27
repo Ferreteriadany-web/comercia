@@ -6153,6 +6153,7 @@
                   <button class="btn btn-line btn-sm" onclick="ccAbrirDevolucion()">&#8617; Registrar devolución</button>
                   <button class="btn btn-line btn-sm" onclick="ccAbrirObras()">&#127959; Gestionar obras</button>
                   <button class="btn btn-line btn-sm" onclick="ccExportarExcel()">&#128190; Exportar Excel</button>
+                  <button class="btn btn-line btn-sm" onclick="ccEstadoCuentaCliente()" id="ccBtnEstado" style="color:var(--accent);border-color:var(--accent)">&#128203; Estado de cuenta</button>
                   <button class="btn btn-line btn-sm" onclick="ccCerrarCuenta()" id="ccBtnCerrar" style="color:var(--danger);border-color:var(--danger)">&#128274; Cerrar cuenta</button>
                   <div style="flex:1"></div>
                   <button class="btn btn-ghost btn-sm" onclick="ccDeseleccionar()" title="Cerrar detalle">&times;</button>
@@ -9454,7 +9455,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-34'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-35'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -23033,6 +23034,152 @@ async function ccActAplicar(){
     toast('Error al actualizar: ' + (err.message||''), 'error');
     btn.disabled = false; btn.textContent = 'Actualizar al precio de hoy';
   }
+}
+
+// ═══ ESTADO DE CUENTA PARA EL CLIENTE (solo lectura, por obra, compartible) ═══
+var _ccUltimoEstado = null;
+function _ccObraNombre(k){ return (!k || k === OBRA_GENERAL_KEY || k === '__general__') ? 'General' : k; }
+function _ccEstadoFechaCorta(f){ try{ return new Date(f).toLocaleDateString('es-AR'); }catch(e){ return ''; } }
+
+function ccEstadoCuentaCliente(){
+  var c = clientes.find(function(x){ return x._id === ccClienteSelId; });
+  if(!c){ toast('Eleg\u00ed un cliente primero', 'error'); return; }
+  var comprasPorObra = {};
+  var pagos = [];
+  (ccMovimientos || []).forEach(function(m){
+    if(m.tipo === 'venta' || m.tipo === 'ajuste'){
+      var spo = m.subtotalesPorObra;
+      if(spo && Object.keys(spo).length){
+        Object.keys(spo).forEach(function(k){
+          var key = (k === '' || k === '__general__') ? OBRA_GENERAL_KEY : k;
+          (comprasPorObra[key] = comprasPorObra[key] || []).push({ fecha: m.fecha, desc: (m.descripcion || ('Comprobante ' + (m.numero || ''))), monto: (spo[k] || 0) });
+        });
+      } else {
+        var key2 = (m.obra || OBRA_GENERAL_KEY); if(key2 === '' || key2 === '__general__') key2 = OBRA_GENERAL_KEY;
+        (comprasPorObra[key2] = comprasPorObra[key2] || []).push({ fecha: m.fecha, desc: (m.descripcion || ('Comprobante ' + (m.numero || ''))), monto: (m.monto || 0) });
+      }
+    } else if(m.tipo === 'pago' || m.tipo === 'cierre' || m.tipo === 'devolucion'){
+      pagos.push({ fecha: m.fecha, desc: (m.descripcion || (m.tipo === 'devolucion' ? 'Devoluci\u00f3n' : 'Pago')), monto: (m.monto || 0), metodo: (m.metodo || m.modo || '') });
+    }
+  });
+  var saldos = c.saldosPorObra || {};
+  var obrasSet = {};
+  Object.keys(comprasPorObra).forEach(function(k){ obrasSet[k] = 1; });
+  Object.keys(saldos).forEach(function(k){ if(k !== '' && k !== '__general__' && Math.abs(saldos[k] || 0) > 0.005) obrasSet[k] = 1; });
+  var obras = Object.keys(obrasSet).sort(function(a, b){ if(a === OBRA_GENERAL_KEY) return -1; if(b === OBRA_GENERAL_KEY) return 1; return _ccObraNombre(a).localeCompare(_ccObraNombre(b)); });
+  _ccUltimoEstado = { cliente: c, comprasPorObra: comprasPorObra, pagos: pagos, saldos: saldos, obras: obras, total: (c.saldoCC != null ? c.saldoCC : 0), fecha: new Date() };
+  _ccMostrarEstadoModal();
+}
+
+function _ccEstadoHTML(){
+  var e = _ccUltimoEstado; if(!e) return '';
+  var c = e.cliente;
+  var emp = (typeof currentEmpresa !== 'undefined' && currentEmpresa) ? currentEmpresa : {};
+  var nombreEmp = emp.nombre || emp.razonSocial || 'Comercia';
+  var nombreCli = c.razonSocial || c.nombre || 'Cliente';
+  var html = '<div style="font-family:system-ui,Arial,sans-serif;color:#1a1a1a;max-width:640px;margin:0 auto">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #f0a23c;padding-bottom:10px;margin-bottom:12px">' +
+            '<div><div style="font-size:18px;font-weight:800">' + eH(nombreEmp) + '</div>' +
+            (emp.telefono ? '<div style="font-size:12px;color:#666">Tel: ' + eH(emp.telefono) + '</div>' : '') + '</div>' +
+            '<div style="text-align:right"><div style="font-size:15px;font-weight:700;color:#b06a00">ESTADO DE CUENTA</div>' +
+            '<div style="font-size:12px;color:#666">' + e.fecha.toLocaleDateString('es-AR') + '</div></div></div>';
+  html += '<div style="font-size:13px;margin-bottom:14px"><b>Cliente:</b> ' + eH(nombreCli) + (c.numDoc ? (' &middot; <b>Doc:</b> ' + eH(c.numDoc)) : '') + '</div>';
+  e.obras.forEach(function(k){
+    var compras = e.comprasPorObra[k] || [];
+    var saldoObra = (e.saldos[k] != null) ? e.saldos[k] : 0;
+    html += '<div style="margin-bottom:14px;border:1px solid #eee;border-radius:8px;overflow:hidden">';
+    html += '<div style="background:#fff7ed;padding:8px 12px;font-weight:700;font-size:13px;color:#7a3a00">Obra: ' + eH(_ccObraNombre(k)) + '</div>';
+    html += '<div style="padding:6px 12px">';
+    if(compras.length){
+      compras.forEach(function(l){
+        html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f5f5f5">' +
+                  '<span style="color:#555">' + _ccEstadoFechaCorta(l.fecha) + ' &middot; ' + eH((l.desc || '').substring(0, 40)) + '</span>' +
+                  '<span style="font-weight:600">' + fmtPeso(l.monto) + '</span></div>';
+      });
+    } else {
+      html += '<div style="font-size:12px;color:#999;padding:3px 0">Sin compras registradas en esta obra</div>';
+    }
+    html += '<div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 0 2px;font-weight:800;color:#b06a00"><span>Saldo de esta obra</span><span>' + fmtPeso(saldoObra) + '</span></div>';
+    html += '</div></div>';
+  });
+  if(e.pagos.length){
+    html += '<div style="margin-bottom:14px"><div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1a7a3a">Pagos recibidos</div>';
+    e.pagos.forEach(function(p){
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f5f5f5;color:#1a7a3a">' +
+                '<span>' + _ccEstadoFechaCorta(p.fecha) + ' &middot; ' + eH(p.desc || 'Pago') + (p.metodo ? (' (' + eH(p.metodo) + ')') : '') + '</span>' +
+                '<span style="font-weight:600">- ' + fmtPeso(p.monto) + '</span></div>';
+    });
+    html += '</div>';
+  }
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;background:#1a1a1a;color:#fff;padding:12px 16px;border-radius:10px;margin-top:6px">' +
+            '<span style="font-size:14px;font-weight:700">TOTAL ADEUDADO</span>' +
+            '<span style="font-size:20px;font-weight:800">' + fmtPeso(Math.max(0, e.total)) + '</span></div>';
+  if(e.total < -0.005){
+    html += '<div style="text-align:center;font-size:12px;color:#1a7a3a;margin-top:6px">El cliente tiene saldo a favor de ' + fmtPeso(Math.abs(e.total)) + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function _ccMostrarEstadoModal(){
+  var prev = document.getElementById('ccEstadoOverlay'); if(prev) prev.remove();
+  var ov = document.createElement('div');
+  ov.id = 'ccEstadoOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99990;display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow:auto';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:14px;max-width:680px;width:100%;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.3)';
+  card.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+      '<div style="font-weight:800;font-size:15px;color:#1a1a1a">Estado de cuenta</div>' +
+      '<button onclick="document.getElementById(\'ccEstadoOverlay\').remove()" style="border:none;background:#eee;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px">&times;</button>' +
+    '</div>' +
+    '<div id="ccEstadoBody">' + _ccEstadoHTML() + '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">' +
+      '<button class="btn btn-primary btn-sm" onclick="ccEstadoCuentaWhatsApp()">&#128241; WhatsApp</button>' +
+      '<button class="btn btn-line btn-sm" onclick="ccEstadoCuentaImprimir()">&#128424;&#65039; Imprimir / PDF</button>' +
+      '<button class="btn btn-line btn-sm" onclick="document.getElementById(\'ccEstadoOverlay\').remove()">Cerrar</button>' +
+    '</div>';
+  ov.appendChild(card);
+  ov.addEventListener('click', function(ev){ if(ev.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function ccEstadoCuentaTexto(){
+  var e = _ccUltimoEstado; if(!e) return '';
+  var c = e.cliente;
+  var emp = (typeof currentEmpresa !== 'undefined' && currentEmpresa) ? currentEmpresa : {};
+  var t = '*ESTADO DE CUENTA*\n' + (emp.nombre || emp.razonSocial || '') + '\n' + e.fecha.toLocaleDateString('es-AR') + '\n\nCliente: ' + (c.razonSocial || c.nombre || '') + '\n';
+  e.obras.forEach(function(k){
+    t += '\n*Obra: ' + _ccObraNombre(k) + '*\n';
+    (e.comprasPorObra[k] || []).forEach(function(l){ t += '  ' + _ccEstadoFechaCorta(l.fecha) + ' ' + (l.desc || '').substring(0, 30) + ': ' + fmtPeso(l.monto) + '\n'; });
+    t += '  Saldo obra: ' + fmtPeso((e.saldos[k] != null ? e.saldos[k] : 0)) + '\n';
+  });
+  if(e.pagos.length){ t += '\n*Pagos recibidos:*\n'; e.pagos.forEach(function(p){ t += '  ' + _ccEstadoFechaCorta(p.fecha) + ' ' + (p.desc || 'Pago') + ': -' + fmtPeso(p.monto) + '\n'; }); }
+  t += '\n*TOTAL ADEUDADO: ' + fmtPeso(Math.max(0, e.total)) + '*';
+  return t;
+}
+
+function ccEstadoCuentaWhatsApp(){
+  var e = _ccUltimoEstado; if(!e) return;
+  var tel = '';
+  try{ var full = clientes.find(function(x){ return x._id === e.cliente._id; }); tel = (e.cliente.telefono || (full && full.telefono) || ''); }catch(x){}
+  var raw = String(tel).replace(/\D/g, '');
+  if(raw){
+    if(raw.indexOf('54') !== 0) raw = '54' + raw;
+    if(raw.charAt(2) !== '9') raw = '549' + raw.substring(2);
+    if(raw.length < 11 || raw.length > 15) raw = '';
+  }
+  if(!raw) toast('El cliente no tiene tel\u00e9fono v\u00e1lido: eleg\u00ed el contacto en WhatsApp', 'success');
+  window.open('https://wa.me/' + (raw || '') + '?text=' + encodeURIComponent(ccEstadoCuentaTexto()), '_blank');
+}
+
+function ccEstadoCuentaImprimir(){
+  var e = _ccUltimoEstado; if(!e) return;
+  var w = window.open('', '_blank');
+  if(!w){ toast('Habilit\u00e1 las ventanas emergentes para imprimir', 'error'); return; }
+  w.document.write('<html><head><title>Estado de cuenta</title><meta charset="utf-8"></head><body style="margin:24px">' + _ccEstadoHTML() + '</body></html>');
+  w.document.close();
+  setTimeout(function(){ try{ w.print(); }catch(e){} }, 400);
 }
 
 function ccCerrarCuenta(){
