@@ -9450,7 +9450,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-40'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-43'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11911,7 +11911,7 @@ async function repCargarProductos(){
 
     var prod = {};
     function mesDe(fecha){ var d = new Date(fecha); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
-    ventas.forEach(function(v){
+    ventas.forEach(function(v){ if(v.anulada)return;
       var mes = mesDe(v.fecha);
       (v.items || []).forEach(function(it){
         var key = it.codigo || it.descripcion || '?';
@@ -12010,7 +12010,7 @@ async function repCargarPorProveedor(){
     }
 
     var porProv = {}, totUnid = 0, totImp = 0;
-    ventas.forEach(function(v){
+    ventas.forEach(function(v){ if(v.anulada)return;
       (v.items || []).forEach(function(it){
         var prov = provPorId[it.productoId] || provPorCod[it.codigo] || 'Sin proveedor';
         var cant = Number(it.cantidad) || 0;
@@ -12130,7 +12130,7 @@ async function repCargarCaja(){
     var porMedio = {};
     Object.keys(MEDIOS_PAGO).forEach(function(m){ porMedio[m] = 0; });
 
-    ventas.forEach(function(v){
+    ventas.forEach(function(v){ if(v.anulada)return;
       totalDia += Number(v.total) || 0;
       (v.items || []).forEach(function(it){ totalItems += Number(it.cantidad) || 0; });
       (v.pagos || []).forEach(function(p){
@@ -12165,7 +12165,7 @@ async function repCargarCaja(){
     html += '<p class="rep-seccion-tit" style="margin-top:22px">Ventas del día</p>';
     html += '<table class="rep-tabla"><thead><tr><th>Hora</th><th>Ticket</th><th>Cliente</th><th style="text-align:right">Total</th></tr></thead><tbody>';
     ventas.sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||''); });
-    ventas.forEach(function(v){
+    ventas.forEach(function(v){ if(v.anulada)return;
       var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '';
       var cli = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : 'Consumidor final';
       html += '<tr><td>'+hora+'</td><td>'+eH(v.numero||'')+'</td><td>'+eH(cli)+'</td><td class="num">'+fmtPeso(v.total||0)+'</td></tr>';
@@ -12211,7 +12211,7 @@ async function repCargarFacturacion(){
 
     var totalFact = 0, totalNeto = 0, totalIva = 0, cantVentas = ventas.length;
     var porDia = {};
-    ventas.forEach(function(v){
+    ventas.forEach(function(v){ if(v.anulada)return;
       totalFact += Number(v.total) || 0;
       totalNeto += Number(v.neto) || 0;
       totalIva += Number(v.ivaMonto) || 0;
@@ -12256,7 +12256,7 @@ function repExportarCaja(){
   var d = window._repCajaData;
   if(!d){ return; }
   var rows = [['Hora','Ticket','Cliente','Total','Medios de pago']];
-  d.ventas.forEach(function(v){
+  d.ventas.forEach(function(v){ if(v.anulada)return;
     var hora = v.fecha ? new Date(v.fecha).toLocaleTimeString('es-AR') : '';
     var cli = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : 'Consumidor final';
     var medios = (v.pagos||[]).map(function(p){ return (MEDIOS_PAGO[p.metodo]?MEDIOS_PAGO[p.metodo].label:p.metodo)+': '+p.monto; }).join(' | ');
@@ -12275,7 +12275,7 @@ function repExportarFacturacion(){
   if(!d){ return; }
   var rows = [['Fecha','Ticket','Cliente','Neto','IVA','Total']];
   d.ventas.sort(function(a,b){ return (a.fecha||'').localeCompare(b.fecha||''); });
-  d.ventas.forEach(function(v){
+  d.ventas.forEach(function(v){ if(v.anulada)return;
     var fec = v.fecha ? new Date(v.fecha).toLocaleDateString('es-AR') : '';
     var cli = v.cliente ? (v.cliente.razonSocial || v.cliente.nombre || '') : 'Consumidor final';
     rows.push([fec, v.numero||'', cli, Number(v.neto)||0, Number(v.ivaMonto)||0, Number(v.total)||0]);
@@ -19437,7 +19437,7 @@ async function cargarVentas(){
 function actualizarStatsVentas(){
   var hoy = new Date().toDateString();
   // Los presupuestos no son ventas: se excluyen de todos los totales
-  var ventasReales = ventas.filter(function(v){ return v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; });
+  var ventasReales = ventas.filter(function(v){ return !v.anulada && v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; });
   var ventasHoy = ventasReales.filter(function(v){
     return new Date(v.fecha).toDateString() === hoy;
   });
@@ -19502,16 +19502,16 @@ function renderHistorialVentas(){
     var itemCount = v.items.reduce(function(a,i){ return a+i.cantidad; }, 0);
     var pagosStr = v.pagos.map(function(p){ return p.metodo; }).join(' + ');
 
-    html += '<div class="ticket-card" onclick="mostrarTicket(ventas.find(function(x){return x._id===\''+escapeQ(v._id)+'\'}))">'+
+    html += '<div class="ticket-card"'+(v.anulada?' style="opacity:.6"':'')+' onclick="mostrarTicket(ventas.find(function(x){return x._id===\''+escapeQ(v._id)+'\'}))">'+
       '<div class="ticket-card-head">'+
-        '<span class="ticket-num">'+eH(v.numero)+'</span>'+
+        '<span class="ticket-num">'+eH(v.numero)+(v.anulada?' <span style="background:#fdecec;color:#b02020;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-left:4px">ANULADO</span>':'')+'</span>'+
         '<span class="ticket-fecha">'+fechaStr+'</span>'+
       '</div>'+
       '<div class="ticket-cliente">'+eH(clienteStr)+'</div>'+
       '<div class="ticket-totales">'+
         '<span>'+itemCount+' ítem'+(itemCount!==1?'s':'')+'</span>'+
         '<span>'+eH(pagosStr)+'</span>'+
-        '<span style="margin-left:auto" class="ticket-total-monto">'+fmtPeso(v.total)+'</span>'+
+        '<span class="ticket-total-monto" style="margin-left:auto'+(v.anulada?';text-decoration:line-through':'')+'">'+fmtPeso(v.total)+'</span>'+
       '</div>'+
     '</div>';
   });
@@ -19566,7 +19566,7 @@ function renderInicio(){
 
   // Ventas de hoy (sin contar presupuestos)
   var hoy = new Date().toDateString();
-  var ventasArr = (typeof ventas !== 'undefined') ? ventas.filter(function(v){ return v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; }) : [];
+  var ventasArr = (typeof ventas !== 'undefined') ? ventas.filter(function(v){ return !v.anulada && v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito'; }) : [];
   var ventasHoy = ventasArr.filter(function(v){ return new Date(v.fecha).toDateString() === hoy; });
   var facturadoHoy = ventasHoy.reduce(function(a,v){ return a+(v.total||0); }, 0);
   dashSetTxt('dashVentasHoy', ventasHoy.length);
@@ -19695,7 +19695,7 @@ function cajaCalculos(){
   var hoy = new Date().toDateString();
   var vtaEfectivo = 0;
   if(typeof ventas !== 'undefined'){
-    ventas.forEach(function(v){
+    ventas.forEach(function(v){ if(v.anulada)return;
       if(v.modo === 'presupuesto') return;
       if(new Date(v.fecha).toDateString() !== hoy) return;
       (v.pagos||[]).forEach(function(p){ if(p.metodo === 'efectivo') vtaEfectivo += (p.monto||0); });
@@ -20127,6 +20127,113 @@ function nuevoPresupuesto(){
   toast('Armá el presupuesto y tocá "Guardar presupuesto"', 'success');
 }
 
+// Anular un comprobante (remito/ticket sin CAE): lo marca ANULADO, revierte la cuenta corriente
+// y (si elegís) repone el stock. Queda registrado, no se borra.
+async function anularRemito(vId){
+  var v = (_ventaActualVer && _ventaActualVer._id === vId) ? _ventaActualVer : ((typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === vId; }) : null);
+  if(!v){ toast('No se encontr\u00f3 el comprobante', 'error'); return; }
+  if(v.afipCae){ toast('Tiene factura legal (CAE): hac\u00e9 una nota de cr\u00e9dito, no se puede anular.', 'error'); return; }
+  if(v.anulada){ toast('Este comprobante ya est\u00e1 anulado', 'success'); return; }
+  var ok = await confirmComercia('\u00bfAnular el comprobante ' + (v.numero || '') + '?\n\nQueda registrado como ANULADO y se revierten sus efectos (cuenta corriente y, si quer\u00e9s, el stock).');
+  if(!ok) return;
+  var reponer = await confirmComercia('\u00bfReponer el stock de los productos al inventario?\n\nS\u00ed = los productos vuelven al stock.\nNo = el stock queda como est\u00e1 (por ejemplo si el cliente se qued\u00f3 la mercader\u00eda).');
+  try{
+    var ahora = new Date().toISOString();
+    var _inc = firebase.firestore.FieldValue.increment;
+    var batch = db.batch();
+    var vRef = db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(v._id);
+    batch.update(vRef, { anulada: true, anuladaEn: ahora, anuladaPor: (currentUser ? currentUser.email : '') });
+
+    // Reponer stock (opcional)
+    var prodsLocal = [];
+    if(reponer && Array.isArray(v.items)){
+      v.items.forEach(function(it){
+        var uds = (it.unidadesTotales != null) ? it.unidadesTotales : (it.cantidad || 0);
+        if(!uds) return;
+        var prod = productos.find(function(x){ return x._id === it.productoId || x.codigo === it.codigo; });
+        if(prod && prod.esKit && Array.isArray(prod.kitComponentes) && prod.kitComponentes.length){
+          prod.kitComponentes.forEach(function(comp){
+            var totalComp = (Number(comp.cantidad) || 1) * uds;
+            batch.update(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(comp.productoId), { stock: _inc(totalComp), updatedAt: ahora });
+            var lc = productos.find(function(x){ return x._id === comp.productoId; });
+            if(lc){ lc.stock = (Number(lc.stock) || 0) + totalComp; prodsLocal.push(lc); }
+          });
+        } else if(it.productoId){
+          batch.update(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(it.productoId), { stock: _inc(uds), updatedAt: ahora });
+          if(prod){ prod.stock = (Number(prod.stock) || 0) + uds; prodsLocal.push(prod); }
+        }
+      });
+    }
+
+    // Revertir cuenta corriente (si la venta cargó deuda)
+    var cliId = v.cliente && v.cliente.id;
+    var cli = cliId ? clientes.find(function(x){ return x._id === cliId; }) : null;
+    if(cliId){
+      var movsSnap = await db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(cliId).collection('movimientos').where('ventaId', '==', v._id).get();
+      var totalRevertir = 0; var porObraRevertir = {};
+      movsSnap.forEach(function(d){
+        var m = d.data();
+        if(m.tipo === 'venta'){
+          totalRevertir += (m.monto || 0);
+          var spo = m.subtotalesPorObra || {};
+          Object.keys(spo).forEach(function(k){ porObraRevertir[k] = (porObraRevertir[k] || 0) + (spo[k] || 0); });
+          batch.delete(d.ref);
+        }
+      });
+      if(totalRevertir > 0){
+        var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(cliId);
+        var args = [cliRef, 'saldoCC', _inc(-totalRevertir), 'updatedAt', ahora];
+        Object.keys(porObraRevertir).forEach(function(k){
+          if(k === '' || k === '__general__') return;
+          args.push(new firebase.firestore.FieldPath('saldosPorObra', k));
+          args.push(_inc(-(porObraRevertir[k] || 0)));
+        });
+        batch.update.apply(batch, args);
+        if(cli){
+          cli.saldoCC = (cli.saldoCC || 0) - totalRevertir;
+          var sp = Object.assign({}, cli.saldosPorObra || {});
+          Object.keys(porObraRevertir).forEach(function(k){ if(k === '' || k === '__general__') return; sp[k] = (sp[k] || 0) - (porObraRevertir[k] || 0); });
+          cli.saldosPorObra = sp;
+        }
+      }
+    }
+
+    var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    if(_sinNet){ batch.commit().catch(function(e){ console.warn('Anulaci\u00f3n pendiente de subir:', e); }); }
+    else { await batch.commit(); }
+
+    v.anulada = true; v.anuladaEn = ahora;
+    if(prodsLocal.length && typeof idbGuardarBatch === 'function'){ try{ await idbGuardarBatch(currentEmpresaId, prodsLocal); }catch(e){} }
+    if(cli && typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [cli]); }catch(e){} }
+    toast('Comprobante anulado' + (reponer ? ' \u00b7 stock repuesto' : ''), 'success');
+    if(typeof mostrarTicket === 'function') mostrarTicket(v);
+    if(typeof renderVentas === 'function'){ try{ renderVentas(); }catch(e){} }
+  }catch(err){ console.error(err); toast('Error al anular: ' + (err.message || ''), 'error'); }
+}
+
+// Convertir un remito en factura: la venta no cambia (mismos productos, total, stock y deuda);
+// solo pasa a modo factura y se emite el comprobante AFIP (si está configurado).
+async function convertirRemitoEnFactura(vId){
+  var v = (_ventaActualVer && _ventaActualVer._id === vId) ? _ventaActualVer : ((typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === vId; }) : null);
+  if(!v){ toast('No se encontr\u00f3 el comprobante', 'error'); return; }
+  if(v.anulada){ toast('Est\u00e1 anulado: no se puede convertir', 'error'); return; }
+  if(v.afipCae){ toast('Ya es una factura legal (tiene CAE)', 'success'); return; }
+  if(v.modo === 'factura'){
+    if(await confirmComercia('Ya figura como factura (sin CAE). \u00bfEmitir la factura AFIP ahora?')){ if(typeof facturarEnAfip === 'function') facturarEnAfip({ venta: v }); }
+    return;
+  }
+  if(!await confirmComercia('\u00bfConvertir el remito ' + (v.numero || '') + ' en factura?\n\nLa venta NO cambia (mismos productos, total, stock y deuda). Solo pasa a ser factura y se emite el comprobante AFIP si est\u00e1 configurado.')) return;
+  try{
+    await db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(v._id).update({ modo: 'factura', updatedAt: new Date().toISOString() });
+    v.modo = 'factura';
+    var vl = (typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === v._id; }) : null; if(vl) vl.modo = 'factura';
+    toast('Convertido a factura \u00b7 emitiendo AFIP\u2026', 'success');
+    if(typeof facturarEnAfip === 'function') await facturarEnAfip({ venta: v });
+    if(typeof mostrarTicket === 'function') mostrarTicket(v);
+    if(typeof renderVentas === 'function'){ try{ renderVentas(); }catch(e){} }
+  }catch(err){ console.error(err); toast('Error al convertir: ' + (err.message || ''), 'error'); }
+}
+
 function mostrarTicket(v){
   if(!v) return;
   _ventaActualVer = v;
@@ -20201,6 +20308,17 @@ function mostrarTicket(v){
       '</div>'
     : '';
 
+  // Botón anular: para remito/ticket sin factura legal y no anulado todavía.
+  var puedeAnular = (v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito' && !v.afipCae && !v.anulada);
+  var anularBtn = puedeAnular
+    ? '<button class="btn btn-line btn-sm" style="margin-top:8px;width:100%;color:var(--danger);border-color:var(--danger)" onclick="anularRemito(\''+escapeQ(v._id)+'\')">&#128683; Anular comprobante</button>'
+    : '';
+
+  // Botón convertir remito → factura
+  var convertirFacturaBtn = (v.modo === 'remito' && !v.afipCae && !v.anulada)
+    ? '<button class="btn btn-line btn-sm" style="margin-top:8px;width:100%;color:var(--purple);border-color:var(--purple)" onclick="convertirRemitoEnFactura(\''+escapeQ(v._id)+'\')">&#129534; Convertir en factura</button>'
+    : '';
+
   // Etiqueta del modo
   var modoLbl = 'TICKET';
   if(v.modo === 'factura') modoLbl = 'FACTURA';
@@ -20230,8 +20348,16 @@ function mostrarTicket(v){
       '</div>';
   }
 
+  // Sello de ANULADO (si corresponde)
+  var anuladoBanner = v.anulada
+    ? '<div style="background:#fdecec;border:1.5px solid #d33;color:#b02020;border-radius:10px;padding:10px 14px;margin:0 0 12px;text-align:center;font-weight:800;font-size:14px;letter-spacing:.04em">\uD83D\uDEAB COMPROBANTE ANULADO' + (v.anuladaEn ? ' \u00b7 ' + new Date(v.anuladaEn).toLocaleDateString('es-AR') : '') + '</div>'
+    : '';
+  // Si está anulado, no mostramos las acciones (notas, anular, etc.)
+  var accionesHtml = v.anulada ? '' : (editarEntregaBtn + convertirBtn + convertirFacturaBtn + notasBtns + anularBtn);
+
   document.getElementById('vDetBody').innerHTML =
     '<div class="ticket-print" id="vTicketPrint">'+
+      anuladoBanner+
       '<div class="ticket-print-header">'+
         '<div class="ticket-print-empresa">'+eH(currentEmpresa ? currentEmpresa.nombre : 'Comercia')+'</div>'+
         '<div style="font-size:13px;font-weight:700;color:var(--accent-text);margin-top:6px;letter-spacing:0.04em">'+modoLbl+'</div>'+
@@ -20254,7 +20380,7 @@ function mostrarTicket(v){
       (esNota ? '' : '<div class="ticket-print-sep"></div>'+pagosHtml)+
       (v.observaciones?'<div class="ticket-print-sep"></div><div style="font-size:11px;color:var(--text-mute)">Notas: '+eH(v.observaciones)+'</div>':'')+
     '</div>'+
-    editarEntregaBtn + convertirBtn + notasBtns;
+    accionesHtml;
 
   closeModals();
   document.getElementById('modalDetalleVenta').classList.add('show');
