@@ -9450,7 +9450,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-43'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-44'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -20234,6 +20234,177 @@ async function convertirRemitoEnFactura(vId){
   }catch(err){ console.error(err); toast('Error al convertir: ' + (err.message || ''), 'error'); }
 }
 
+// ═══ EDITAR PRODUCTOS DE UN REMITO (precios, agregar, quitar, descuento final) ═══
+var _editRemito = null;
+
+function abrirEditarRemito(vId){
+  var v = (_ventaActualVer && _ventaActualVer._id === vId) ? _ventaActualVer : ((typeof ventas !== 'undefined') ? ventas.find(function(x){ return x._id === vId; }) : null);
+  if(!v){ toast('No se encontr\u00f3 el comprobante', 'error'); return; }
+  if(v.anulada){ toast('Est\u00e1 anulado: no se puede editar', 'error'); return; }
+  if(v.afipCae){ toast('Tiene factura legal (CAE): no se puede editar', 'error'); return; }
+  _editRemito = {
+    v: v,
+    items: (v.items || []).map(function(it){ return Object.assign({}, it); }),
+    descPct: Number(v.descuentoPct) || 0,
+    ivaPct: (v.ivaPct != null) ? Number(v.ivaPct) : 0
+  };
+  _editRemitoRender();
+}
+
+function _editRemitoTotales(items, descPct, ivaPct){
+  var bruto = items.reduce(function(a, it){ return a + (Number(it.precioUnit) || 0) * (Number(it.cantidad) || 0); }, 0);
+  var descMonto = Math.round(bruto * (Number(descPct) || 0) / 100);
+  var totalFinal = Math.round(bruto - descMonto);
+  var divisor = 1 + ((Number(ivaPct) || 0) / 100);
+  var neto = Math.round(totalFinal / divisor);
+  var ivaMonto = totalFinal - neto;
+  return { bruto: Math.round(bruto), descMonto: descMonto, totalFinal: totalFinal, neto: neto, ivaMonto: ivaMonto };
+}
+
+function _editRemitoSet(idx, campo, valor){
+  if(!_editRemito || !_editRemito.items[idx]) return;
+  _editRemito.items[idx][campo] = (campo === 'cantidad' || campo === 'precioUnit') ? (parseFloat(String(valor).replace(',', '.')) || 0) : valor;
+  _editRemitoRender();
+}
+function _editRemitoQuitar(idx){ if(_editRemito){ _editRemito.items.splice(idx, 1); _editRemitoRender(); } }
+function _editRemitoSetDesc(v){ if(_editRemito){ _editRemito.descPct = parseFloat(String(v).replace(',', '.')) || 0; _editRemitoRender(); } }
+
+function _editRemitoBuscar(q){
+  var cont = document.getElementById('editRemitoResults'); if(!cont) return;
+  q = (q || '').toLowerCase().trim();
+  if(q.length < 2){ cont.innerHTML = ''; return; }
+  var res = (productos || []).filter(function(p){
+    return (p.codigo || '').toLowerCase().indexOf(q) >= 0 || (p.descripcion || '').toLowerCase().indexOf(q) >= 0 || (p.codBarra || '') === q;
+  }).slice(0, 8);
+  cont.innerHTML = res.map(function(p){
+    return '<div onclick="_editRemitoAgregar(\'' + escapeQ(p._id) + '\')" style="padding:7px 9px;border-bottom:1px solid #eee;cursor:pointer;font-size:12px"><b>' + eH(p.descripcion || p.codigo) + '</b> &middot; ' + fmtPeso(p.precioVenta || 0) + (p.stock != null ? (' &middot; stock ' + p.stock) : '') + '</div>';
+  }).join('') || '<div style="padding:8px;color:#999;font-size:12px">Sin resultados</div>';
+}
+function _editRemitoAgregar(pid){
+  var p = (productos || []).find(function(x){ return x._id === pid; });
+  if(!p){ toast('Producto no encontrado', 'error'); return; }
+  if(p.precioVenta == null){ toast('Ese producto no tiene precio de venta cargado', 'error'); return; }
+  _editRemito.items.push({ productoId: p._id, codigo: p.codigo || '', descripcion: p.descripcion || '', cantidad: 1, precioUnit: Number(p.precioVenta) || 0, unidadesPorBulto: 0, unidadesTotales: 1, obra: '' });
+  var inp = document.getElementById('editRemitoSearch'); if(inp) inp.value = '';
+  _editRemitoRender();
+}
+
+function _editRemitoRender(){
+  var e = _editRemito; if(!e) return;
+  var prev = document.getElementById('editRemitoOverlay'); if(prev) prev.remove();
+  var t = _editRemitoTotales(e.items, e.descPct, e.ivaPct);
+  var rows = e.items.map(function(it, idx){
+    return '<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid #eee">' +
+      '<div style="flex:1;min-width:0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + eH(it.descripcion || it.codigo || '') + '</div>' +
+      '<input type="number" value="' + (Number(it.cantidad) || 0) + '" min="0" onchange="_editRemitoSet(' + idx + ',\'cantidad\',this.value)" style="width:50px;padding:5px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:12px">' +
+      '<input type="number" value="' + (Number(it.precioUnit) || 0) + '" min="0" step="0.01" onchange="_editRemitoSet(' + idx + ',\'precioUnit\',this.value)" style="width:84px;padding:5px;border:1px solid #ccc;border-radius:6px;text-align:right;font-size:12px">' +
+      '<button onclick="_editRemitoQuitar(' + idx + ')" style="border:none;background:#fdecec;color:#b02020;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px">\u2715</button>' +
+    '</div>';
+  }).join('');
+  var ov = document.createElement('div');
+  ov.id = 'editRemitoOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99991;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:#fff;border-radius:14px;max-width:560px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.3);color:#1a1a1a';
+  card.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+      '<div style="font-weight:800;font-size:15px">Editar remito ' + eH(e.v.numero || '') + '</div>' +
+      '<button onclick="document.getElementById(\'editRemitoOverlay\').remove()" style="border:none;background:#eee;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:17px">&times;</button>' +
+    '</div>' +
+    '<div style="display:flex;gap:6px;font-size:10px;color:#999;font-weight:700;padding:0 30px 2px 0;text-transform:uppercase"><span style="flex:1">Producto</span><span style="width:50px;text-align:center">Cant</span><span style="width:84px;text-align:right">Precio</span><span style="width:28px"></span></div>' +
+    '<div style="max-height:38vh;overflow:auto;margin-bottom:10px">' + (rows || '<div style="color:#999;font-size:12px;padding:8px 0">Sin productos</div>') + '</div>' +
+    '<div style="position:relative;margin-bottom:10px">' +
+      '<input id="editRemitoSearch" oninput="_editRemitoBuscar(this.value)" placeholder="\uD83D\uDD0D Agregar producto (nombre o c\u00f3digo)\u2026" style="width:100%;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:13px;box-sizing:border-box">' +
+      '<div id="editRemitoResults" style="position:absolute;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);z-index:5;max-height:200px;overflow:auto"></div>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px"><span>Descuento final:</span>' +
+      '<input type="number" value="' + (Number(e.descPct) || 0) + '" min="0" max="100" onchange="_editRemitoSetDesc(this.value)" style="width:64px;padding:5px;border:1px solid #ccc;border-radius:6px;text-align:center"> %</div>' +
+    '<div style="background:#faf7f2;border-radius:10px;padding:10px 12px;font-size:13px">' +
+      '<div style="display:flex;justify-content:space-between;color:#555"><span>Neto</span><span>' + fmtPeso(t.neto) + '</span></div>' +
+      '<div style="display:flex;justify-content:space-between;color:#555"><span>IVA (' + (e.ivaPct || 0) + '%)</span><span>' + fmtPeso(t.ivaMonto) + '</span></div>' +
+      (t.descMonto > 0 ? '<div style="display:flex;justify-content:space-between;color:#b06a00"><span>Descuento (' + (e.descPct || 0) + '%)</span><span>-' + fmtPeso(t.descMonto) + '</span></div>' : '') +
+      '<div style="display:flex;justify-content:space-between;font-weight:800;font-size:15px;margin-top:4px;border-top:1px solid #e6ddcf;padding-top:6px"><span>TOTAL</span><span>' + fmtPeso(t.totalFinal) + '</span></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-top:14px">' +
+      '<button class="btn btn-primary" style="flex:1" onclick="_editRemitoGuardar()">Guardar cambios</button>' +
+      '<button class="btn btn-line" onclick="document.getElementById(\'editRemitoOverlay\').remove()">Cancelar</button>' +
+    '</div>';
+  ov.appendChild(card);
+  ov.addEventListener('click', function(ev){ if(ev.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+
+function _editRemitoStock(items, signo, batch, ahora, prodsLocal){
+  var _inc = firebase.firestore.FieldValue.increment;
+  (items || []).forEach(function(it){
+    var uds = (it.unidadesTotales != null) ? it.unidadesTotales : ((Number(it.cantidad) || 0) * ((Number(it.unidadesPorBulto) || 0) || 1));
+    if(!uds) return;
+    var prod = productos.find(function(x){ return x._id === it.productoId || x.codigo === it.codigo; });
+    if(prod && prod.esKit && Array.isArray(prod.kitComponentes) && prod.kitComponentes.length){
+      prod.kitComponentes.forEach(function(comp){
+        var tc = (Number(comp.cantidad) || 1) * uds * signo;
+        batch.update(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(comp.productoId), { stock: _inc(tc), updatedAt: ahora });
+        var lc = productos.find(function(x){ return x._id === comp.productoId; }); if(lc){ lc.stock = (Number(lc.stock) || 0) + tc; prodsLocal.push(lc); }
+      });
+    } else if(it.productoId){
+      batch.update(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(it.productoId), { stock: _inc(signo * uds), updatedAt: ahora });
+      if(prod){ prod.stock = (Number(prod.stock) || 0) + signo * uds; prodsLocal.push(prod); }
+    }
+  });
+}
+
+async function _editRemitoGuardar(){
+  var e = _editRemito; if(!e) return;
+  var v = e.v;
+  var newItems = e.items.filter(function(it){ return (Number(it.cantidad) || 0) > 0; }).map(function(it){
+    var ub = Number(it.unidadesPorBulto) || 0, cant = Number(it.cantidad) || 0, precio = Number(it.precioUnit) || 0;
+    return { productoId: it.productoId || '', codigo: it.codigo || '', descripcion: it.descripcion || '', cantidad: cant, precioUnit: precio, subtotal: Math.round(precio * cant), unidadesPorBulto: ub, unidadesTotales: cant * (ub || 1), obra: it.obra || '' };
+  });
+  if(!newItems.length){ toast('El remito no puede quedar sin productos. Si querés sacarlo, anulalo.', 'error'); return; }
+  var t = _editRemitoTotales(newItems, e.descPct, e.ivaPct);
+  var oldTotal = v.total || 0;
+  var diffTotal = t.totalFinal - oldTotal;
+  var esCC = (v.pagos || []).some(function(p){ return p.metodo === 'cta_corriente'; });
+  var msg = '\u00bfConfirm\u00e1s los cambios del remito?\n\nTotal: ' + fmtPeso(oldTotal) + ' \u2192 ' + fmtPeso(t.totalFinal);
+  if(esCC && v.cliente){ msg += '\nLa deuda del cliente ' + (diffTotal >= 0 ? 'SUBE' : 'BAJA') + ' ' + fmtPeso(Math.abs(diffTotal)); }
+  msg += '\n\nEl stock se ajusta autom\u00e1ticamente seg\u00fan los cambios.';
+  if(!await confirmComercia(msg)) return;
+  try{
+    var ahora = new Date().toISOString();
+    var prodsLocal = [];
+    var batch = db.batch();
+    _editRemitoStock(v.items || [], 1, batch, ahora, prodsLocal);   // reponer lo viejo
+    _editRemitoStock(newItems, -1, batch, ahora, prodsLocal);       // descontar lo nuevo
+    var spo = {};
+    newItems.forEach(function(it){ var k = it.obra || OBRA_GENERAL_KEY; if(k === '') k = OBRA_GENERAL_KEY; spo[k] = (spo[k] || 0) + it.subtotal; });
+    var nuevosPagos = (v.pagos || []).map(function(p){ return Object.assign({}, p); });
+    if(nuevosPagos.length === 1){ nuevosPagos[0].monto = t.totalFinal; }
+    else if(nuevosPagos.length > 1){ var ccp = nuevosPagos.find(function(p){ return p.metodo === 'cta_corriente'; }) || nuevosPagos[0]; ccp.monto = (ccp.monto || 0) + diffTotal; }
+    var vRef = db.collection('empresas').doc(currentEmpresaId).collection('ventas').doc(v._id);
+    batch.update(vRef, { items: newItems, subtotalesPorObra: spo, neto: t.neto, ivaMonto: t.ivaMonto, descuentoPct: Number(e.descPct) || 0, descuentoMonto: t.descMonto, total: t.totalFinal, pagos: nuevosPagos, updatedAt: ahora });
+    if(esCC && v.cliente && v.cliente.id){
+      var _inc = firebase.firestore.FieldValue.increment;
+      var movsSnap = await db.collection('empresas').doc(currentEmpresaId).collection('cuentas_corrientes').doc(v.cliente.id).collection('movimientos').where('ventaId', '==', v._id).get();
+      movsSnap.forEach(function(d){ var m = d.data(); if(m.tipo === 'venta'){ batch.update(d.ref, { monto: t.totalFinal, items: newItems, subtotalesPorObra: spo }); } });
+      if(Math.abs(diffTotal) > 0.001){
+        var cliRef = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc(v.cliente.id);
+        batch.update.apply(batch, [cliRef, 'saldoCC', _inc(diffTotal), new firebase.firestore.FieldPath('saldosPorObra', OBRA_GENERAL_KEY), _inc(diffTotal), 'updatedAt', ahora]);
+        var cli = clientes.find(function(x){ return x._id === v.cliente.id; });
+        if(cli){ cli.saldoCC = (cli.saldoCC || 0) + diffTotal; var sp = Object.assign({}, cli.saldosPorObra || {}); sp[OBRA_GENERAL_KEY] = (sp[OBRA_GENERAL_KEY] || 0) + diffTotal; cli.saldosPorObra = sp; if(typeof idbGuardarClientes === 'function'){ try{ await idbGuardarClientes(currentEmpresaId, [cli]); }catch(x){} } }
+      }
+    }
+    var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    if(_sinNet){ batch.commit().catch(function(er){ console.warn('Edici\u00f3n pendiente de subir:', er); }); }
+    else { await batch.commit(); }
+    v.items = newItems; v.subtotalesPorObra = spo; v.neto = t.neto; v.ivaMonto = t.ivaMonto; v.descuentoPct = Number(e.descPct) || 0; v.descuentoMonto = t.descMonto; v.total = t.totalFinal; v.pagos = nuevosPagos;
+    if(prodsLocal.length && typeof idbGuardarBatch === 'function'){ try{ await idbGuardarBatch(currentEmpresaId, prodsLocal); }catch(x){} }
+    var ovEl = document.getElementById('editRemitoOverlay'); if(ovEl) ovEl.remove();
+    toast('Remito actualizado \u2713', 'success');
+    if(typeof mostrarTicket === 'function') mostrarTicket(v);
+    if(typeof renderVentas === 'function'){ try{ renderVentas(); }catch(x){} }
+  }catch(err){ console.error(err); toast('Error al guardar: ' + (err.message || ''), 'error'); }
+}
+
 function mostrarTicket(v){
   if(!v) return;
   _ventaActualVer = v;
@@ -20319,6 +20490,11 @@ function mostrarTicket(v){
     ? '<button class="btn btn-line btn-sm" style="margin-top:8px;width:100%;color:var(--purple);border-color:var(--purple)" onclick="convertirRemitoEnFactura(\''+escapeQ(v._id)+'\')">&#129534; Convertir en factura</button>'
     : '';
 
+  // Botón editar productos (remito/ticket sin CAE y no anulado)
+  var editarProductosBtn = (v.modo !== 'presupuesto' && v.modo !== 'nota_credito' && v.modo !== 'nota_debito' && !v.afipCae && !v.anulada)
+    ? '<button class="btn btn-line btn-sm" style="margin-top:8px;width:100%" onclick="abrirEditarRemito(\''+escapeQ(v._id)+'\')">&#9999;&#65039; Editar productos</button>'
+    : '';
+
   // Etiqueta del modo
   var modoLbl = 'TICKET';
   if(v.modo === 'factura') modoLbl = 'FACTURA';
@@ -20353,7 +20529,7 @@ function mostrarTicket(v){
     ? '<div style="background:#fdecec;border:1.5px solid #d33;color:#b02020;border-radius:10px;padding:10px 14px;margin:0 0 12px;text-align:center;font-weight:800;font-size:14px;letter-spacing:.04em">\uD83D\uDEAB COMPROBANTE ANULADO' + (v.anuladaEn ? ' \u00b7 ' + new Date(v.anuladaEn).toLocaleDateString('es-AR') : '') + '</div>'
     : '';
   // Si está anulado, no mostramos las acciones (notas, anular, etc.)
-  var accionesHtml = v.anulada ? '' : (editarEntregaBtn + convertirBtn + convertirFacturaBtn + notasBtns + anularBtn);
+  var accionesHtml = v.anulada ? '' : (editarEntregaBtn + editarProductosBtn + convertirBtn + convertirFacturaBtn + notasBtns + anularBtn);
 
   document.getElementById('vDetBody').innerHTML =
     '<div class="ticket-print" id="vTicketPrint">'+
