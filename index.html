@@ -5863,9 +5863,36 @@
 
           <div id="presList"></div>
         </div>
+
+        <!-- Conversaciones del asesor IA -->
+        <div class="table-card tw-card" style="margin-top:18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div>
+              <div style="font-weight:700;font-size:15px">&#128172; Conversaciones del asesor</div>
+              <div style="font-size:12px;color:var(--text-mute);margin-top:2px">Chats de tus clientes con el asesor virtual. Podés leerlos y responder vos.</div>
+            </div>
+            <button class="btn btn-line btn-sm" onclick="convCargar()">&#128260; Actualizar</button>
+          </div>
+          <div id="convLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando conversaciones...</div></div>
+        </div>
       </div>
 
-      <!-- ═══ MÓDULO CAJA / TESORERÍA ═══ -->
+      <!-- Modal chat abierto del dueño -->
+      <div class="modal-overlay" id="modalChatDueno">
+        <div class="modal" style="max-width:560px;width:100%;padding:0;overflow:hidden;display:flex;flex-direction:column;max-height:90vh">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line,#eee)">
+            <div style="font-weight:700;font-size:14px" id="chatDuenoTitulo">Conversación</div>
+            <button onclick="closeModals()" style="border:none;background:#eee;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px">&times;</button>
+          </div>
+          <div class="chat-dueno-wrap">
+            <div class="chat-dueno-msgs" id="chatDuenoMsgs"></div>
+            <div class="chat-dueno-input">
+              <textarea id="chatDuenoTxt" placeholder="Escribí tu respuesta al cliente…" rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();convResponder()}"></textarea>
+              <button class="btn btn-primary" style="align-self:flex-end" onclick="convResponder()">Enviar</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="module" id="moduleCaja">
         <header class="main-header">
           <div style="display:flex;align-items:center;gap:14px">
@@ -7352,6 +7379,26 @@
             #moduleTienda .tw-rubro{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:6px 11px;border:1px solid var(--line,#eee);border-radius:20px;margin:0 6px 6px 0;cursor:pointer}
             #moduleTienda .tw-rubro input{width:15px;height:15px}
             #moduleTienda .tw-resumen{font-size:13.5px;line-height:1.8;background:var(--bg-2,#f7f7f8);border:1px solid var(--line,#eee);border-radius:10px;padding:14px 16px}
+            /* Conversaciones */
+            .conv-lista{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+            .conv-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line,#eee);border-radius:10px;cursor:pointer;background:var(--bg,#fff);transition:.15s}
+            .conv-item:hover{background:var(--bg-2,#fafafa)}
+            .conv-item.no-leida{border-color:var(--accent,#e08e3c);background:#fff8f0}
+            .conv-item.intervenida{border-color:var(--purple,#7c3aed)}
+            .conv-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--accent,#e08e3c);color:#fff;flex:none}
+            .conv-badge.intervenida{background:var(--purple,#7c3aed)}
+            .conv-preview{font-size:12px;color:var(--text-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+            .conv-ts{font-size:11px;color:var(--text-mute);flex:none}
+            /* Chat abierto del dueño */
+            .chat-dueno-wrap{display:flex;flex-direction:column;height:60vh;min-height:300px}
+            .chat-dueno-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+            .chat-msg{max-width:80%;padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+            .chat-msg.user{align-self:flex-start;background:var(--bg-2,#f2f2f5);color:var(--text,#1a1a2e)}
+            .chat-msg.assistant{align-self:flex-start;background:#fff7ed;border:1px solid #fde8c8;color:var(--text,#1a1a2e)}
+            .chat-msg.dueno{align-self:flex-end;background:var(--accent,#e08e3c);color:#fff}
+            .chat-msg-meta{font-size:10px;opacity:.65;margin-top:3px}
+            .chat-dueno-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line,#eee);background:var(--bg-2,#fafafa)}
+            .chat-dueno-input textarea{flex:1;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;font-family:inherit;resize:none;min-height:40px;max-height:100px}
           </style>
           <div class="table-card tw-card" style="padding:0;overflow:hidden">
             <div class="tw-progress" id="twProgress"></div>
@@ -9450,7 +9497,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-50'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-53'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -9835,7 +9882,7 @@ function navTo(modulo){
   if(modulo==='entradaStock') initEntradaStock();
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
-  if(modulo==='tienda') initTienda();
+  if(modulo==='tienda'){ initTienda(); setTimeout(convAutocargar, 800); }
   if(modulo==='consultaPrecios') initConsultaPrecios();
   if(modulo==='productos') initProductosMobile();
   // En mobile, cerrar sidebar al navegar
@@ -10911,7 +10958,167 @@ async function sfAsesorEnviar(){
   _sfAsesorCargando = false; sfAsesorRender();
 }
 
-// Arranque en modo tienda pública (?tienda=ID)
+// ══════════════════════════════════════════════════════
+// CONVERSACIONES DEL ASESOR IA (panel del dueño)
+// ══════════════════════════════════════════════════════
+var _convActual = null; // {sessionId, messages}
+
+async function convCargar(){
+  var cont = document.getElementById('convLista'); if(!cont) return;
+  cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando...</div>';
+  try{
+    var snap = await db.collection('tiendas').doc(currentEmpresaId)
+      .collection('conversaciones')
+      .orderBy('updatedAt', 'desc')
+      .limit(50)
+      .get();
+    if(snap.empty){
+      cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:24px 0">&#128172; Todavía no hay conversaciones. Cuando un cliente chatea con el asesor, aparecen acá.</div>';
+      return;
+    }
+    var html = '<div class="conv-lista">';
+    snap.forEach(function(d){
+      var c = d.data();
+      var msgs = Array.isArray(c.messages) ? c.messages : [];
+      var ultimo = msgs.filter(function(m){ return m.role === 'user'; }).slice(-1)[0];
+      var preview = ultimo ? (ultimo.content || '').substring(0, 80) : 'Sin mensajes';
+      var ts = c.updatedAt ? new Date(c.updatedAt).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      var noLeida = c.noLeida ? ' no-leida' : '';
+      var intervenida = c.estado === 'intervenida' ? ' intervenida' : '';
+      var badge = c.noLeida
+        ? '<span class="conv-badge">NUEVA</span>'
+        : c.estado === 'intervenida' ? '<span class="conv-badge intervenida">RESPONDIDA</span>' : '';
+      html += '<div class="conv-item' + noLeida + intervenida + '" onclick="convAbrir(\'' + escapeQ(d.id) + '\')">' +
+        '<div style="flex:none;font-size:20px">&#128172;</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">' +
+            '<span style="font-size:12px;font-weight:600">Sesión ' + eH(d.id.substring(0, 8)) + '</span>' +
+            badge +
+          '</div>' +
+          '<div class="conv-preview">' + eH(preview) + '</div>' +
+        '</div>' +
+        '<div class="conv-ts">' + eH(ts) + '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    cont.innerHTML = html;
+  }catch(err){
+    cont.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:12px">Error al cargar: ' + eH(err.message || '') + '</div>';
+  }
+}
+
+async function convAbrir(sessionId){
+  try{
+    var doc = await db.collection('tiendas').doc(currentEmpresaId)
+      .collection('conversaciones').doc(sessionId).get();
+    if(!doc.exists){ toast('Conversación no encontrada', 'error'); return; }
+    var c = doc.data();
+    _convActual = { sessionId: sessionId, data: c };
+    // Marcar como leída
+    await db.collection('tiendas').doc(currentEmpresaId)
+      .collection('conversaciones').doc(sessionId)
+      .update({ noLeida: false });
+    document.getElementById('chatDuenoTitulo').textContent = 'Sesión ' + sessionId.substring(0, 8) + (c.estado === 'intervenida' ? ' · Intervenida' : '');
+    convRenderMsgs(c.messages || []);
+    closeModals();
+    document.getElementById('modalChatDueno').classList.add('show');
+    // Refrescar lista
+    setTimeout(convCargar, 300);
+  }catch(err){ toast('Error: ' + (err.message || ''), 'error'); }
+}
+
+function convRenderMsgs(msgs){
+  var cont = document.getElementById('chatDuenoMsgs'); if(!cont) return;
+  var html = msgs.map(function(m){
+    var cls = m.role === 'user' ? 'user' : m.role === 'dueno' ? 'dueno' : 'assistant';
+    var quien = m.role === 'user' ? '&#128100; Cliente' : m.role === 'dueno' ? '&#128274; Vos' : '&#129302; Asesor';
+    var ts = m.ts ? new Date(m.ts).toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' }) : '';
+    return '<div class="chat-msg ' + cls + '">' +
+      eH(m.content || '') +
+      '<div class="chat-msg-meta">' + quien + (ts ? ' · ' + ts : '') + '</div>' +
+    '</div>';
+  }).join('');
+  cont.innerHTML = html || '<div style="color:var(--text-mute);text-align:center;font-size:13px;padding:20px">Sin mensajes</div>';
+  cont.scrollTop = cont.scrollHeight;
+}
+
+async function convResponder(){
+  if(!_convActual){ toast('No hay conversación abierta', 'error'); return; }
+  var inp = document.getElementById('chatDuenoTxt'); if(!inp) return;
+  var msg = inp.value.trim();
+  if(!msg) return;
+  inp.value = '';
+  try{
+    await functions.httpsCallable('asesorResponderDueno')({
+      empresaId: currentEmpresaId,
+      sessionId: _convActual.sessionId,
+      mensaje: msg,
+    });
+    // Actualizar vista local
+    var msgs = (_convActual.data.messages || []).concat([{
+      role: 'dueno', content: msg, ts: new Date().toISOString()
+    }]);
+    _convActual.data.messages = msgs;
+    convRenderMsgs(msgs);
+    toast('Respuesta enviada ✓', 'success');
+  }catch(err){ toast('Error al enviar: ' + (err.message || ''), 'error'); }
+}
+
+// Cargar conversaciones cuando se navega a Tienda
+var _convCargadas = false;
+
+function convCargar(){
+  if(!currentEmpresaId) return;
+  _convCargadas = true;
+  var cont = document.getElementById('convLista'); if(!cont) return;
+  cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando...</div>';
+  db.collection('tiendas').doc(currentEmpresaId)
+    .collection('conversaciones')
+    .orderBy('updatedAt', 'desc')
+    .limit(50)
+    .get()
+    .then(function(snap){
+      if(snap.empty){
+        cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:24px 0">&#128172; Todavía no hay conversaciones. Cuando un cliente chatea con el asesor, aparecen acá.</div>';
+        return;
+      }
+      var html = '<div class="conv-lista">';
+      snap.forEach(function(d){
+        var c = d.data();
+        var msgs = Array.isArray(c.messages) ? c.messages : [];
+        var ultimo = msgs.filter(function(m){ return m.role === 'user'; }).slice(-1)[0];
+        var preview = ultimo ? (ultimo.content || '').substring(0, 80) : 'Sin mensajes';
+        var ts = c.updatedAt ? new Date(c.updatedAt).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+        var noLeida = c.noLeida ? ' no-leida' : '';
+        var intervenida = c.estado === 'intervenida' ? ' intervenida' : '';
+        var badge = c.noLeida
+          ? '<span class="conv-badge">NUEVA</span>'
+          : c.estado === 'intervenida' ? '<span class="conv-badge intervenida">RESPONDIDA</span>' : '';
+        html += '<div class="conv-item' + noLeida + intervenida + '" onclick="convAbrir(\'' + escapeQ(d.id) + '\')">' +
+          '<div style="flex:none;font-size:20px">&#128172;</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">' +
+              '<span style="font-size:12px;font-weight:600">Sesión ' + eH(d.id.substring(0, 8)) + '</span>' +
+              badge +
+            '</div>' +
+            '<div class="conv-preview">' + eH(preview) + '</div>' +
+          '</div>' +
+          '<div class="conv-ts">' + eH(ts) + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+      cont.innerHTML = html;
+    })
+    .catch(function(err){
+      cont.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:12px">Error al cargar: ' + eH(err.message || '') + '</div>';
+    });
+}
+
+function convAutocargar(){
+  if(!_convCargadas) convCargar();
+}
+
+
 function bootStoreMode(){
   try{
     var tiendaId = new URLSearchParams(location.search).get('tienda');
@@ -13581,6 +13788,13 @@ function renderProductos(){
   var tbody = document.getElementById('prodTbody');
   var pag = document.getElementById('prodPagination');
 
+  // Verificación de humo: si no encontramos el tbody, algo rompió el HTML — avisamos.
+  if(!tbody){
+    if(typeof toast === 'function') toast('⚠️ Error interno: no se encontró la tabla de productos. Avisale al soporte.', 'error');
+    console.error('renderProductos: prodTbody no encontrado en el DOM');
+    return;
+  }
+
   if(productos.length === 0){
     tbody.innerHTML = '<tr><td colspan="9" class="empty-table">'+
       '<div class="empty-table-icon">&#128230;</div>'+
@@ -13857,13 +14071,18 @@ function prodLlenarSelectorProveedores(selected){
   var sel = document.getElementById('prodProveedorSelect'); if(!sel) return;
   selected = (selected || '').trim();
   var set = {};
-  (productos || []).forEach(function(p){ var pr = (p.proveedor || '').trim(); if(pr) set[pr] = 1; });
+  try{ (productos || []).forEach(function(p){ var pr = (p.proveedor || '').trim(); if(pr) set[pr] = 1; }); }catch(e){}
   var lista = Object.keys(set).sort(function(a, b){ return a.localeCompare(b, 'es', { sensitivity: 'base' }); });
   if(selected && !set[selected]) lista.unshift(selected);
-  var html = '<option value="">— Elegir proveedor —</option>';
-  lista.forEach(function(pr){ html += '<option value="' + eH(pr) + '"' + (pr === selected ? ' selected' : '') + '>' + eH(pr) + '</option>'; });
-  html += '<option value="__nuevo__">+ Otro (escribir nuevo)…</option>';
-  sel.innerHTML = html;
+  sel.innerHTML = '';
+  var def = document.createElement('option'); def.value = ''; def.textContent = '— Elegir proveedor —'; sel.appendChild(def);
+  lista.forEach(function(pr){
+    var opt = document.createElement('option');
+    opt.value = pr; opt.textContent = pr;
+    if(pr === selected) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  var nuevo = document.createElement('option'); nuevo.value = '__nuevo__'; nuevo.textContent = '+ Otro (escribir nuevo)…'; sel.appendChild(nuevo);
 }
 function prodProveedorElegido(val){
   var inp = document.getElementById('prodProveedor'); if(!inp) return;
