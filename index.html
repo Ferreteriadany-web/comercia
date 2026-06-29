@@ -9538,7 +9538,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-55'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-56'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10971,6 +10971,19 @@ function sfAsesorProductosEnReply(reply, candidatos){
   });
   return matches.slice(0, 6);
 }
+var _sfAsesorSessionId = null;
+
+function _sfGetSessionId(){
+  if(_sfAsesorSessionId) return _sfAsesorSessionId;
+  try{
+    var guardado = sessionStorage.getItem('sf_session_' + (window._sfId || ''));
+    if(guardado){ _sfAsesorSessionId = guardado; return _sfAsesorSessionId; }
+  }catch(e){}
+  _sfAsesorSessionId = 'sf_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+  try{ sessionStorage.setItem('sf_session_' + (window._sfId || ''), _sfAsesorSessionId); }catch(e){}
+  return _sfAsesorSessionId;
+}
+
 async function sfAsesorEnviar(){
   var inp = document.getElementById('sfAsesorInput'); if(!inp) return;
   var txt = inp.value.trim();
@@ -10985,7 +10998,8 @@ async function sfAsesorEnviar(){
     var res = await functions.httpsCallable('tiendaAsesorIA')({
       empresaId: window._sfId || '',
       messages: _sfAsesorMsgs.map(function(m, i, arr){ var o = { role: m.role, content: m.content }; if(m.img && i === arr.length - 1) o.img = m.img; return o; }),
-      rubros: _sfRubros || []
+      rubros: _sfRubros || [],
+      sessionId: _sfGetSessionId()
     });
     var data = (res && res.data) ? res.data : {};
     var reply = data.reply || 'Contame un poco más y te ayudo.';
@@ -11202,57 +11216,6 @@ async function convResponder(){
 
 // Cargar conversaciones cuando se navega a Tienda
 var _convCargadas = false;
-
-function convCargar(){
-  if(!currentEmpresaId) return;
-  _convCargadas = true;
-  var cont = document.getElementById('convLista'); if(!cont) return;
-  cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando...</div>';
-  db.collection('tiendas').doc(currentEmpresaId)
-    .collection('conversaciones')
-    .orderBy('updatedAt', 'desc')
-    .limit(50)
-    .get()
-    .then(function(snap){
-      if(snap.empty){
-        cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:24px 0">&#128172; Todavía no hay conversaciones. Cuando un cliente chatea con el asesor, aparecen acá.</div>';
-        return;
-      }
-      var html = '<div class="conv-lista">';
-      snap.forEach(function(d){
-        var c = d.data();
-        var msgs = Array.isArray(c.messages) ? c.messages : [];
-        var ultimo = msgs.filter(function(m){ return m.role === 'user'; }).slice(-1)[0];
-        var preview = ultimo ? (ultimo.content || '').substring(0, 80) : 'Sin mensajes';
-        var ts = c.updatedAt ? new Date(c.updatedAt).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
-        var noLeida = c.noLeida ? ' no-leida' : '';
-        var intervenida = c.estado === 'intervenida' ? ' intervenida' : '';
-        var badge = c.noLeida
-          ? '<span class="conv-badge">NUEVA</span>'
-          : c.estado === 'intervenida' ? '<span class="conv-badge intervenida">RESPONDIDA</span>' : '';
-        html += '<div class="conv-item' + noLeida + intervenida + '" onclick="convAbrir(\'' + escapeQ(d.id) + '\')">' +
-          '<div style="flex:none;font-size:20px">&#128172;</div>' +
-          '<div style="flex:1;min-width:0">' +
-            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">' +
-              '<span style="font-size:12px;font-weight:600">Sesión ' + eH(d.id.substring(0, 8)) + '</span>' +
-              badge +
-            '</div>' +
-            '<div class="conv-preview">' + eH(preview) + '</div>' +
-          '</div>' +
-          '<div class="conv-ts">' + eH(ts) + '</div>' +
-        '</div>';
-      });
-      html += '</div>';
-      cont.innerHTML = html;
-    })
-    .catch(function(err){
-      cont.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:12px">Error al cargar: ' + eH(err.message || '') + '</div>';
-    });
-}
-
-function convAutocargar(){
-  if(!_convCargadas) convCargar();
-}
 
 
 function bootStoreMode(){
