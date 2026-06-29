@@ -5214,6 +5214,10 @@
         <a class="nav-item" data-module="tienda" onclick="navTo('tienda')">
           <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Presupuesto Online</span>
         </a>
+        <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
+          <span class="nav-item-icon"><i class="ti ti-package"></i></span><span>Pedidos Online</span>
+          <span id="pedidosBadgeNav" style="display:none;margin-left:auto;background:var(--accent,#e08e3c);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px"></span>
+        </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
             <span class="nav-item-icon"><i class="ti ti-database"></i></span>
@@ -7519,6 +7523,43 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
         </div>
       </div>
 
+      <!-- ═══ MÓDULO PEDIDOS ONLINE ═══ -->
+      <div class="module" id="modulePedidos">
+        <header class="main-header">
+          <h1 class="main-title">Pedidos Online</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="pedidosCargar()">&#128260; Actualizar</button>
+          </div>
+        </header>
+        <details class="ayuda-mod"><summary><span class="ay-ico">&#128230;</span><span>¿Cómo funcionan los Pedidos Online?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Acá llegan los pedidos que tus clientes confirman desde el Presupuesto Online.<ul><li><b>Pendientes de preparar</b>: pedidos nuevos que tenés que armar.</li><li>Cuando lo terminás, lo marcás como <b>Preparado</b> y podés avisarle al cliente que lo venga a retirar.</li><li>Cuando se lo lleva, lo marcás como <b>Retirado</b> y queda en el historial.</li></ul></div></details>
+        <div class="main-body">
+          <style>
+            #modulePedidos .ped-tabs{display:flex;gap:0;border-bottom:2px solid var(--line,#eee);margin-bottom:16px}
+            #modulePedidos .ped-tab{padding:10px 16px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-mute);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;display:flex;align-items:center;gap:6px}
+            #modulePedidos .ped-tab.active{color:var(--accent);font-weight:700;border-bottom-color:var(--accent)}
+            #modulePedidos .ped-tab .ped-count{background:var(--line,#eee);color:var(--text,#333);font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px}
+            #modulePedidos .ped-tab.active .ped-count{background:var(--accent,#e08e3c);color:#fff}
+            .ped-card{border:1px solid var(--line,#eee);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg,#fff)}
+            .ped-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+            .ped-cliente{font-weight:700;font-size:14px}
+            .ped-meta{font-size:12px;color:var(--text-mute);margin-top:2px}
+            .ped-items{font-size:13px;line-height:1.7;border-top:1px dashed var(--line,#eee);padding-top:10px;margin-top:6px}
+            .ped-total{font-weight:800;font-size:15px;margin-top:8px;text-align:right}
+            .ped-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+            .ped-estado-badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px}
+            .ped-estado-badge.pendiente{background:#fff3e0;color:#b06a00}
+            .ped-estado-badge.preparado{background:#e8f5e9;color:#1b7e2d}
+            .ped-estado-badge.retirado{background:#f0f0f0;color:#888}
+          </style>
+          <div class="ped-tabs">
+            <button class="ped-tab active" id="pedTabPendiente" onclick="pedidosSwitchTab('pendiente')">&#128230; Pendientes <span class="ped-count" id="pedCountPendiente">0</span></button>
+            <button class="ped-tab" id="pedTabPreparado" onclick="pedidosSwitchTab('preparado')">&#9989; Preparados <span class="ped-count" id="pedCountPreparado">0</span></button>
+            <button class="ped-tab" id="pedTabRetirado" onclick="pedidosSwitchTab('retirado')">&#128666; Retirados <span class="ped-count" id="pedCountRetirado">0</span></button>
+          </div>
+          <div id="pedidosLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando pedidos...</div></div>
+        </div>
+      </div>
+
       <div class="module" id="moduleConfiguracion">
         <header class="main-header">
           <h1 class="main-title">Configuración</h1>
@@ -9537,7 +9578,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-59'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-61'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -9923,6 +9964,7 @@ function navTo(modulo){
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
   if(modulo==='tienda'){ initTienda(); setTimeout(function(){ tiendaSwitchTab('config'); }, 400); }
+  if(modulo==='pedidos'){ setTimeout(pedidosAutocargar, 300); }
   if(modulo==='consultaPrecios') initConsultaPrecios();
   if(modulo==='productos') initProductosMobile();
   // En mobile, cerrar sidebar al navegar
@@ -11004,29 +11046,32 @@ async function sfAsesorEnviar(){
     var reply = data.reply || 'Contame un poco más y te ayudo.';
     var terminos = Array.isArray(data.candidatos) ? data.candidatos : [];
 
-    // Buscar los términos devueltos por el bot en el catálogo local
+    // Buscar los términos devueltos por el bot en el catálogo real (subcolección 'cat' en Firestore)
     var productosEncontrados = [];
-    if(terminos.length && _sfData && Array.isArray(_sfData.items)){
-      terminos.forEach(function(termino){
-        var palabras = String(termino).toLowerCase().replace(/[^a-záéíóúñ0-9 ]/gi, ' ').split(/\s+/).filter(function(w){ return w.length > 1; });
-        if(!palabras.length) return;
-        var scored = [];
-        (_sfData.items || []).forEach(function(it){
-          var hay = ((it.n || '') + ' ' + (it.r || '') + ' ' + (it.c || '') + ' ' + (it.d || '')).toLowerCase();
-          var sc = 0; palabras.forEach(function(w){ if(hay.indexOf(w) >= 0) sc++; });
-          if(sc >= Math.min(2, palabras.length)) scored.push({ it: it, sc: sc });
+    if(terminos.length && window._sfId){
+      try{
+        var col = db.collection('tiendas').doc(window._sfId).collection('cat');
+        for(var ti = 0; ti < terminos.length; ti++){
+          var toks = _sfTokens(terminos[ti]).slice(0, 10);
+          if(!toks.length) continue;
+          var snap = await col.where('tok', 'array-contains-any', toks).limit(6).get();
+          var locales = [];
+          snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; _sfRegistrar(it); locales.push(it); });
+          // Ordenar por cuántos tokens del término matchean (más relevante primero)
+          locales.sort(function(a, b){
+            var ha = (_sfNorm((a.n || '') + ' ' + (a.r || '')) ), hb = (_sfNorm((b.n || '') + ' ' + (b.r || '')));
+            var sa = 0, sb = 0; toks.forEach(function(t){ if(ha.indexOf(t) >= 0) sa++; if(hb.indexOf(t) >= 0) sb++; });
+            return sb - sa;
+          });
+          locales.slice(0, 4).forEach(function(it){ productosEncontrados.push(it); });
+        }
+        // Deduplicar
+        var seen = {}; productosEncontrados = productosEncontrados.filter(function(it){
+          var k = it.c || it._id || it.n; if(seen[k]) return false; seen[k] = 1; return true;
         });
-        scored.sort(function(a, b){ return b.sc - a.sc; });
-        scored.slice(0, 4).forEach(function(s){
-          var key = 'c:' + s.it.c;
-          if(!_sfItemsById[key]){ _sfItemsById[key] = s.it; productosEncontrados.push(s.it); }
-          else { productosEncontrados.push(_sfItemsById[key]); }
-        });
-      });
-      // Deduplicar
-      var seen = {}; productosEncontrados = productosEncontrados.filter(function(it){
-        var k = it.c || it.n; if(seen[k]) return false; seen[k] = 1; return true;
-      });
+      }catch(eBuscar){
+        console.warn('Error buscando productos del asesor:', eBuscar);
+      }
     }
 
     _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productosEncontrados.slice(0, 8) });
@@ -11037,8 +11082,142 @@ async function sfAsesorEnviar(){
 }
 
 // ══════════════════════════════════════════════════════
-// TABS DEL MÓDULO TIENDA
+// PEDIDOS ONLINE (panel del dueño)
 // ══════════════════════════════════════════════════════
+var _pedidosData = [], _pedidosTabActual = 'pendiente';
+
+function pedidosSwitchTab(estado){
+  _pedidosTabActual = estado;
+  ['pendiente', 'preparado', 'retirado'].forEach(function(e){
+    var btn = document.getElementById('pedTab' + e.charAt(0).toUpperCase() + e.slice(1));
+    if(btn) btn.classList.toggle('active', e === estado);
+  });
+  pedidosRender();
+}
+
+function pedidosCargar(){
+  if(!currentEmpresaId) return;
+  var cont = document.getElementById('pedidosLista'); if(!cont) return;
+  cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando pedidos...</div>';
+  db.collection('empresas').doc(currentEmpresaId).collection('pedidos_online')
+    .orderBy('creadoEn', 'desc')
+    .limit(200)
+    .get()
+    .then(function(snap){
+      _pedidosData = [];
+      snap.forEach(function(d){ var p = d.data(); p._id = d.id; _pedidosData.push(p); });
+      pedidosActualizarContadores();
+      pedidosRender();
+    })
+    .catch(function(err){
+      cont.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:12px">Error: ' + eH(err.message || err) + '</div>';
+    });
+}
+
+function pedidosActualizarContadores(){
+  var cont = { pendiente: 0, preparado: 0, retirado: 0 };
+  _pedidosData.forEach(function(p){ var e = p.estado || 'pendiente'; if(cont[e] != null) cont[e]++; });
+  ['pendiente', 'preparado', 'retirado'].forEach(function(e){
+    var el = document.getElementById('pedCount' + e.charAt(0).toUpperCase() + e.slice(1));
+    if(el) el.textContent = cont[e];
+  });
+  // Badge en el menú
+  var badge = document.getElementById('pedidosBadgeNav');
+  if(badge){
+    if(cont.pendiente > 0){ badge.style.display = ''; badge.textContent = cont.pendiente; }
+    else badge.style.display = 'none';
+  }
+}
+
+function pedidosRender(){
+  var cont = document.getElementById('pedidosLista'); if(!cont) return;
+  var lista = _pedidosData.filter(function(p){ return (p.estado || 'pendiente') === _pedidosTabActual; });
+  if(!lista.length){
+    var msgs = { pendiente: 'No hay pedidos pendientes de preparar.', preparado: 'No hay pedidos preparados esperando retiro.', retirado: 'Todavía no hay pedidos retirados.' };
+    cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">&#128230; ' + msgs[_pedidosTabActual] + '</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(function(p){ return pedidoCardHtml(p); }).join('');
+}
+
+function pedidoCardHtml(p){
+  var fecha = p.creadoEn ? new Date(p.creadoEn).toLocaleString('es-AR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+  var items = Array.isArray(p.items) ? p.items : [];
+  var itemsHtml = items.map(function(it){
+    var sub = (it.precio > 0) ? sfPeso(it.precio * it.qty) : 'a consultar';
+    return '<div style="display:flex;justify-content:space-between;gap:10px"><span>' + it.qty + 'x ' + eH(it.nombre || '') + '</span><span style="color:var(--text-mute)">' + sub + '</span></div>';
+  }).join('');
+  var estado = p.estado || 'pendiente';
+  var badgeTxt = estado === 'pendiente' ? 'PENDIENTE' : estado === 'preparado' ? 'PREPARADO' : 'RETIRADO';
+  var facturaInfo = '';
+  if(p.facturar && (p.cuit || p.dni)){
+    facturaInfo = '<div class="ped-meta">&#129534; Facturar a ' + (p.cuit ? ('CUIT ' + eH(p.cuit)) : ('DNI ' + eH(p.dni))) + '</div>';
+  }
+  var acciones = '';
+  if(estado === 'pendiente'){
+    acciones =
+      '<button class="btn btn-primary btn-sm" onclick="pedidoMarcar(\'' + escapeQ(p._id) + '\',\'preparado\')">&#9989; Marcar preparado</button>' +
+      '<button class="btn btn-line btn-sm" onclick="pedidoAvisar(\'' + escapeQ(p._id) + '\')">&#128241; WhatsApp al cliente</button>' +
+      '<button class="btn btn-line btn-sm" onclick="pedidoAVenta(\'' + escapeQ(p._id) + '\')">&#128722; Pasar a venta</button>';
+  } else if(estado === 'preparado'){
+    acciones =
+      '<button class="btn btn-primary btn-sm" onclick="pedidoAvisar(\'' + escapeQ(p._id) + '\')">&#128241; Avisar: listo para retirar</button>' +
+      '<button class="btn btn-line btn-sm" onclick="pedidoMarcar(\'' + escapeQ(p._id) + '\',\'retirado\')">&#128666; Marcar retirado</button>' +
+      '<button class="btn btn-line btn-sm" onclick="pedidoMarcar(\'' + escapeQ(p._id) + '\',\'pendiente\')">&larr; Volver a pendiente</button>';
+  } else {
+    acciones = '<button class="btn btn-line btn-sm" onclick="pedidoMarcar(\'' + escapeQ(p._id) + '\',\'preparado\')">&larr; Reabrir</button>';
+  }
+  return '<div class="ped-card">' +
+    '<div class="ped-card-head">' +
+      '<div>' +
+        '<div class="ped-cliente">&#128100; ' + eH(p.clienteNombre || 'Sin nombre') + '</div>' +
+        '<div class="ped-meta">&#128241; ' + eH(p.clienteTel || 's/tel') + ' &middot; ' + fecha + '</div>' +
+        facturaInfo +
+      '</div>' +
+      '<span class="ped-estado-badge ' + estado + '">' + badgeTxt + '</span>' +
+    '</div>' +
+    '<div class="ped-items">' + (itemsHtml || '<span style="color:var(--text-mute)">Sin items</span>') + '</div>' +
+    (p.total > 0 ? '<div class="ped-total">Total: ' + sfPeso(p.total) + '</div>' : '') +
+    '<div class="ped-actions">' + acciones + '</div>' +
+  '</div>';
+}
+
+function pedidoMarcar(pedId, nuevoEstado){
+  var p = _pedidosData.find(function(x){ return x._id === pedId; }); if(!p) return;
+  var ahora = new Date().toISOString();
+  db.collection('empresas').doc(currentEmpresaId).collection('pedidos_online').doc(pedId)
+    .update({ estado: nuevoEstado, actualizadoEn: ahora })
+    .then(function(){
+      p.estado = nuevoEstado;
+      pedidosActualizarContadores();
+      pedidosRender();
+      toast('Pedido actualizado', 'success');
+    })
+    .catch(function(err){ toast('Error: ' + (err.message || ''), 'error'); });
+}
+
+function pedidoAvisar(pedId){
+  var p = _pedidosData.find(function(x){ return x._id === pedId; }); if(!p) return;
+  var tel = (p.clienteTel || '').replace(/[^0-9]/g, '');
+  if(!tel){ toast('Este pedido no tiene teléfono', 'error'); return; }
+  var nombreTienda = (currentEmpresa && currentEmpresa.nombre) ? currentEmpresa.nombre : 'la ferretería';
+  var msg = 'Hola ' + (p.clienteNombre || '') + '! Te escribimos de ' + nombreTienda + '. ';
+  if(p.estado === 'preparado'){
+    msg += 'Tu pedido ya está *preparado y listo para retirar*. ¡Te esperamos!';
+  } else {
+    msg += 'Recibimos tu pedido y lo estamos preparando. Te avisamos cuando esté listo para retirar.';
+  }
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function pedidoAVenta(pedId){
+  var p = _pedidosData.find(function(x){ return x._id === pedId; }); if(!p) return;
+  toast('Función "pasar a venta" la conectamos en el próximo paso', 'success');
+}
+
+function pedidosAutocargar(){ pedidosCargar(); }
+
+
 function tiendaSwitchTab(tab){
   var tabs = { config: 'tiendaTabConf', cerebro: 'tiendaTabCerebro', chats: 'tiendaTabChats' };
   var panels = { config: null, cerebro: 'tiendaPanelCerebro', chats: 'tiendaPanelChats' };
