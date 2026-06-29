@@ -7441,7 +7441,7 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
             .chat-dueno-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line,#eee);background:var(--bg-2,#fafafa)}
             .chat-dueno-input textarea{flex:1;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;font-family:inherit;resize:none;min-height:40px;max-height:100px}
           </style>
-          <div class="table-card tw-card" style="padding:0;overflow:hidden">
+          <div class="table-card tw-card" id="tiendaPanelConfig" style="padding:0;overflow:hidden">
             <div class="tw-progress" id="twProgress"></div>
             <div style="padding:22px 24px">
               <div class="tw-step" data-step="1">
@@ -9538,7 +9538,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-57'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-58'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11051,17 +11051,13 @@ function tiendaSwitchTab(tab){
     btn.style.fontWeight = active ? '700' : '600';
     btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
   });
-  // Panels — el de config es el wizard + todo lo que no tiene panel propio
-  var wizard = document.querySelector('#moduleTienda .tw-card');
-  var mainBody = document.querySelector('#moduleTienda .main-body');
-  // Mostrar/ocultar panels específicos
+  // Mostrar/ocultar los tres paneles por su ID propio
   var panelCerebro = document.getElementById('tiendaPanelCerebro');
   var panelChats = document.getElementById('tiendaPanelChats');
+  var panelConfig = document.getElementById('tiendaPanelConfig');
   if(panelCerebro) panelCerebro.style.display = tab === 'cerebro' ? '' : 'none';
   if(panelChats) panelChats.style.display = tab === 'chats' ? '' : 'none';
-  // El wizard (config): mostrar solo en tab config
-  var wizardCard = document.querySelector('#moduleTienda .table-card.tw-card');
-  if(wizardCard) wizardCard.style.display = tab === 'config' ? '' : 'none';
+  if(panelConfig) panelConfig.style.display = tab === 'config' ? '' : 'none';
   // Acciones del header
   var btnPublicar = document.getElementById('tiendaBtnPublicar');
   if(btnPublicar) btnPublicar.style.display = tab === 'config' ? '' : 'none';
