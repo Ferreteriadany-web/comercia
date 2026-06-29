@@ -5864,8 +5864,10 @@
           <div id="presList"></div>
         </div>
 
+          <!-- ── PESTAÑA CONVERSACIONES ── -->
+          <div id="tiendaPanelChats" style="display:none">
         <!-- Conversaciones del asesor IA -->
-        <div class="table-card tw-card" style="margin-top:18px">
+        <div class="table-card tw-card" style="margin-top:4px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div>
               <div style="font-weight:700;font-size:15px">&#128172; Conversaciones del asesor</div>
@@ -5875,7 +5877,8 @@
           </div>
           <div id="convLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando conversaciones...</div></div>
         </div>
-      </div>
+          </div>
+        </div>
 
       <!-- Modal chat abierto del dueño -->
       <div class="modal-overlay" id="modalChatDueno">
@@ -7363,9 +7366,47 @@
             <button class="btn btn-primary btn-sm" id="tiendaBtnPublicar" onclick="guardarPublicarTienda()">&#128722; Guardar y publicar</button>
           </div>
         </header>
+
+        <!-- Tabs del módulo Tienda -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--line,#eee);padding:0 20px;background:var(--bg,#fff)">
+          <button id="tiendaTabConf" onclick="tiendaSwitchTab('config')" style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:700;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer">&#9881;&#65039; Configuración</button>
+          <button id="tiendaTabCerebro" onclick="tiendaSwitchTab('cerebro')" style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-mute);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">&#129504; Cerebro del asesor</button>
+          <button id="tiendaTabChats" onclick="tiendaSwitchTab('chats')" style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-mute);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">&#128172; Conversaciones</button>
+        </div>
+
         <details class="ayuda-mod"><summary><span class="ay-ico">&#128722;</span><span>¿Cómo funciona el Presupuesto Online?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Una <b>vitrina pública</b> de tu catálogo para que tus clientes vean y te pidan.<ul><li>Activá la tienda, poné tu <b>WhatsApp</b> y tocá <b>Guardar y publicar</b>.</li><li>Se publican tus productos con <b>precio de venta y foto</b> (nunca el costo).</li><li>Compartí el <b>link</b> por WhatsApp o Instagram. Los pedidos te llegan por WhatsApp.</li><li>Cada vez que cambies precios o productos, volvé a <b>publicar</b> para actualizar la tienda.</li></ul></div></details>
         <div class="main-body">
           <div class="alert error" id="tiendaAlert"></div>
+
+          <!-- ── PESTAÑA CEREBRO DEL ASESOR ── -->
+          <div id="tiendaPanelCerebro" style="display:none;max-width:720px">
+            <div class="table-card" style="margin-bottom:16px">
+              <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#129504; Cerebro del asesor</div>
+              <div style="font-size:12px;color:var(--text-mute);margin-bottom:14px">Escribí acá todo el conocimiento de tu ferretería: qué marcas tenés por rubro, cuándo recomendar cada producto, ventas cruzadas, preguntas clave. El asesor lo usa para responder como un vendedor experto.<br><br>Guardá cada vez que hagas cambios — se aplica de inmediato sin necesidad de publicar la tienda.</div>
+              <textarea id="cerebroEditor" style="width:100%;min-height:460px;padding:14px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;font-family:var(--mono,'Courier New',monospace);line-height:1.6;resize:vertical;box-sizing:border-box;background:var(--bg-2,#fafafa)" placeholder="Ej:
+═══════════════════════════════════════════
+ADHESIVOS Y SELLADORES
+═══════════════════════════════════════════
+Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
+"></textarea>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;flex-wrap:wrap">
+                <div style="font-size:12px;color:var(--text-mute)" id="cerebroStatus"></div>
+                <div style="display:flex;gap:8px">
+                  <button class="btn btn-line btn-sm" onclick="cerebroCargar()">&#128260; Recargar</button>
+                  <button class="btn btn-primary" onclick="cerebroGuardar()">&#128190; Guardar cerebro</button>
+                </div>
+              </div>
+            </div>
+            <div style="background:#fff8ed;border:1px solid #fde8c8;border-radius:10px;padding:12px 14px;font-size:12px;color:#7a4a00">
+              <b>&#128161; Tips para escribir el cerebro:</b><br>
+              · Usá "BUSCAR: término" para que el asesor sepa qué buscar en tu catálogo.<br>
+              · Marcá las preguntas obligatorias con "PRIMERA PREGUNTA SIEMPRE:" o "SIEMPRE preguntá:".<br>
+              · Las ventas cruzadas con "→ Venta cruzada:" o "Ofrecé también:".<br>
+              · Separá los rubros con líneas ═══ para que sea fácil de leer.<br>
+              · Los proveedores internos ponelos como nota "(NUNCA mencionar al cliente)".
+            </div>
+          </div>
+
           <style>
             #moduleTienda .tw-card{max-width:680px}
             #moduleTienda .tw-progress{display:flex;gap:6px;padding:18px 24px 0}
@@ -9497,7 +9538,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-53'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-54'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -9882,7 +9923,7 @@ function navTo(modulo){
   if(modulo==='entradaStock') initEntradaStock();
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
-  if(modulo==='tienda'){ initTienda(); setTimeout(convAutocargar, 800); }
+  if(modulo==='tienda'){ initTienda(); setTimeout(function(){ tiendaSwitchTab('config'); }, 400); }
   if(modulo==='consultaPrecios') initConsultaPrecios();
   if(modulo==='productos') initProductosMobile();
   // En mobile, cerrar sidebar al navegar
@@ -10956,6 +10997,77 @@ async function sfAsesorEnviar(){
     _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora. Probá de nuevo o escribinos por WhatsApp.' });
   }
   _sfAsesorCargando = false; sfAsesorRender();
+}
+
+// ══════════════════════════════════════════════════════
+// TABS DEL MÓDULO TIENDA
+// ══════════════════════════════════════════════════════
+function tiendaSwitchTab(tab){
+  var tabs = { config: 'tiendaTabConf', cerebro: 'tiendaTabCerebro', chats: 'tiendaTabChats' };
+  var panels = { config: null, cerebro: 'tiendaPanelCerebro', chats: 'tiendaPanelChats' };
+  // Tabs
+  Object.keys(tabs).forEach(function(t){
+    var btn = document.getElementById(tabs[t]); if(!btn) return;
+    var active = t === tab;
+    btn.style.color = active ? 'var(--accent)' : 'var(--text-mute)';
+    btn.style.fontWeight = active ? '700' : '600';
+    btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+  });
+  // Panels — el de config es el wizard + todo lo que no tiene panel propio
+  var wizard = document.querySelector('#moduleTienda .tw-card');
+  var mainBody = document.querySelector('#moduleTienda .main-body');
+  // Mostrar/ocultar panels específicos
+  var panelCerebro = document.getElementById('tiendaPanelCerebro');
+  var panelChats = document.getElementById('tiendaPanelChats');
+  if(panelCerebro) panelCerebro.style.display = tab === 'cerebro' ? '' : 'none';
+  if(panelChats) panelChats.style.display = tab === 'chats' ? '' : 'none';
+  // El wizard (config): mostrar solo en tab config
+  var wizardCard = document.querySelector('#moduleTienda .table-card.tw-card');
+  if(wizardCard) wizardCard.style.display = tab === 'config' ? '' : 'none';
+  // Acciones del header
+  var btnPublicar = document.getElementById('tiendaBtnPublicar');
+  if(btnPublicar) btnPublicar.style.display = tab === 'config' ? '' : 'none';
+  // Acciones específicas por tab
+  if(tab === 'cerebro'){ cerebroCargar(); }
+  if(tab === 'chats'){ convCargar(); }
+}
+
+// ══════════════════════════════════════════════════════
+// EDITOR DEL CEREBRO DEL ASESOR
+// ══════════════════════════════════════════════════════
+async function cerebroCargar(){
+  var ed = document.getElementById('cerebroEditor');
+  var st = document.getElementById('cerebroStatus');
+  if(!ed) return;
+  if(st) st.textContent = 'Cargando...';
+  try{
+    var doc = await db.collection('tiendas').doc(currentEmpresaId).get();
+    var cerebro = doc.exists ? (doc.data().asesorGuia || '') : '';
+    ed.value = cerebro;
+    if(st) st.textContent = cerebro ? ('Última actualización: ' + (doc.data().asesorGuiaUpdatedAt ? new Date(doc.data().asesorGuiaUpdatedAt).toLocaleString('es-AR') : 'desconocida')) : 'Sin cerebro cargado todavía.';
+  }catch(err){
+    if(st) st.textContent = 'Error al cargar: ' + (err.message || '');
+  }
+}
+
+async function cerebroGuardar(){
+  var ed = document.getElementById('cerebroEditor');
+  var st = document.getElementById('cerebroStatus');
+  if(!ed) return;
+  var texto = ed.value.trim();
+  if(st) st.textContent = 'Guardando...';
+  try{
+    var ahora = new Date().toISOString();
+    await db.collection('tiendas').doc(currentEmpresaId).set({
+      asesorGuia: texto,
+      asesorGuiaUpdatedAt: ahora,
+    }, { merge: true });
+    if(st) st.textContent = '✅ Guardado ' + new Date().toLocaleTimeString('es-AR');
+    toast('Cerebro del asesor guardado ✓', 'success');
+  }catch(err){
+    if(st) st.textContent = 'Error al guardar: ' + (err.message || '');
+    toast('Error al guardar: ' + (err.message || ''), 'error');
+  }
 }
 
 // ══════════════════════════════════════════════════════
