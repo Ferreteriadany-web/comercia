@@ -9578,7 +9578,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-62'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-63'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11045,6 +11045,9 @@ async function sfAsesorEnviar(){
     var data = (res && res.data) ? res.data : {};
     var reply = data.reply || 'Contame un poco más y te ayudo.';
     var terminos = Array.isArray(data.candidatos) ? data.candidatos : [];
+
+    // DIAGNÓSTICO TEMPORAL: ver qué términos devuelve el bot
+    console.log('[ASESOR] términos de búsqueda devueltos:', JSON.stringify(terminos));
 
     // Buscar los términos devueltos por el bot en el catálogo real (subcolección 'cat' en Firestore)
     var productosEncontrados = [];
