@@ -9538,7 +9538,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-56'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-57'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11116,18 +11116,34 @@ var _convActual = null; // {sessionId, messages}
 async function convCargar(){
   var cont = document.getElementById('convLista'); if(!cont) return;
   cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando...</div>';
+  var diag = '<div style="font-size:11px;color:#999;background:#f7f7f8;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-family:monospace">empresaId: ' + eH(currentEmpresaId || '(vacío)') + '</div>';
   try{
-    var snap = await db.collection('tiendas').doc(currentEmpresaId)
-      .collection('conversaciones')
-      .orderBy('updatedAt', 'desc')
-      .limit(50)
-      .get();
+    // Probamos primero SIN orderBy, por si falta el campo updatedAt en docs viejos
+    var snap;
+    try{
+      snap = await db.collection('tiendas').doc(currentEmpresaId)
+        .collection('conversaciones')
+        .orderBy('updatedAt', 'desc')
+        .limit(50)
+        .get();
+    }catch(eOrder){
+      // Si falla el orderBy (campo faltante o índice), traemos sin ordenar
+      snap = await db.collection('tiendas').doc(currentEmpresaId)
+        .collection('conversaciones')
+        .limit(50)
+        .get();
+    }
     if(snap.empty){
-      cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:24px 0">&#128172; Todavía no hay conversaciones. Cuando un cliente chatea con el asesor, aparecen acá.</div>';
+      cont.innerHTML = diag + '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:24px 0">&#128172; No se encontraron conversaciones para este empresaId.<br>Si tu novia chateó, puede que la tienda use otro ID. Avisame qué dice acá arriba.</div>';
       return;
     }
-    var html = '<div class="conv-lista">';
-    snap.forEach(function(d){
+    // Ordenar localmente por updatedAt (por si vinieron sin ordenar)
+    var docs = snap.docs.slice().sort(function(a, b){
+      var ta = a.data().updatedAt || '', tb = b.data().updatedAt || '';
+      return tb < ta ? -1 : tb > ta ? 1 : 0;
+    });
+    var html = diag + '<div style="font-size:12px;color:#16a34a;margin-bottom:8px">✅ ' + docs.length + ' conversación(es) encontrada(s)</div><div class="conv-lista">';
+    docs.forEach(function(d){
       var c = d.data();
       var msgs = Array.isArray(c.messages) ? c.messages : [];
       var ultimo = msgs.filter(function(m){ return m.role === 'user'; }).slice(-1)[0];
@@ -11142,7 +11158,7 @@ async function convCargar(){
         '<div style="flex:none;font-size:20px">&#128172;</div>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">' +
-            '<span style="font-size:12px;font-weight:600">Sesión ' + eH(d.id.substring(0, 8)) + '</span>' +
+            '<span style="font-size:12px;font-weight:600">Sesión ' + eH(d.id.substring(0, 12)) + '</span>' +
             badge +
           '</div>' +
           '<div class="conv-preview">' + eH(preview) + '</div>' +
@@ -11153,7 +11169,7 @@ async function convCargar(){
     html += '</div>';
     cont.innerHTML = html;
   }catch(err){
-    cont.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:12px">Error al cargar: ' + eH(err.message || '') + '</div>';
+    cont.innerHTML = diag + '<div style="color:var(--danger);font-size:13px;padding:12px">❌ Error al cargar: ' + eH(err.message || err) + '</div>';
   }
 }
 
