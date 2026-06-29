@@ -5863,22 +5863,7 @@
 
           <div id="presList"></div>
         </div>
-
-          <!-- ── PESTAÑA CONVERSACIONES ── -->
-          <div id="tiendaPanelChats" style="display:none">
-        <!-- Conversaciones del asesor IA -->
-        <div class="table-card tw-card" style="margin-top:4px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <div>
-              <div style="font-weight:700;font-size:15px">&#128172; Conversaciones del asesor</div>
-              <div style="font-size:12px;color:var(--text-mute);margin-top:2px">Chats de tus clientes con el asesor virtual. Podés leerlos y responder vos.</div>
-            </div>
-            <button class="btn btn-line btn-sm" onclick="convCargar()">&#128260; Actualizar</button>
-          </div>
-          <div id="convLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando conversaciones...</div></div>
-        </div>
-          </div>
-        </div>
+      </div>
 
       <!-- Modal chat abierto del dueño -->
       <div class="modal-overlay" id="modalChatDueno">
@@ -7404,6 +7389,20 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
               · Las ventas cruzadas con "→ Venta cruzada:" o "Ofrecé también:".<br>
               · Separá los rubros con líneas ═══ para que sea fácil de leer.<br>
               · Los proveedores internos ponelos como nota "(NUNCA mencionar al cliente)".
+            </div>
+          </div>
+
+          <!-- ── PESTAÑA CONVERSACIONES ── -->
+          <div id="tiendaPanelChats" style="display:none">
+            <div class="table-card" style="margin-top:4px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+                <div>
+                  <div style="font-weight:700;font-size:15px">&#128172; Conversaciones del asesor</div>
+                  <div style="font-size:12px;color:var(--text-mute);margin-top:2px">Chats de tus clientes con el asesor virtual. Podés leerlos y responder vos.</div>
+                </div>
+                <button class="btn btn-line btn-sm" onclick="convCargar()">&#128260; Actualizar</button>
+              </div>
+              <div id="convLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando conversaciones...</div></div>
             </div>
           </div>
 
@@ -9538,7 +9537,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-58'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-59'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
