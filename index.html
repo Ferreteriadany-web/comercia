@@ -9538,7 +9538,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-54'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-55'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10989,10 +10989,34 @@ async function sfAsesorEnviar(){
     });
     var data = (res && res.data) ? res.data : {};
     var reply = data.reply || 'Contame un poco más y te ayudo.';
-    var cand = Array.isArray(data.candidatos) ? data.candidatos : [];
-    cand.forEach(function(pr){ _sfRegistrar(pr); });
-    var productos = sfAsesorProductosEnReply(reply, cand);
-    _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productos });
+    var terminos = Array.isArray(data.candidatos) ? data.candidatos : [];
+
+    // Buscar los términos devueltos por el bot en el catálogo local
+    var productosEncontrados = [];
+    if(terminos.length && _sfData && Array.isArray(_sfData.items)){
+      terminos.forEach(function(termino){
+        var palabras = String(termino).toLowerCase().replace(/[^a-záéíóúñ0-9 ]/gi, ' ').split(/\s+/).filter(function(w){ return w.length > 1; });
+        if(!palabras.length) return;
+        var scored = [];
+        (_sfData.items || []).forEach(function(it){
+          var hay = ((it.n || '') + ' ' + (it.r || '') + ' ' + (it.c || '') + ' ' + (it.d || '')).toLowerCase();
+          var sc = 0; palabras.forEach(function(w){ if(hay.indexOf(w) >= 0) sc++; });
+          if(sc >= Math.min(2, palabras.length)) scored.push({ it: it, sc: sc });
+        });
+        scored.sort(function(a, b){ return b.sc - a.sc; });
+        scored.slice(0, 4).forEach(function(s){
+          var key = 'c:' + s.it.c;
+          if(!_sfItemsById[key]){ _sfItemsById[key] = s.it; productosEncontrados.push(s.it); }
+          else { productosEncontrados.push(_sfItemsById[key]); }
+        });
+      });
+      // Deduplicar
+      var seen = {}; productosEncontrados = productosEncontrados.filter(function(it){
+        var k = it.c || it.n; if(seen[k]) return false; seen[k] = 1; return true;
+      });
+    }
+
+    _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productosEncontrados.slice(0, 8) });
   }catch(err){
     _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora. Probá de nuevo o escribinos por WhatsApp.' });
   }
