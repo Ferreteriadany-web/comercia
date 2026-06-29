@@ -9578,7 +9578,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-61'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-62'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11054,16 +11054,22 @@ async function sfAsesorEnviar(){
         for(var ti = 0; ti < terminos.length; ti++){
           var toks = _sfTokens(terminos[ti]).slice(0, 10);
           if(!toks.length) continue;
-          var snap = await col.where('tok', 'array-contains-any', toks).limit(6).get();
+          // Traemos un lote amplio para después filtrar con exigencia
+          var snap = await col.where('tok', 'array-contains-any', toks).limit(40).get();
           var locales = [];
-          snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; _sfRegistrar(it); locales.push(it); });
-          // Ordenar por cuántos tokens del término matchean (más relevante primero)
-          locales.sort(function(a, b){
-            var ha = (_sfNorm((a.n || '') + ' ' + (a.r || '')) ), hb = (_sfNorm((b.n || '') + ' ' + (b.r || '')));
-            var sa = 0, sb = 0; toks.forEach(function(t){ if(ha.indexOf(t) >= 0) sa++; if(hb.indexOf(t) >= 0) sb++; });
-            return sb - sa;
+          snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; locales.push(it); });
+          // Puntuar: cuántas palabras del término aparecen REALMENTE en el nombre del producto
+          var scored = locales.map(function(it){
+            var hay = _sfNorm((it.n || '') + ' ' + (it.r || ''));
+            var sc = 0; toks.forEach(function(t){ if(hay.indexOf(t) >= 0) sc++; });
+            return { it: it, sc: sc };
           });
-          locales.slice(0, 4).forEach(function(it){ productosEncontrados.push(it); });
+          // EXIGENCIA: el producto tiene que matchear casi todas las palabras del término.
+          // Si el término tiene 1-2 palabras, las dos; si tiene más, al menos el 70%.
+          var minMatch = toks.length <= 2 ? toks.length : Math.ceil(toks.length * 0.7);
+          scored = scored.filter(function(s){ return s.sc >= minMatch; });
+          scored.sort(function(a, b){ return b.sc - a.sc; });
+          scored.slice(0, 3).forEach(function(s){ _sfRegistrar(s.it); productosEncontrados.push(s.it); });
         }
         // Deduplicar
         var seen = {}; productosEncontrados = productosEncontrados.filter(function(it){
