@@ -5213,6 +5213,7 @@
         </a>
         <a class="nav-item" data-module="tienda" onclick="navTo('tienda')">
           <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Presupuesto Online</span>
+          <span id="convBadgeNav" style="display:none;margin-left:auto;background:#e11d48;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px"></span>
         </a>
         <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
           <span class="nav-item-icon"><i class="ti ti-package"></i></span><span>Pedidos Online</span>
@@ -9426,7 +9427,8 @@ async function cargarEmpresaUsuario(user){
 
     cargarProductos();
 
-    // Arrancar en el Dashboard de inicio.
+    // Avisos en vivo de conversaciones del asesor
+    try{ setTimeout(convIniciarAvisos, 2000); }catch(e){}
     try{
       navTo('inicio');
     }catch(e){ console.warn('nav inicial', e); }
@@ -9578,7 +9580,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-64'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-65'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11290,6 +11292,80 @@ function pedidoAVenta(pedId){
 }
 
 function pedidosAutocargar(){ pedidosCargar(); }
+
+
+// ══════════════════════════════════════════════════════
+// AVISO EN VIVO DE CONVERSACIONES NUEVAS (campanita + sonido)
+// ══════════════════════════════════════════════════════
+var _convUnsub = null;
+var _convAvisoIniciado = false;
+var _convNoLeidasSet = {};
+var _convPrimeraCarga = true;
+
+function convIniciarAvisos(){
+  if(_convAvisoIniciado || !currentEmpresaId) return;
+  _convAvisoIniciado = true;
+  try{
+    _convUnsub = db.collection('tiendas').doc(currentEmpresaId)
+      .collection('conversaciones')
+      .where('noLeida', '==', true)
+      .onSnapshot(function(snap){
+        var nuevas = [];
+        snap.forEach(function(d){
+          if(!_convNoLeidasSet[d.id]){ nuevas.push(d.data()); }
+        });
+        var vigentes = {};
+        snap.forEach(function(d){ vigentes[d.id] = true; });
+        _convNoLeidasSet = vigentes;
+        convActualizarBadge(snap.size);
+        // No sonar en la primera carga (son las que ya estaban), sí en las nuevas de ahí en más
+        if(!_convPrimeraCarga && nuevas.length > 0){
+          convSonar();
+          var ult = nuevas[nuevas.length - 1];
+          var nombre = (ult && ult.clienteNombre) ? ult.clienteNombre : 'Un cliente';
+          if(typeof toast === 'function') toast('💬 ' + nombre + ' te escribió en el asesor', 'success');
+        }
+        _convPrimeraCarga = false;
+      }, function(err){ console.warn('Listener de conversaciones:', err.message); });
+  }catch(e){ console.warn('No se pudo iniciar avisos:', e); }
+}
+
+function convActualizarBadge(total){
+  var badge = document.getElementById('convBadgeNav');
+  if(badge){
+    if(total > 0){ badge.style.display = ''; badge.textContent = total; }
+    else badge.style.display = 'none';
+  }
+  try{
+    var base = document.title.replace(/^\(\d+\)\s*/, '');
+    document.title = total > 0 ? ('(' + total + ') ' + base) : base;
+  }catch(e){}
+}
+
+function convSonar(){
+  try{
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    o.start(); o.stop(ctx.currentTime + 0.4);
+    setTimeout(function(){
+      try{
+        var ctx2 = ctx;
+        var o2 = ctx2.createOscillator(), g2 = ctx2.createGain();
+        o2.connect(g2); g2.connect(ctx2.destination);
+        o2.type = 'sine'; o2.frequency.value = 660;
+        g2.gain.setValueAtTime(0.001, ctx2.currentTime);
+        g2.gain.exponentialRampToValueAtTime(0.3, ctx2.currentTime + 0.02);
+        g2.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 0.4);
+        o2.start(); o2.stop(ctx2.currentTime + 0.4);
+      }catch(e){}
+    }, 220);
+  }catch(e){}
+}
 
 
 function tiendaSwitchTab(tab){
