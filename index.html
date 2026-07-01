@@ -9580,7 +9580,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-67'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-69'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11529,8 +11529,12 @@ async function convCargar(){
   }
 }
 
+var _convAbiertaUnsub = null;
+
 async function convAbrir(sessionId){
   try{
+    // Cancelar listener anterior si había
+    if(_convAbiertaUnsub){ try{ _convAbiertaUnsub(); }catch(e){} _convAbiertaUnsub = null; }
     var doc = await db.collection('tiendas').doc(currentEmpresaId)
       .collection('conversaciones').doc(sessionId).get();
     if(!doc.exists){ toast('Conversación no encontrada', 'error'); return; }
@@ -11540,13 +11544,27 @@ async function convAbrir(sessionId){
     await db.collection('tiendas').doc(currentEmpresaId)
       .collection('conversaciones').doc(sessionId)
       .update({ noLeida: false });
-    document.getElementById('chatDuenoTitulo').textContent = 'Sesión ' + sessionId.substring(0, 8) + (c.estado === 'intervenida' ? ' · Intervenida' : '');
+    var nombreTit = c.clienteNombre || ('Sesión ' + sessionId.substring(0, 8));
+    document.getElementById('chatDuenoTitulo').textContent = nombreTit;
     convRenderMsgs(c.messages || []);
     closeModals();
     document.getElementById('modalChatDueno').classList.add('show');
-    // Refrescar lista
+    // ESCUCHAR EN VIVO: si el cliente escribe mientras estás adentro, se actualiza solo
+    _convAbiertaUnsub = db.collection('tiendas').doc(currentEmpresaId)
+      .collection('conversaciones').doc(sessionId)
+      .onSnapshot(function(d){
+        if(!d.exists) return;
+        var data = d.data();
+        _convActual.data = data;
+        convRenderMsgs(data.messages || []);
+      }, function(err){ console.warn('Escucha conversación dueño:', err.message); });
     setTimeout(convCargar, 300);
   }catch(err){ toast('Error: ' + (err.message || ''), 'error'); }
+}
+
+// Al cerrar el modal, cortar el listener
+function convCerrarChat(){
+  if(_convAbiertaUnsub){ try{ _convAbiertaUnsub(); }catch(e){} _convAbiertaUnsub = null; }
 }
 
 function convRenderMsgs(msgs){
@@ -11576,12 +11594,7 @@ async function convResponder(){
       sessionId: _convActual.sessionId,
       mensaje: msg,
     });
-    // Actualizar vista local
-    var msgs = (_convActual.data.messages || []).concat([{
-      role: 'dueno', content: msg, ts: new Date().toISOString()
-    }]);
-    _convActual.data.messages = msgs;
-    convRenderMsgs(msgs);
+    // El listener en vivo va a refrescar la vista con el mensaje guardado.
     toast('Respuesta enviada ✓', 'success');
     // Ofrecer avisar al cliente
     convMostrarAvisoCliente(msg);
@@ -11598,7 +11611,9 @@ function convMostrarAvisoCliente(miRespuesta){
   if(!tel && !email){
     var av0 = document.createElement('div');
     av0.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px;color:#9a3412';
-    av0.innerHTML = '⚠️ Este cliente no dejó teléfono ni email (es una conversación vieja). Tu respuesta le va a aparecer en el chat cuando vuelva a abrir la tienda.';
+    av0.innerHTML = '⚠️ No encuentro teléfono ni email guardados en esta conversación.<br>' +
+      '<span style="font-family:monospace;font-size:11px">nombre: "' + eH(c.clienteNombre || '') + '" · tel: "' + eH(c.clienteTel || '') + '" · email: "' + eH(c.clienteEmail || '') + '"</span><br>' +
+      'Si los ves vacíos y el cliente SÍ los cargó, falta deployar la función que los guarda. Igual tu respuesta le llega por el chat cuando vuelva.';
     cont.appendChild(av0); cont.scrollTop = cont.scrollHeight;
     return;
   }
