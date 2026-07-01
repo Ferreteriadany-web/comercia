@@ -9578,7 +9578,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-63'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-64'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10925,15 +10925,79 @@ function sfAsesorPreview(){
   } else { p.style.display = 'none'; p.innerHTML = ''; }
 }
 function sfAsesorQuitarFoto(){ _sfAsesorImg = null; sfAsesorPreview(); }
+var _sfCliente = null; // { nombre, tel, email } del cliente que chatea
+
+function _sfGetCliente(){
+  if(_sfCliente) return _sfCliente;
+  try{
+    var g = sessionStorage.getItem('sf_cliente_' + (window._sfId || ''));
+    if(g){ _sfCliente = JSON.parse(g); return _sfCliente; }
+  }catch(e){}
+  return null;
+}
+
 function sfAsesorAbrir(){
   var bg = document.getElementById('sfAsesorBg'), p = document.getElementById('sfAsesorPanel');
   if(bg) bg.classList.add('open'); if(p) p.classList.add('open');
+  // Si el cliente todavía no cargó sus datos, mostramos el formulario primero
+  if(!_sfGetCliente()){
+    sfMostrarFormDatos();
+    return;
+  }
+  sfIniciarChat();
+}
+
+function sfMostrarFormDatos(){
+  var cont = document.getElementById('sfAsesorMsgs'); if(!cont) return;
+  // Ocultamos la barra de escribir mientras carga datos
+  var inputBar = document.querySelector('#sfAsesorPanel .sf-ainput');
+  if(inputBar) inputBar.style.display = 'none';
+  var nom = (_sfData.asesorNombre || 'tu asesor');
+  var tienda = (_sfData.nombre || 'la ferretería');
+  cont.innerHTML =
+    '<div style="padding:8px 4px">' +
+      '<div style="font-size:15px;font-weight:700;margin-bottom:4px">¡Hola! 👋 Soy ' + sfEsc(nom) + '</div>' +
+      '<div style="font-size:13px;color:#666;margin-bottom:16px;line-height:1.5">Antes de arrancar, dejame tus datos así puedo ayudarte mejor y avisarte cuando tu pedido esté listo. 😊</div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+        '<input id="sfDatoNombre" placeholder="Tu nombre *" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px">' +
+        '<input id="sfDatoTel" type="tel" placeholder="Tu teléfono / WhatsApp *" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px">' +
+        '<input id="sfDatoEmail" type="email" placeholder="Tu email *" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px">' +
+        '<div id="sfDatoError" style="color:#d33;font-size:12px;display:none"></div>' +
+        '<button onclick="sfGuardarDatos()" style="padding:12px;border:none;border-radius:10px;background:var(--sf-accent,#e08e3c);color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px">Empezar a chatear →</button>' +
+        '<div style="font-size:11px;color:#999;text-align:center;line-height:1.4">Usamos tus datos solo para responderte y avisarte de tu pedido.</div>' +
+      '</div>' +
+    '</div>';
+  setTimeout(function(){ var n = document.getElementById('sfDatoNombre'); if(n) n.focus(); }, 200);
+}
+
+function sfGuardarDatos(){
+  var nombre = (document.getElementById('sfDatoNombre').value || '').trim();
+  var tel = (document.getElementById('sfDatoTel').value || '').trim();
+  var email = (document.getElementById('sfDatoEmail').value || '').trim();
+  var err = document.getElementById('sfDatoError');
+  function mostrarErr(m){ if(err){ err.textContent = m; err.style.display = ''; } }
+  if(!nombre){ mostrarErr('Poné tu nombre.'); return; }
+  if(!tel || tel.replace(/[^0-9]/g, '').length < 6){ mostrarErr('Poné un teléfono válido.'); return; }
+  if(!email || email.indexOf('@') < 1 || email.indexOf('.') < 0){ mostrarErr('Poné un email válido.'); return; }
+  _sfCliente = { nombre: nombre, tel: tel, email: email };
+  try{ sessionStorage.setItem('sf_cliente_' + (window._sfId || ''), JSON.stringify(_sfCliente)); }catch(e){}
+  // Mostramos de nuevo la barra de escribir
+  var inputBar = document.querySelector('#sfAsesorPanel .sf-ainput');
+  if(inputBar) inputBar.style.display = '';
+  sfIniciarChat();
+}
+
+function sfIniciarChat(){
   if(!_sfAsesorMsgs.length){
     var nom = (_sfData.asesorNombre || 'tu asesor');
+    var cli = _sfGetCliente();
+    var hola = cli ? ('¡Genial, ' + cli.nombre + '! ') : '¡Hola! 👋 ';
     var saludo = (_sfData.bienvenida && _sfData.bienvenida.trim())
       ? _sfData.bienvenida.trim()
-      : ('¡Hola! 👋 Soy ' + nom + ' de ' + (_sfData.nombre || 'la ferretería') + '. Contame qué estás buscando o para qué lo necesitás y te ayudo a encontrar lo mejor para vos. 😊');
+      : (hola + 'Soy ' + nom + ' de ' + (_sfData.nombre || 'la ferretería') + '. Contame qué estás buscando o para qué lo necesitás y te ayudo a encontrar lo mejor para vos. 😊');
     _sfAsesorMsgs.push({ role: 'assistant', content: saludo });
+    sfAsesorRender();
+  } else {
     sfAsesorRender();
   }
   var inp = document.getElementById('sfAsesorInput'); if(inp) setTimeout(function(){ inp.focus(); }, 200);
@@ -11040,7 +11104,8 @@ async function sfAsesorEnviar(){
       empresaId: window._sfId || '',
       messages: _sfAsesorMsgs.map(function(m, i, arr){ var o = { role: m.role, content: m.content }; if(m.img && i === arr.length - 1) o.img = m.img; return o; }),
       rubros: _sfRubros || [],
-      sessionId: _sfGetSessionId()
+      sessionId: _sfGetSessionId(),
+      cliente: _sfGetCliente() || null
     });
     var data = (res && res.data) ? res.data : {};
     var reply = data.reply || 'Contame un poco más y te ayudo.';
@@ -11341,7 +11406,7 @@ async function convCargar(){
         '<div style="flex:none;font-size:20px">&#128172;</div>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">' +
-            '<span style="font-size:12px;font-weight:600">Sesión ' + eH(d.id.substring(0, 12)) + '</span>' +
+            '<span style="font-size:12px;font-weight:600">' + eH(c.clienteNombre || ('Sesión ' + d.id.substring(0, 8))) + '</span>' +
             badge +
           '</div>' +
           '<div class="conv-preview">' + eH(preview) + '</div>' +
