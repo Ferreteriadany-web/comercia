@@ -9580,7 +9580,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-66'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-67'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11002,7 +11002,36 @@ function sfIniciarChat(){
   } else {
     sfAsesorRender();
   }
+  // Escuchar en tiempo real: si el dueño responde, mostrarlo en el chat del cliente
+  sfEscucharRespuestas();
   var inp = document.getElementById('sfAsesorInput'); if(inp) setTimeout(function(){ inp.focus(); }, 200);
+}
+
+var _sfRespuestasUnsub = null;
+function sfEscucharRespuestas(){
+  if(_sfRespuestasUnsub || !window._sfId) return;
+  var sesId = _sfGetSessionId();
+  try{
+    _sfRespuestasUnsub = db.collection('tiendas').doc(window._sfId)
+      .collection('conversaciones').doc(sesId)
+      .onSnapshot(function(doc){
+        if(!doc.exists) return;
+        var data = doc.data();
+        var msgsServidor = Array.isArray(data.messages) ? data.messages : [];
+        // Buscar mensajes del dueño que todavía no mostramos
+        var yaTengo = {};
+        _sfAsesorMsgs.forEach(function(m){ if(m.role === 'dueno') yaTengo[m.content] = true; });
+        var agregados = false;
+        msgsServidor.forEach(function(m){
+          if(m.role === 'dueno' && !yaTengo[m.content]){
+            _sfAsesorMsgs.push({ role: 'dueno', content: m.content });
+            yaTengo[m.content] = true;
+            agregados = true;
+          }
+        });
+        if(agregados){ sfAsesorRender(); }
+      }, function(err){ console.warn('Escucha respuestas:', err.message); });
+  }catch(e){ console.warn('No se pudo escuchar respuestas:', e); }
 }
 function sfAsesorChip(t){
   var inp = document.getElementById('sfAsesorInput'); if(inp) inp.value = t;
@@ -11019,6 +11048,9 @@ function sfAsesorRender(){
       var foto = m.imgUrl ? ('<img src="' + m.imgUrl + '" class="sf-aimg" alt="foto">') : '';
       var t = m.content ? ('<div>' + sfEsc(m.content) + '</div>') : '';
       return '<div class="sf-abubble sf-auser">' + foto + t + '</div>';
+    }
+    if(m.role === 'dueno'){
+      return '<div class="sf-abubble sf-abot" style="background:#e0f2fe;border:1px solid #bae6fd"><div style="font-size:10px;font-weight:700;color:#0369a1;margin-bottom:3px">👤 Respuesta de la ferretería</div>' + sfEsc(m.content) + '</div>';
     }
     var bub = '<div class="sf-abubble sf-abot">' + sfEsc(m.content) + '</div>';
     if(m.productos && m.productos.length){
@@ -11561,9 +11593,15 @@ function convMostrarAvisoCliente(miRespuesta){
   var c = _convActual && _convActual.data; if(!c) return;
   var tel = (c.clienteTel || '').replace(/[^0-9]/g, '');
   var email = (c.clienteEmail || '').trim();
-  var nombre = c.clienteNombre || '';
-  if(!tel && !email) return; // no hay cómo avisar
+  var nombre = c.clienteNombre || 'el cliente';
   var cont = document.getElementById('chatDuenoMsgs'); if(!cont) return;
+  if(!tel && !email){
+    var av0 = document.createElement('div');
+    av0.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px;color:#9a3412';
+    av0.innerHTML = '⚠️ Este cliente no dejó teléfono ni email (es una conversación vieja). Tu respuesta le va a aparecer en el chat cuando vuelva a abrir la tienda.';
+    cont.appendChild(av0); cont.scrollTop = cont.scrollHeight;
+    return;
+  }
   var nombreTienda = (currentEmpresa && currentEmpresa.nombre) ? currentEmpresa.nombre : 'la ferretería';
   var linkTienda = 'https://ferreteriadany-web.github.io/comercia/?tienda=' + encodeURIComponent(currentEmpresaId);
   var textoWA = 'Hola ' + nombre + '! Te responde ' + nombreTienda + ' 👇\n\n' + miRespuesta + '\n\nPodés seguir la charla acá: ' + linkTienda;
