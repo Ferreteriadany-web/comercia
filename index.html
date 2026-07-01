@@ -5879,6 +5879,7 @@
           </div>
           <div class="chat-dueno-wrap">
             <div class="chat-dueno-msgs" id="chatDuenoMsgs"></div>
+            <div id="chatDuenoAvisos" style="padding:0 12px"></div>
             <div class="chat-dueno-input">
               <textarea id="chatDuenoTxt" placeholder="Escribí tu respuesta al cliente…" rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();convResponder()}"></textarea>
               <button class="btn btn-primary" style="align-self:flex-end" onclick="convResponder()">Enviar</button>
@@ -9580,7 +9581,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-69'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-70'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11547,6 +11548,7 @@ async function convAbrir(sessionId){
     var nombreTit = c.clienteNombre || ('Sesión ' + sessionId.substring(0, 8));
     document.getElementById('chatDuenoTitulo').textContent = nombreTit;
     convRenderMsgs(c.messages || []);
+    var avisosBox = document.getElementById('chatDuenoAvisos'); if(avisosBox) avisosBox.innerHTML = '';
     closeModals();
     document.getElementById('modalChatDueno').classList.add('show');
     // ESCUCHAR EN VIVO: si el cliente escribe mientras estás adentro, se actualiza solo
@@ -11607,22 +11609,19 @@ function convMostrarAvisoCliente(miRespuesta){
   var tel = (c.clienteTel || '').replace(/[^0-9]/g, '');
   var email = (c.clienteEmail || '').trim();
   var nombre = c.clienteNombre || 'el cliente';
-  var cont = document.getElementById('chatDuenoMsgs'); if(!cont) return;
+  var cont = document.getElementById('chatDuenoAvisos'); if(!cont) return;
   if(!tel && !email){
-    var av0 = document.createElement('div');
-    av0.style.cssText = 'background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px;color:#9a3412';
-    av0.innerHTML = '⚠️ No encuentro teléfono ni email guardados en esta conversación.<br>' +
-      '<span style="font-family:monospace;font-size:11px">nombre: "' + eH(c.clienteNombre || '') + '" · tel: "' + eH(c.clienteTel || '') + '" · email: "' + eH(c.clienteEmail || '') + '"</span><br>' +
-      'Si los ves vacíos y el cliente SÍ los cargó, falta deployar la función que los guarda. Igual tu respuesta le llega por el chat cuando vuelva.';
-    cont.appendChild(av0); cont.scrollTop = cont.scrollHeight;
+    cont.innerHTML = '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px;color:#9a3412">' +
+      '⚠️ Este cliente no dejó teléfono ni email (conversación vieja). Tu respuesta igual le llega por el chat cuando vuelva a abrir la tienda.' +
+      '</div>';
     return;
   }
   var nombreTienda = (currentEmpresa && currentEmpresa.nombre) ? currentEmpresa.nombre : 'la ferretería';
   var linkTienda = 'https://ferreteriadany-web.github.io/comercia/?tienda=' + encodeURIComponent(currentEmpresaId);
   var textoWA = 'Hola ' + nombre + '! Te responde ' + nombreTienda + ' 👇\n\n' + miRespuesta + '\n\nPodés seguir la charla acá: ' + linkTienda;
-  var aviso = document.createElement('div');
-  aviso.style.cssText = 'background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px';
-  var botones = '<div style="font-weight:700;margin-bottom:6px;color:#0369a1">📢 Avisale a ' + eH(nombre) + ' que le respondiste:</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+  var botones = '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px">' +
+    '<div style="font-weight:700;margin-bottom:6px;color:#0369a1">📢 Avisale a ' + eH(nombre) + ' que le respondiste:</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">';
   if(tel){
     botones += '<button class="btn btn-primary btn-sm" onclick="window.open(\'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWA).replace(/'/g, "%27") + '\',\'_blank\')">📱 WhatsApp</button>';
   }
@@ -11631,10 +11630,8 @@ function convMostrarAvisoCliente(miRespuesta){
     var body = encodeURIComponent(textoWA);
     botones += '<button class="btn btn-line btn-sm" onclick="window.open(\'mailto:' + eH(email) + '?subject=' + subj + '&body=' + body + '\',\'_blank\')">✉️ Email</button>';
   }
-  botones += '</div>';
-  aviso.innerHTML = botones;
-  cont.appendChild(aviso);
-  cont.scrollTop = cont.scrollHeight;
+  botones += '</div></div>';
+  cont.innerHTML = botones;
 }
 
 // Cargar conversaciones cuando se navega a Tienda
