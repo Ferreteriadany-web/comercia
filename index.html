@@ -9580,7 +9580,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-65'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-66'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11551,7 +11551,37 @@ async function convResponder(){
     _convActual.data.messages = msgs;
     convRenderMsgs(msgs);
     toast('Respuesta enviada ✓', 'success');
+    // Ofrecer avisar al cliente
+    convMostrarAvisoCliente(msg);
   }catch(err){ toast('Error al enviar: ' + (err.message || ''), 'error'); }
+}
+
+// Muestra botones para avisarle al cliente que le respondiste (WhatsApp / email)
+function convMostrarAvisoCliente(miRespuesta){
+  var c = _convActual && _convActual.data; if(!c) return;
+  var tel = (c.clienteTel || '').replace(/[^0-9]/g, '');
+  var email = (c.clienteEmail || '').trim();
+  var nombre = c.clienteNombre || '';
+  if(!tel && !email) return; // no hay cómo avisar
+  var cont = document.getElementById('chatDuenoMsgs'); if(!cont) return;
+  var nombreTienda = (currentEmpresa && currentEmpresa.nombre) ? currentEmpresa.nombre : 'la ferretería';
+  var linkTienda = 'https://ferreteriadany-web.github.io/comercia/?tienda=' + encodeURIComponent(currentEmpresaId);
+  var textoWA = 'Hola ' + nombre + '! Te responde ' + nombreTienda + ' 👇\n\n' + miRespuesta + '\n\nPodés seguir la charla acá: ' + linkTienda;
+  var aviso = document.createElement('div');
+  aviso.style.cssText = 'background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12px';
+  var botones = '<div style="font-weight:700;margin-bottom:6px;color:#0369a1">📢 Avisale a ' + eH(nombre) + ' que le respondiste:</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+  if(tel){
+    botones += '<button class="btn btn-primary btn-sm" onclick="window.open(\'https://wa.me/' + tel + '?text=' + encodeURIComponent(textoWA).replace(/'/g, "%27") + '\',\'_blank\')">📱 WhatsApp</button>';
+  }
+  if(email){
+    var subj = encodeURIComponent('Respuesta de ' + nombreTienda);
+    var body = encodeURIComponent(textoWA);
+    botones += '<button class="btn btn-line btn-sm" onclick="window.open(\'mailto:' + eH(email) + '?subject=' + subj + '&body=' + body + '\',\'_blank\')">✉️ Email</button>';
+  }
+  botones += '</div>';
+  aviso.innerHTML = botones;
+  cont.appendChild(aviso);
+  cont.scrollTop = cont.scrollHeight;
 }
 
 // Cargar conversaciones cuando se navega a Tienda
