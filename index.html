@@ -7380,6 +7380,15 @@
           <!-- ── PESTAÑA CEREBRO DEL ASESOR ── -->
           <div id="tiendaPanelCerebro" style="display:none;max-width:720px">
             <div class="table-card" style="margin-bottom:16px">
+              <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#128230; Proveedores que ofrece el asesor</div>
+              <div style="font-size:12px;color:var(--text-mute);margin-bottom:12px">El asesor <b>solo va a ofrecer productos de los proveedores que marques acá</b>. Los productos de otros proveedores no se muestran a los clientes. Si no marcás ninguno, ofrece de todos.</div>
+              <div id="provPermitidosBox" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"><span style="font-size:12px;color:var(--text-mute)">Cargando proveedores...</span></div>
+              <div style="display:flex;justify-content:flex-end;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="provPermitidosGuardar()">&#128190; Guardar proveedores</button>
+              </div>
+              <div id="provPermitidosStatus" style="font-size:12px;color:var(--text-mute);margin-top:8px"></div>
+            </div>
+            <div class="table-card" style="margin-bottom:16px">
               <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#129504; Cerebro del asesor</div>
               <div style="font-size:12px;color:var(--text-mute);margin-bottom:14px">Escribí acá todo el conocimiento de tu ferretería: qué marcas tenés por rubro, cuándo recomendar cada producto, ventas cruzadas, preguntas clave. El asesor lo usa para responder como un vendedor experto.<br><br>Guardá cada vez que hagas cambios — se aplica de inmediato sin necesidad de publicar la tienda.</div>
               <textarea id="cerebroEditor" style="width:100%;min-height:460px;padding:14px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;font-family:var(--mono,'Courier New',monospace);line-height:1.6;resize:vertical;box-sizing:border-box;background:var(--bg-2,#fafafa)" placeholder="Ej:
@@ -9655,7 +9664,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-82'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-83'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10694,7 +10703,7 @@ function twResumen(){
 // ═══════════════════════════════════════════════════════
 // TIENDA ONLINE — vitrina pública (modo tienda)
 // ═══════════════════════════════════════════════════════
-var _sfData = null, _sfCart = [], _sfFiltro = '', _sfRubro = '', _sfRubros = [];
+var _sfData = null, _sfCart = [], _sfFiltro = '', _sfRubro = '', _sfRubros = [], _sfProvPermitidos = [];
 var _sfItemsById = {}, _sfGridItems = [], _sfLastDoc = null, _sfHasMore = false, _sfCargandoGrid = false, _sfBuscarTimer = null;
 var _SF_PAGE = 24;
 // Normaliza texto (minúsculas, sin acentos) y arma tokens para búsqueda en servidor.
@@ -10836,6 +10845,7 @@ async function initStorefront(empresaId){
     }
     _sfData = d.data();
     _sfData.items = [];
+    _sfProvPermitidos = Array.isArray(_sfData.provPermitidos) ? _sfData.provPermitidos : [];
     // Ya NO bajamos el catálogo completo (soporta 100k+). Los rubros vienen guardados en la config.
     _sfRubros = Array.isArray(_sfData.rubros) ? _sfData.rubros.slice() : [];
     document.title = (_sfData.nombre || 'Tienda') + ' · Comercia';
@@ -11443,6 +11453,13 @@ async function sfAsesorEnviar(){
           var snap = await col.where('tok', 'array-contains-any', toks).limit(40).get();
           var locales = [];
           snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; locales.push(it); });
+          // Filtrar por proveedores permitidos (si el dueño configuró una lista)
+          if(_sfProvPermitidos && _sfProvPermitidos.length){
+            locales = locales.filter(function(it){
+              var pv = (it.pv || '').trim();
+              return !pv || _sfProvPermitidos.indexOf(pv) >= 0;
+            });
+          }
           // Puntuar: cuántas palabras del término aparecen REALMENTE en el nombre del producto
           var scored = locales.map(function(it){
             var hay = _sfNorm((it.n || '') + ' ' + (it.r || ''));
@@ -11952,7 +11969,7 @@ function tiendaSwitchTab(tab){
   var btnPublicar = document.getElementById('tiendaBtnPublicar');
   if(btnPublicar) btnPublicar.style.display = tab === 'config' ? '' : 'none';
   // Acciones específicas por tab
-  if(tab === 'cerebro'){ cerebroCargar(); }
+  if(tab === 'cerebro'){ cerebroCargar(); provPermitidosCargar(); }
   if(tab === 'chats'){ convCargar(); }
 }
 
@@ -11971,6 +11988,51 @@ async function cerebroCargar(){
     if(st) st.textContent = cerebro ? ('Última actualización: ' + (doc.data().asesorGuiaUpdatedAt ? new Date(doc.data().asesorGuiaUpdatedAt).toLocaleString('es-AR') : 'desconocida')) : 'Sin cerebro cargado todavía.';
   }catch(err){
     if(st) st.textContent = 'Error al cargar: ' + (err.message || '');
+  }
+}
+
+// ── Proveedores permitidos para el asesor ──
+var _provPermitidos = [];
+
+function provPermitidosCargar(){
+  var box = document.getElementById('provPermitidosBox'); if(!box) return;
+  // Sacar la lista de proveedores únicos de la base de productos
+  var provs = {};
+  (typeof productos !== 'undefined' && productos ? productos : []).forEach(function(p){
+    var pv = (p.proveedor || '').trim();
+    if(pv) provs[pv] = 1;
+  });
+  var lista = Object.keys(provs).sort();
+  // Leer los permitidos guardados
+  db.collection('tiendas').doc(currentEmpresaId).get().then(function(doc){
+    var cfg = doc.exists ? doc.data() : {};
+    _provPermitidos = Array.isArray(cfg.provPermitidos) ? cfg.provPermitidos : [];
+    if(!lista.length){
+      box.innerHTML = '<span style="font-size:12px;color:var(--text-mute)">No hay proveedores cargados en tus productos todavía.</span>';
+      return;
+    }
+    box.innerHTML = lista.map(function(pv){
+      var activo = _provPermitidos.indexOf(pv) >= 0;
+      return '<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid ' + (activo ? 'var(--accent,#e08e3c)' : 'var(--line,#ddd)') + ';border-radius:99px;cursor:pointer;font-size:13px;background:' + (activo ? '#fff8f0' : 'var(--bg,#fff)') + '">' +
+        '<input type="checkbox" class="prov-chk" value="' + escapeQ(pv) + '"' + (activo ? ' checked' : '') + ' style="margin:0">' +
+        eH(pv) + '</label>';
+    }).join('');
+  }).catch(function(){ box.innerHTML = '<span style="font-size:12px;color:var(--danger)">Error al cargar proveedores</span>'; });
+}
+
+async function provPermitidosGuardar(){
+  var st = document.getElementById('provPermitidosStatus');
+  var checks = document.querySelectorAll('#provPermitidosBox .prov-chk:checked');
+  var sel = Array.prototype.map.call(checks, function(c){ return c.value; });
+  if(st) st.textContent = 'Guardando...';
+  try{
+    await db.collection('tiendas').doc(currentEmpresaId).set({ provPermitidos: sel }, { merge: true });
+    _provPermitidos = sel;
+    if(st) st.textContent = '✅ Guardado. El asesor ahora ofrece ' + (sel.length ? 'solo de: ' + sel.join(', ') : 'de todos los proveedores') + '.';
+    toast('Proveedores del asesor guardados ✓', 'success');
+    provPermitidosCargar();
+  }catch(err){
+    if(st) st.textContent = '❌ Error: ' + (err.message || '');
   }
 }
 
