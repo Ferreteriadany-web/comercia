@@ -9651,7 +9651,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-76'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-77'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11124,11 +11124,12 @@ async function sfClienteActivarPush(){
     if(permiso !== 'granted'){ toast('No se activaron las notificaciones', 'error'); return; }
     var swReg = null;
     if('serviceWorker' in navigator){
-      try{ swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js'); }
-      catch(e){ try{ swReg = await navigator.serviceWorker.ready; }catch(e2){} }
+      try{ swReg = await navigator.serviceWorker.register('/comercia/firebase-messaging-sw.js', { scope: '/comercia/' }); }
+      catch(e){ try{ swReg = await navigator.serviceWorker.getRegistration('/comercia/'); }catch(e2){} }
     }
+    if(!swReg){ toast('No se pudo activar las notificaciones en este navegador', 'error'); return; }
     var msg = firebase.messaging();
-    var token = await msg.getToken({ vapidKey: _sfPushClienteVapid, serviceWorkerRegistration: swReg || undefined });
+    var token = await msg.getToken({ vapidKey: _sfPushClienteVapid, serviceWorkerRegistration: swReg });
     if(!token){ toast('No se pudo activar', 'error'); return; }
     // Guardar el token en la conversación del cliente
     var sesId = _sfGetSessionId();
@@ -11652,11 +11653,15 @@ async function activarNotificacionesPush(interactivo){
     // Registrar el service worker de messaging
     var swReg = null;
     if('serviceWorker' in navigator){
-      try{ swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js'); }
-      catch(e){ try{ swReg = await navigator.serviceWorker.ready; }catch(e2){} }
+      try{ swReg = await navigator.serviceWorker.register('/comercia/firebase-messaging-sw.js', { scope: '/comercia/' }); }
+      catch(e){ try{ swReg = await navigator.serviceWorker.getRegistration('/comercia/'); }catch(e2){} }
+    }
+    if(!swReg){
+      if(interactivo) toast('No se pudo registrar las notificaciones en este navegador', 'error');
+      return;
     }
     _fcmMessaging = firebase.messaging();
-    var token = await _fcmMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg || undefined });
+    var token = await _fcmMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if(!token){
       if(interactivo) toast('No se pudo obtener el token de notificaciones', 'error');
       return;
