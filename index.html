@@ -5215,9 +5215,15 @@
           <span class="nav-item-icon"><i class="ti ti-shopping-cart"></i></span><span>Presupuesto Online</span>
           <span id="convBadgeNav" style="display:none;margin-left:auto;background:#e11d48;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px"></span>
         </a>
-        <a class="nav-item" data-module="pedidos" onclick="navTo('pedidos')">
+        <a class="nav-item" data-module="pedidosOnline" onclick="navTo('pedidosOnline')">
           <span class="nav-item-icon"><i class="ti ti-package"></i></span><span>Pedidos Online</span>
           <span id="pedidosBadgeNav" style="display:none;margin-left:auto;background:var(--accent,#e08e3c);color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px"></span>
+        </a>
+        <a class="nav-item" data-module="informes" onclick="navTo('informes')">
+          <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Informes</span>
+        </a>
+        <a class="nav-item" data-module="clientesOnline" onclick="navTo('clientesOnline')">
+          <span class="nav-item-icon"><i class="ti ti-users"></i></span><span>Clientes del Bot</span>
         </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
@@ -7526,7 +7532,7 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
       </div>
 
       <!-- ═══ MÓDULO PEDIDOS ONLINE ═══ -->
-      <div class="module" id="modulePedidos">
+      <div class="module" id="modulePedidosOnline">
         <header class="main-header">
           <h1 class="main-title">Pedidos Online</h1>
           <div class="main-actions">
@@ -7559,6 +7565,41 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
             <button class="ped-tab" id="pedTabRetirado" onclick="pedidosSwitchTab('retirado')">&#128666; Retirados <span class="ped-count" id="pedCountRetirado">0</span></button>
           </div>
           <div id="pedidosLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando pedidos...</div></div>
+        </div>
+      </div>
+
+      <!-- ═══ MÓDULO CLIENTES DEL BOT ═══ -->
+      <div class="module" id="moduleClientesOnline">
+        <header class="main-header">
+          <h1 class="main-title">Clientes del Bot</h1>
+          <div class="main-actions">
+            <button class="btn btn-line btn-sm" onclick="cliOnCargar()">&#128260; Actualizar</button>
+          </div>
+        </header>
+        <details class="ayuda-mod"><summary><span class="ay-ico">&#128101;</span><span>¿Qué es esto?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Acá quedan registrados todos los clientes que consultaron por el asesor online, con sus datos, a qué se dedican (rubro) y qué productos preguntaron.<ul><li>Sirve para conocer a tu público y qué busca cada tipo de cliente.</li><li>A futuro vas a poder mandarles promociones según lo que consultan.</li></ul></div></details>
+        <div class="main-body">
+          <style>
+            #moduleClientesOnline .cli-resumen{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+            #moduleClientesOnline .cli-rubro-card{border:1px solid var(--line,#eee);border-radius:12px;padding:12px 16px;min-width:130px;cursor:pointer;transition:.15s;background:var(--bg,#fff)}
+            #moduleClientesOnline .cli-rubro-card:hover{border-color:var(--accent,#e08e3c)}
+            #moduleClientesOnline .cli-rubro-card.active{border-color:var(--accent,#e08e3c);background:#fff8f0}
+            #moduleClientesOnline .cli-rubro-num{font-size:24px;font-weight:800;color:var(--accent,#e08e3c)}
+            #moduleClientesOnline .cli-rubro-lbl{font-size:12px;color:var(--text-mute);margin-top:2px;text-transform:capitalize}
+            .cli-card{border:1px solid var(--line,#eee);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg,#fff)}
+            .cli-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+            .cli-nombre{font-weight:700;font-size:14px}
+            .cli-rubro-badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;background:#eef2ff;color:#4338ca;text-transform:capitalize}
+            .cli-meta{font-size:12px;color:var(--text-mute)}
+            .cli-prods{font-size:12px;margin-top:8px;border-top:1px dashed var(--line,#eee);padding-top:8px}
+            .cli-prod-tag{display:inline-block;background:var(--bg-2,#f2f2f5);border-radius:20px;padding:2px 9px;margin:2px 3px 0 0;font-size:11px}
+          </style>
+          <div id="cliOnResumen" class="cli-resumen"></div>
+          <div id="cliOnTopProds" style="margin-bottom:18px"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+            <input id="cliOnBuscar" placeholder="Buscar por nombre, teléfono o email…" oninput="cliOnRender()" style="flex:1;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px">
+            <span id="cliOnFiltroRubro" style="display:none;background:var(--accent,#e08e3c);color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;cursor:pointer" onclick="cliOnFiltrarRubro('')">Rubro: <span id="cliOnFiltroRubroTxt"></span> ✕</span>
+          </div>
+          <div id="cliOnLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando clientes...</div></div>
         </div>
       </div>
 
@@ -9967,7 +10008,8 @@ function navTo(modulo){
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
   if(modulo==='tienda'){ initTienda(); setTimeout(function(){ tiendaSwitchTab('config'); }, 400); }
-  if(modulo==='pedidos'){ setTimeout(pedidosAutocargar, 300); }
+  if(modulo==='pedidosOnline'){ setTimeout(pedidosAutocargar, 300); }
+  if(modulo==='clientesOnline'){ setTimeout(cliOnAutocargar, 300); }
   if(modulo==='consultaPrecios') initConsultaPrecios();
   if(modulo==='productos') initProductosMobile();
   // En mobile, cerrar sidebar al navegar
@@ -11340,6 +11382,136 @@ function pedidoAVenta(pedId){
 }
 
 function pedidosAutocargar(){ pedidosCargar(); }
+
+// ══════════════════════════════════════════════════════
+// CLIENTES DEL BOT (informes)
+// ══════════════════════════════════════════════════════
+var _cliOnData = [], _cliOnFiltroRubro = '';
+
+var RUBRO_LBL = {
+  particular: 'Particular', electricista: 'Electricista', plomero: 'Plomero/Gasista',
+  constructor: 'Construcción', pintor: 'Pintor', carpintero: 'Carpintero',
+  herrero: 'Herrero', mantenimiento: 'Mantenimiento', revendedor: 'Revendedor', otro: 'Otro'
+};
+
+function cliOnCargar(){
+  if(!currentEmpresaId) return;
+  var cont = document.getElementById('cliOnLista'); if(!cont) return;
+  cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando clientes...</div>';
+  db.collection('empresas').doc(currentEmpresaId).collection('clientes_online')
+    .orderBy('actualizadoEn', 'desc')
+    .limit(500)
+    .get()
+    .then(function(snap){
+      _cliOnData = [];
+      snap.forEach(function(d){ var c = d.data(); c._id = d.id; _cliOnData.push(c); });
+      cliOnRenderResumen();
+      cliOnRenderTopProds();
+      cliOnRender();
+    })
+    .catch(function(err){
+      cont.innerHTML = '<div style="color:var(--danger);font-size:13px;padding:12px">Error: ' + eH(err.message || err) + '</div>';
+    });
+}
+
+function cliOnRenderResumen(){
+  var cont = document.getElementById('cliOnResumen'); if(!cont) return;
+  var porRubro = {};
+  _cliOnData.forEach(function(c){ var r = c.rubro || 'otro'; porRubro[r] = (porRubro[r] || 0) + 1; });
+  var total = _cliOnData.length;
+  var html = '<div class="cli-rubro-card' + (_cliOnFiltroRubro === '' ? ' active' : '') + '" onclick="cliOnFiltrarRubro(\'\')">' +
+    '<div class="cli-rubro-num">' + total + '</div><div class="cli-rubro-lbl">Todos</div></div>';
+  Object.keys(porRubro).sort(function(a, b){ return porRubro[b] - porRubro[a]; }).forEach(function(r){
+    html += '<div class="cli-rubro-card' + (_cliOnFiltroRubro === r ? ' active' : '') + '" onclick="cliOnFiltrarRubro(\'' + escapeQ(r) + '\')">' +
+      '<div class="cli-rubro-num">' + porRubro[r] + '</div>' +
+      '<div class="cli-rubro-lbl">' + eH(RUBRO_LBL[r] || r) + '</div></div>';
+  });
+  cont.innerHTML = html;
+}
+
+function cliOnFiltrarRubro(r){
+  _cliOnFiltroRubro = r;
+  var chip = document.getElementById('cliOnFiltroRubro');
+  if(chip){
+    if(r){ chip.style.display = ''; document.getElementById('cliOnFiltroRubroTxt').textContent = RUBRO_LBL[r] || r; }
+    else chip.style.display = 'none';
+  }
+  cliOnRenderResumen();
+  cliOnRenderTopProds();
+  cliOnRender();
+}
+
+// Productos más consultados (respeta el filtro de rubro activo)
+function cliOnRenderTopProds(){
+  var cont = document.getElementById('cliOnTopProds'); if(!cont) return;
+  var conteo = {};
+  _cliOnData.forEach(function(c){
+    if(_cliOnFiltroRubro && (c.rubro || 'otro') !== _cliOnFiltroRubro) return;
+    var prods = Array.isArray(c.productosConsultados) ? c.productosConsultados : [];
+    prods.forEach(function(p){ var k = (p || '').toString().trim().toLowerCase(); if(k) conteo[k] = (conteo[k] || 0) + 1; });
+  });
+  var ranking = Object.keys(conteo).map(function(k){ return { term: k, n: conteo[k] }; })
+    .sort(function(a, b){ return b.n - a.n; }).slice(0, 15);
+  if(!ranking.length){
+    cont.innerHTML = '<div style="background:var(--bg-2,#faf7f2);border:1px solid var(--line,#eee);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--text-mute)">📦 Todavía no hay productos consultados' + (_cliOnFiltroRubro ? ' para este rubro' : '') + '. Aparecen cuando los clientes preguntan por productos.</div>';
+    return;
+  }
+  var max = ranking[0].n;
+  var titulo = _cliOnFiltroRubro ? ('Productos más consultados · ' + (RUBRO_LBL[_cliOnFiltroRubro] || _cliOnFiltroRubro)) : 'Productos más consultados';
+  var html = '<div style="background:var(--bg,#fff);border:1px solid var(--line,#eee);border-radius:12px;padding:14px 16px">' +
+    '<div style="font-weight:700;font-size:14px;margin-bottom:10px">📦 ' + eH(titulo) + '</div>';
+  ranking.forEach(function(r){
+    var pct = Math.round((r.n / max) * 100);
+    html += '<div style="margin-bottom:7px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="text-transform:capitalize">' + eH(r.term) + '</span><span style="color:var(--text-mute);font-weight:600">' + r.n + '</span></div>' +
+      '<div style="height:6px;background:var(--bg-2,#f0f0f0);border-radius:4px;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:var(--accent,#e08e3c)"></div></div>' +
+    '</div>';
+  });
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+function cliOnRender(){
+  var cont = document.getElementById('cliOnLista'); if(!cont) return;
+  var q = (document.getElementById('cliOnBuscar').value || '').toLowerCase().trim();
+  var lista = _cliOnData.filter(function(c){
+    if(_cliOnFiltroRubro && (c.rubro || 'otro') !== _cliOnFiltroRubro) return false;
+    if(q){
+      var hay = ((c.nombre || '') + ' ' + (c.tel || '') + ' ' + (c.email || '')).toLowerCase();
+      if(hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+  if(!lista.length){
+    cont.innerHTML = '<div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">👥 No hay clientes' + (_cliOnFiltroRubro || q ? ' con ese filtro.' : ' todavía. Cuando alguien consulte por el asesor, aparece acá.') + '</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(function(c){
+    var fecha = c.actualizadoEn ? new Date(c.actualizadoEn).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '';
+    var prods = Array.isArray(c.productosConsultados) ? c.productosConsultados : [];
+    var prodsHtml = prods.length
+      ? '<div class="cli-prods"><b>Consultó:</b> ' + prods.slice(-12).map(function(p){ return '<span class="cli-prod-tag">' + eH(p) + '</span>'; }).join('') + '</div>'
+      : '';
+    var tel = (c.tel || '').replace(/[^0-9]/g, '');
+    var waBtn = tel ? '<button class="btn btn-line btn-sm" onclick="window.open(\'https://wa.me/' + tel + '\',\'_blank\')">📱 WhatsApp</button>' : '';
+    return '<div class="cli-card">' +
+      '<div class="cli-card-head">' +
+        '<div>' +
+          '<div class="cli-nombre">👤 ' + eH(c.nombre || 'Sin nombre') + '</div>' +
+          '<div class="cli-meta">' + eH(c.tel || 's/tel') + ' · ' + eH(c.email || 's/email') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span class="cli-rubro-badge">' + eH(RUBRO_LBL[c.rubro] || c.rubro || 'otro') + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cli-meta">' + (c.cantConsultas || 1) + ' consulta(s) · última: ' + fecha + '</div>' +
+      prodsHtml +
+      '<div style="margin-top:10px;display:flex;gap:8px">' + waBtn + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function cliOnAutocargar(){ cliOnCargar(); }
 
 
 // ══════════════════════════════════════════════════════
