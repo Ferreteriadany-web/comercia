@@ -9057,7 +9057,6 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
@@ -9651,7 +9650,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-77'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-79'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11115,6 +11114,7 @@ function sfMostrarBarraPush(){
 
 async function sfClienteActivarPush(){
   try{
+    try{ await cargarSdkMessaging(); }catch(e){ toast('No se pudo cargar notificaciones', 'error'); return; }
     if(!('Notification' in window)){ toast('Tu dispositivo no soporta notificaciones', 'error'); return; }
     if(!firebase.messaging || !(await firebase.messaging.isSupported())){
       toast('Tu navegador no soporta notificaciones', 'error'); return;
@@ -11327,8 +11327,6 @@ async function sfAsesorEnviar(){
     _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora.' + detalle + ' Probá de nuevo o escribinos por WhatsApp.' });
   }
   _sfAsesorCargando = false; sfAsesorRender();
-  // Después del primer intercambio, ofrecer notificaciones (opcional, no molesta)
-  try{ if(_sfAsesorMsgs.filter(function(m){ return m.role === 'user'; }).length === 1) sfMostrarBarraPush(); }catch(e){}
 }
 
 // ══════════════════════════════════════════════════════
@@ -11617,10 +11615,25 @@ function informesSwitchTab(tab){
 // ══════════════════════════════════════════════════════
 var VAPID_KEY = 'BBAKTxSSMEwCAopr7Oyqr-C6KY-32IVdNo1yZeZL_CSdF1EYpNYYmcaXh97eNihr9lu8xxBh2WyzrpPCzBcLVm8';
 var _fcmMessaging = null;
+var _fcmSdkCargado = false;
+
+// Carga el SDK de messaging SOLO cuando hace falta (para no romper nada al inicio)
+function cargarSdkMessaging(){
+  return new Promise(function(resolve, reject){
+    if(_fcmSdkCargado || (firebase && firebase.messaging)){ _fcmSdkCargado = true; return resolve(); }
+    var s = document.createElement('script');
+    s.src = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js';
+    s.onload = function(){ _fcmSdkCargado = true; resolve(); };
+    s.onerror = function(){ reject(new Error('No se pudo cargar el SDK de notificaciones')); };
+    document.head.appendChild(s);
+  });
+}
 
 // Botón/estado de activación de push (lo llama el usuario o el arranque)
 async function activarNotificacionesPush(interactivo){
   try{
+    // Cargar el SDK de messaging bajo demanda
+    try{ await cargarSdkMessaging(); }catch(e){ if(interactivo) toast('No se pudo cargar notificaciones', 'error'); return; }
     // Detectar iPhone/iPad y dar guía específica
     var esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var esPWAInstalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
