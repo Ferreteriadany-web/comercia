@@ -9581,7 +9581,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-70'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-71'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10965,6 +10965,19 @@ function sfMostrarFormDatos(){
         '<input id="sfDatoNombre" placeholder="Tu nombre *" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px">' +
         '<input id="sfDatoTel" type="tel" placeholder="Tu teléfono / WhatsApp *" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px">' +
         '<input id="sfDatoEmail" type="email" placeholder="Tu email *" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px">' +
+        '<select id="sfDatoRubro" style="padding:11px 13px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fff;color:#333">' +
+          '<option value="">¿A qué te dedicás? *</option>' +
+          '<option value="particular">Particular / hogar</option>' +
+          '<option value="electricista">Electricista</option>' +
+          '<option value="plomero">Plomero / gasista</option>' +
+          '<option value="constructor">Construcción / albañil</option>' +
+          '<option value="pintor">Pintor</option>' +
+          '<option value="carpintero">Carpintero</option>' +
+          '<option value="herrero">Herrero / metalúrgico</option>' +
+          '<option value="mantenimiento">Mantenimiento / service</option>' +
+          '<option value="revendedor">Revendedor / comercio</option>' +
+          '<option value="otro">Otro</option>' +
+        '</select>' +
         '<div id="sfDatoError" style="color:#d33;font-size:12px;display:none"></div>' +
         '<button onclick="sfGuardarDatos()" style="padding:12px;border:none;border-radius:10px;background:var(--sf-accent,#e08e3c);color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px">Empezar a chatear →</button>' +
         '<div style="font-size:11px;color:#999;text-align:center;line-height:1.4">Usamos tus datos solo para responderte y avisarte de tu pedido.</div>' +
@@ -10982,7 +10995,9 @@ function sfGuardarDatos(){
   if(!nombre){ mostrarErr('Poné tu nombre.'); return; }
   if(!tel || tel.replace(/[^0-9]/g, '').length < 6){ mostrarErr('Poné un teléfono válido.'); return; }
   if(!email || email.indexOf('@') < 1 || email.indexOf('.') < 0){ mostrarErr('Poné un email válido.'); return; }
-  _sfCliente = { nombre: nombre, tel: tel, email: email };
+  var rubro = (document.getElementById('sfDatoRubro').value || '').trim();
+  if(!rubro){ mostrarErr('Elegí a qué te dedicás.'); return; }
+  _sfCliente = { nombre: nombre, tel: tel, email: email, rubro: rubro };
   try{ sessionStorage.setItem('sf_cliente_' + (window._sfId || ''), JSON.stringify(_sfCliente)); }catch(e){}
   // Mostramos de nuevo la barra de escribir
   var inputBar = document.querySelector('#sfAsesorPanel .sf-ainput');
@@ -11516,6 +11531,7 @@ async function convCargar(){
         '<div style="flex:1;min-width:0">' +
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">' +
             '<span style="font-size:12px;font-weight:600">' + eH(c.clienteNombre || ('Sesión ' + d.id.substring(0, 8))) + '</span>' +
+            (c.clienteRubro ? '<span style="font-size:9px;font-weight:700;padding:1px 7px;border-radius:99px;background:#eef2ff;color:#4338ca">' + eH(c.clienteRubro) + '</span>' : '') +
             badge +
           '</div>' +
           '<div class="conv-preview">' + eH(preview) + '</div>' +
