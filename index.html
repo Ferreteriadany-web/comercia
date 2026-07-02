@@ -7357,9 +7357,14 @@
           <h1 class="main-title">Presupuesto Online</h1>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="verTienda()">&#128065; Ver tienda</button>
+            <button class="btn btn-line btn-sm" id="tiendaBtnActualizar" onclick="actualizarProductosTienda()">&#128260; Actualizar productos</button>
             <button class="btn btn-primary btn-sm" id="tiendaBtnPublicar" onclick="guardarPublicarTienda()">&#128722; Guardar y publicar</button>
           </div>
         </header>
+        <div id="tiendaAvisoCambios" style="display:none;background:#fff7ed;border-bottom:1px solid #fed7aa;padding:10px 20px;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <span style="font-size:13px;color:#9a3412">&#9888;&#65039; Cambiaste productos o precios. Actualizá la tienda para que el bot y los clientes vean los cambios.</span>
+          <button class="btn btn-primary btn-sm" onclick="actualizarProductosTienda()">&#128260; Actualizar ahora</button>
+        </div>
 
         <!-- Tabs del módulo Tienda -->
         <div style="display:flex;gap:0;border-bottom:2px solid var(--line,#eee);padding:0 20px;background:var(--bg,#fff)">
@@ -9650,7 +9655,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-79'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-82'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10035,7 +10040,7 @@ function navTo(modulo){
   if(modulo==='entradaStock') initEntradaStock();
   if(modulo==='reportes') initReportes();
   if(modulo==='ia') initIA();
-  if(modulo==='tienda'){ initTienda(); setTimeout(function(){ tiendaSwitchTab('config'); }, 400); }
+  if(modulo==='tienda'){ initTienda(); setTimeout(function(){ tiendaSwitchTab('config'); actualizarAvisoCambiosTienda(); }, 400); }
   if(modulo==='pedidosOnline'){ setTimeout(pedidosAutocargar, 300); }
   if(modulo==='informes'){ setTimeout(cliOnAutocargar, 300); }
   if(modulo==='consultaPrecios') initConsultaPrecios();
@@ -10275,7 +10280,101 @@ async function initTienda(){
   if(typeof twToggleRubros === 'function') twToggleRubros();
   if(typeof twMostrar === 'function') twMostrar();
 }
+// Actualiza SOLO los productos de la tienda (republica el catálogo) usando la config ya guardada.
+// Sirve para refrescar precios/stock sin pasar por el wizard de configuración.
+async function actualizarProductosTienda(){
+  if(!currentEmpresaId){ return; }
+  var btn = document.getElementById('tiendaBtnActualizar');
+  if(btn){ btn.disabled = true; btn.textContent = 'Actualizando...'; }
+  try{
+    // Leer la config ya publicada de la tienda (para respetar rubros/precio/stock elegidos)
+    var tref = db.collection('tiendas').doc(currentEmpresaId);
+    var tdoc = await tref.get();
+    var cfg = tdoc.exists ? tdoc.data() : {};
+    var mostrarPrecio = cfg.mostrarPrecio !== false;
+    var rubrosVisibles = Array.isArray(cfg.rubrosVisibles) ? cfg.rubrosVisibles : null;
+
+    var lista = (typeof productos !== 'undefined' && productos) ? productos : [];
+    if(!lista.length){
+      if(typeof toast === 'function') toast('No hay productos cargados para publicar', 'error');
+      if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; Actualizar productos'; }
+      return;
+    }
+    var ver = Date.now();
+    var rubrosSet = {}, totalCat = 0, ops = [], LOTE = 450;
+    async function _flush(force){
+      while(ops.length >= LOTE || (force && ops.length)){
+        var batch = db.batch();
+        ops.splice(0, LOTE).forEach(function(op){ batch.set(op.ref, op.data); });
+        await batch.commit();
+      }
+    }
+    for(var i = 0; i < lista.length; i++){
+      var pr = lista[i];
+      if(!((pr.descripcion || '').trim())) continue;
+      if(rubrosVisibles && rubrosVisibles.indexOf(pr.rubro || '') < 0) continue;
+      var precio = Number(pr.precioVenta) || 0;
+      if(pr.rubro) rubrosSet[pr.rubro] = 1;
+      var docId = String(pr._id || pr.codigo || ('p' + i));
+      ops.push({ ref: tref.collection('cat').doc(docId), data: {
+        n: pr.descripcion || 'Producto',
+        p: (mostrarPrecio && precio > 0) ? precio : 0,
+        f: pr.fotoUrl || '',
+        r: pr.rubro || '',
+        pv: pr.proveedor || '',
+        s: Number(pr.stock) || 0,
+        c: pr.codigo || '',
+        d: (pr.detalle || '').slice(0, 300),
+        tok: _sfTokensIndex((pr.descripcion || '') + ' ' + (pr.rubro || '') + ' ' + (pr.proveedor || '') + ' ' + (pr.codigo || '')),
+        ver: ver
+      }});
+      totalCat++;
+      if(ops.length >= LOTE){ if(btn) btn.textContent = 'Actualizando… ' + totalCat; await _flush(false); }
+    }
+    await _flush(true);
+    // Borrar los que ya no están
+    if(btn) btn.textContent = 'Limpiando…';
+    while(true){
+      var ss = await tref.collection('cat').where('ver', '<', ver).limit(400).get();
+      if(ss.empty) break;
+      var bd = db.batch(); ss.forEach(function(d){ bd.delete(d.ref); }); await bd.commit();
+      if(ss.size < 400) break;
+    }
+    // Actualizar la lista de rubros de la tienda
+    await tref.set({ rubros: Object.keys(rubrosSet).sort(), catActualizado: new Date().toISOString() }, { merge: true });
+    limpiarCambiosTienda();
+    if(typeof toast === 'function') toast('✅ ' + totalCat + ' productos actualizados en la tienda', 'success');
+  }catch(err){
+    if(typeof toast === 'function') toast('Error al actualizar: ' + (err.message || ''), 'error');
+  }
+  if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; Actualizar productos'; }
+}
+
+// ══════════════════════════════════════════════════════
+// AVISO DE CAMBIOS SIN PUBLICAR EN LA TIENDA
+// ══════════════════════════════════════════════════════
+function marcarCambiosTienda(){
+  try{ localStorage.setItem('comercia_tienda_pendiente_' + (currentEmpresaId || ''), '1'); }catch(e){}
+  actualizarAvisoCambiosTienda();
+}
+function limpiarCambiosTienda(){
+  try{ localStorage.removeItem('comercia_tienda_pendiente_' + (currentEmpresaId || '')); }catch(e){}
+  actualizarAvisoCambiosTienda();
+}
+function hayCambiosTienda(){
+  try{ return localStorage.getItem('comercia_tienda_pendiente_' + (currentEmpresaId || '')) === '1'; }catch(e){ return false; }
+}
+function actualizarAvisoCambiosTienda(){
+  var aviso = document.getElementById('tiendaAvisoCambios');
+  if(aviso) aviso.style.display = hayCambiosTienda() ? '' : 'none';
+  // Puntito en el nav
+  var dot = document.getElementById('tiendaNavDot');
+  if(dot) dot.style.display = hayCambiosTienda() ? '' : 'none';
+}
+
 async function guardarPublicarTienda(){
+  if(!currentEmpresaId) return;
+  var btn = document.getElementById('tiendaBtnPublicar');
   if(!currentEmpresaId) return;
   var btn = document.getElementById('tiendaBtnPublicar');
   if(btn){ btn.disabled = true; btn.textContent = 'Publicando...'; }
@@ -10772,7 +10871,7 @@ function renderStorefront(){
       '<div class="sf-ditems" id="sfCartItems"></div>' +
       '<div class="sf-dfoot">' +
         '<div class="sf-total"><span>Total</span><span id="sfTotal">$0</span></div>' +
-        '<button class="sf-wa" onclick="sfCheckout()">&#128241; Finalizar pedido por WhatsApp</button>' +
+        '<button class="sf-wa" onclick="sfCheckout()">&#9989; Confirmar pedido</button>' +
       '</div>' +
     '</div>' +
     '<button class="sf-asesor-fab" id="sfAsesorFab" onclick="sfAsesorAbrir()" style="--sf-accent:' + sfEsc(color) + '">&#128172; ¿Te ayudo a elegir?</button>' +
@@ -10948,22 +11047,68 @@ function sfRenderCart(){
 }
 function sfAbrirCart(){ var b = document.getElementById('sfDrawerBg'), d = document.getElementById('sfDrawer'); if(b) b.classList.add('open'); if(d) d.classList.add('open'); }
 function sfCerrarCart(){ var b = document.getElementById('sfDrawerBg'), d = document.getElementById('sfDrawer'); if(b) b.classList.remove('open'); if(d) d.classList.remove('open'); }
-function sfCheckout(){
+async function sfCheckout(){
   if(!_sfCart.length){ if(typeof toast === 'function') toast('Agregá productos primero', 'error'); return; }
+  var cli = (typeof _sfGetCliente === 'function') ? _sfGetCliente() : null;
+  // Si no cargó datos, pedírselos primero (para poder registrar el pedido y contactarlo)
+  if(!cli){
+    if(typeof sfMostrarFormDatos === 'function'){
+      sfAsesorAbrir();
+      if(typeof toast === 'function') toast('Dejanos tus datos para confirmar el pedido', 'error');
+    }
+    return;
+  }
   var verPrecio = (_sfData.mostrarPrecio !== false);
+  var items = _sfCart.map(function(c){
+    return { nombre: c.item.n, codigo: c.item.c || '', precio: (c.item.p > 0 ? c.item.p : 0), qty: c.qty };
+  });
+  var total = _sfCart.reduce(function(s, c){ return s + (c.item.p > 0 ? c.item.p * c.qty : 0); }, 0);
+  var hayConsultar = _sfCart.some(function(c){ return !(c.item.p > 0); });
+
+  // 1) Guardar el pedido en Firestore (cae en Pedidos Online del dueño)
+  var pedidoOk = false;
+  try{
+    var ahora = new Date().toISOString();
+    await db.collection('empresas').doc(window._sfId).collection('pedidos_online').add({
+      clienteNombre: cli.nombre || '',
+      clienteTel: cli.tel || '',
+      clienteEmail: cli.email || '',
+      clienteRubro: cli.rubro || '',
+      facturar: !!(cli.cuit || cli.dni),
+      cuit: cli.cuit || '',
+      dni: cli.dni || '',
+      items: items,
+      total: total,
+      hayConsultar: hayConsultar,
+      estado: 'pendiente',
+      origen: 'tienda',
+      sessionId: (typeof _sfGetSessionId === 'function') ? _sfGetSessionId() : '',
+      creadoEn: ahora,
+      actualizadoEn: ahora
+    });
+    pedidoOk = true;
+  }catch(err){
+    console.warn('No se pudo guardar el pedido:', err);
+  }
+
+  // 2) Armar el WhatsApp
   var wa = (_sfData && _sfData.whatsapp) ? String(_sfData.whatsapp).replace(/[^0-9]/g, '') : '';
   var msg;
   if(verPrecio){
-    var hayC = false;
     var lineas = _sfCart.map(function(c){
       if(c.item.p > 0){ return '• ' + c.qty + 'x ' + c.item.n + ' — ' + sfPeso(c.item.p * c.qty); }
-      hayC = true; return '• ' + c.qty + 'x ' + c.item.n + ' (a consultar)';
+      return '• ' + c.qty + 'x ' + c.item.n + ' (a consultar)';
     });
-    var total = _sfCart.reduce(function(s, c){ return s + (c.item.p > 0 ? c.item.p * c.qty : 0); }, 0);
-    msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + (hayC ? ' + a consultar' : '') + '*';
+    msg = 'Hola! Soy ' + (cli.nombre || '') + '. Quiero hacer este pedido:\n\n' + lineas.join('\n') + '\n\n*Total: ' + sfPeso(total) + (hayConsultar ? ' + a consultar' : '') + '*';
   } else {
     var lineas2 = _sfCart.map(function(c){ return '• ' + c.qty + 'x ' + c.item.n; });
-    msg = 'Hola ' + (_sfData.nombre || '') + '! Quiero consultar el precio de estos productos:\n\n' + lineas2.join('\n');
+    msg = 'Hola! Soy ' + (cli.nombre || '') + '. Quiero consultar el precio de estos productos:\n\n' + lineas2.join('\n');
+  }
+
+  // 3) Confirmación al cliente + abrir WhatsApp
+  if(pedidoOk){
+    if(typeof toast === 'function') toast('✅ ¡Pedido enviado! Te vamos a contactar', 'success');
+    _sfCart = []; sfRenderCart(); sfCerrarCart();
   }
   var url = wa ? ('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg)) : ('https://wa.me/?text=' + encodeURIComponent(msg));
   window.open(url, '_blank');
@@ -15286,6 +15431,7 @@ async function saveProduct(){
     renderProductos();
     actualizarStats();
     if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
+    if(typeof marcarCambiosTienda === 'function') marcarCambiosTienda(); // avisar que hay que actualizar la tienda
   }catch(err){
     console.error(err);
     showAlert('prodAlert', 'Error al guardar: ' + (err.message || ''));
@@ -30396,6 +30542,7 @@ async function lpAplicarTodo(){
   if(sel.length === 0){ toast('No hay nada seleccionado', 'error'); return; }
   if(!await confirmComercia('¿Aplicar cambios a ' + sel.length + ' producto(s)?')){ return; }
   await lpEjecutarAplicar(sel);
+  if(typeof marcarCambiosTienda === 'function') marcarCambiosTienda();
 }
 
 async function lpAplicarSoloNuevos(){
@@ -30405,6 +30552,7 @@ async function lpAplicarSoloNuevos(){
   if(nuevos.length === 0){ toast('No hay productos nuevos para crear', 'error'); return; }
   if(!await confirmComercia('¿Crear ' + nuevos.length + ' producto(s) nuevo(s)? Los existentes no se modifican.')){ return; }
   await lpEjecutarAplicar(nuevos);
+  if(typeof marcarCambiosTienda === 'function') marcarCambiosTienda();
 }
 
 // Guarda el mapeo de columnas usado en este proveedor, para que la próxima
