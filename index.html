@@ -7411,6 +7411,13 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
                 </div>
                 <button class="btn btn-line btn-sm" onclick="convCargar()">&#128260; Actualizar</button>
               </div>
+              <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                  <div style="font-size:12px;color:#1e40af">🔔 Activá las notificaciones para que te avise en este celular/PC cuando llegue una consulta, aunque tengas la app cerrada.</div>
+                  <button class="btn btn-primary btn-sm" onclick="activarNotificacionesPush(true)">Activar notificaciones</button>
+                </div>
+                <div style="font-size:11px;color:#64748b;margin-top:8px;border-top:1px solid #dbeafe;padding-top:6px">📱 <b>En iPhone:</b> primero instalá la app (Compartir → "Agregar a inicio"), abrila desde el ícono de inicio, y recién ahí activá. Necesitás iOS 16.4 o más nuevo.</div>
+              </div>
               <div id="convLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:20px 0">Cargando conversaciones...</div></div>
             </div>
           </div>
@@ -9050,6 +9057,7 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
@@ -9490,6 +9498,8 @@ async function cargarEmpresaUsuario(user){
 
     // Avisos en vivo de conversaciones del asesor
     try{ setTimeout(convIniciarAvisos, 2000); }catch(e){}
+    // Reactivar notificaciones push si ya estaban activadas
+    try{ setTimeout(pushAutoActivar, 3000); }catch(e){}
     try{
       navTo('inicio');
     }catch(e){ console.warn('nav inicial', e); }
@@ -9641,7 +9651,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-72'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-74'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11546,6 +11556,88 @@ function informesSwitchTab(tab){
   });
 }
 
+
+// ══════════════════════════════════════════════════════
+// NOTIFICACIONES PUSH AL CELULAR (Firebase Cloud Messaging)
+// ══════════════════════════════════════════════════════
+var VAPID_KEY = 'BBAKTxSSMEwCAopr7Oyqr-C6KY-32IVdNo1yZeZL_CSdF1EYpNYYmcaXh97eNihr9lu8xxBh2WyzrpPCzBcLVm8';
+var _fcmMessaging = null;
+
+// Botón/estado de activación de push (lo llama el usuario o el arranque)
+async function activarNotificacionesPush(interactivo){
+  try{
+    // Detectar iPhone/iPad y dar guía específica
+    var esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var esPWAInstalada = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if(esIOS && !esPWAInstalada && interactivo){
+      toast('📱 En iPhone: primero tenés que INSTALAR la app. Tocá Compartir → "Agregar a inicio", abrila desde ahí y volvé a activar.', 'error');
+      return;
+    }
+    if(!('Notification' in window)){
+      if(interactivo) toast('Este dispositivo no soporta notificaciones', 'error');
+      return;
+    }
+    if(!firebase.messaging || !firebase.messaging.isSupported){
+      if(interactivo) toast('Notificaciones no disponibles en este navegador', 'error');
+      return;
+    }
+    var soportado = await firebase.messaging.isSupported();
+    if(!soportado){
+      if(interactivo) toast(esIOS ? 'En iPhone necesitás iOS 16.4+ y abrir la app instalada (no desde Safari)' : 'Tu navegador no soporta notificaciones push', 'error');
+      return;
+    }
+    // Pedir permiso
+    var permiso = Notification.permission;
+    if(permiso === 'default'){
+      permiso = await Notification.requestPermission();
+    }
+    if(permiso !== 'granted'){
+      if(interactivo) toast('No activaste el permiso de notificaciones', 'error');
+      return;
+    }
+    // Registrar el service worker de messaging
+    var swReg = null;
+    if('serviceWorker' in navigator){
+      try{ swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js'); }
+      catch(e){ try{ swReg = await navigator.serviceWorker.ready; }catch(e2){} }
+    }
+    _fcmMessaging = firebase.messaging();
+    var token = await _fcmMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg || undefined });
+    if(!token){
+      if(interactivo) toast('No se pudo obtener el token de notificaciones', 'error');
+      return;
+    }
+    // Guardar el token en la base, asociado a este usuario/empresa
+    await db.collection('empresas').doc(currentEmpresaId).collection('push_tokens').doc(token.substring(0, 100)).set({
+      token: token,
+      uid: currentUser ? currentUser.uid : '',
+      email: currentUser ? currentUser.email : '',
+      plataforma: navigator.userAgent.substring(0, 200),
+      creadoEn: new Date().toISOString()
+    }, { merge: true });
+    try{ localStorage.setItem('comercia_push_ok', '1'); }catch(e){}
+    if(interactivo) toast('🔔 Notificaciones activadas en este dispositivo', 'success');
+    // Escuchar mensajes en primer plano
+    _fcmMessaging.onMessage(function(payload){
+      var titulo = (payload.notification && payload.notification.title) || '💬 Nueva consulta';
+      var cuerpo = (payload.notification && payload.notification.body) || '';
+      if(typeof toast === 'function') toast(titulo + (cuerpo ? ' · ' + cuerpo : ''), 'success');
+      if(typeof convSonar === 'function') convSonar();
+    });
+  }catch(err){
+    console.warn('Error activando push:', err);
+    if(interactivo) toast('Error al activar notificaciones: ' + (err.message || ''), 'error');
+  }
+}
+
+// Auto-activar si ya lo había aceptado antes
+function pushAutoActivar(){
+  try{
+    if(localStorage.getItem('comercia_push_ok') === '1' && Notification.permission === 'granted'){
+      activarNotificacionesPush(false);
+    }
+  }catch(e){}
+}
 
 // ══════════════════════════════════════════════════════
 // AVISO EN VIVO DE CONVERSACIONES NUEVAS (campanita + sonido)
