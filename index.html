@@ -9651,7 +9651,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-74'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-75'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10782,6 +10782,10 @@ function renderStorefront(){
       '<div class="sf-ahead"><span>&#128172; ' + sfEsc(_sfData.asesorNombre || 'Asesor') + (_sfData.nombre ? (' &middot; ' + sfEsc(_sfData.nombre)) : '') + '</span><button class="sf-x" onclick="sfAsesorCerrar()">&times;</button></div>' +
       '<div class="sf-amsgs" id="sfAsesorMsgs"></div>' +
       '<div class="sf-apreview" id="sfAsesorPreview" style="display:none"></div>' +
+      '<div id="sfPushBar" style="display:none;padding:8px 12px;background:#eff6ff;border-top:1px solid #dbeafe;font-size:12px;color:#1e40af;align-items:center;justify-content:space-between;gap:8px">' +
+        '<span>🔔 ¿Querés que te avisemos cuando te respondamos?</span>' +
+        '<button onclick="sfClienteActivarPush()" style="background:var(--sf-accent);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Avisarme</button>' +
+      '</div>' +
       '<div class="sf-ainput">' +
         '<input type="file" id="sfAsesorFile" accept="image/*" capture="environment" style="display:none" onchange="sfAsesorFoto(event)">' +
         '<button class="sf-acam" onclick="document.getElementById(&#39;sfAsesorFile&#39;).click()" title="Enviar una foto">&#128247;</button>' +
@@ -11094,6 +11098,52 @@ function sfIniciarChat(){
   var inp = document.getElementById('sfAsesorInput'); if(inp) setTimeout(function(){ inp.focus(); }, 200);
 }
 
+var _sfPushClienteVapid = 'BBAKTxSSMEwCAopr7Oyqr-C6KY-32IVdNo1yZeZL_CSdF1EYpNYYmcaXh97eNihr9lu8xxBh2WyzrpPCzBcLVm8';
+
+// Muestra la barrita opcional de notificaciones (si el navegador las soporta y no las activó aún)
+function sfMostrarBarraPush(){
+  try{
+    var bar = document.getElementById('sfPushBar'); if(!bar) return;
+    if(!('Notification' in window)) return;
+    if(Notification.permission === 'granted') return; // ya las tiene
+    var esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    var esPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if(esIOS && !esPWA) return; // en iPhone sin instalar, no tiene sentido ofrecerlo
+    bar.style.display = 'flex';
+  }catch(e){}
+}
+
+async function sfClienteActivarPush(){
+  try{
+    if(!('Notification' in window)){ toast('Tu dispositivo no soporta notificaciones', 'error'); return; }
+    if(!firebase.messaging || !(await firebase.messaging.isSupported())){
+      toast('Tu navegador no soporta notificaciones', 'error'); return;
+    }
+    var permiso = Notification.permission;
+    if(permiso === 'default') permiso = await Notification.requestPermission();
+    if(permiso !== 'granted'){ toast('No se activaron las notificaciones', 'error'); return; }
+    var swReg = null;
+    if('serviceWorker' in navigator){
+      try{ swReg = await navigator.serviceWorker.register('firebase-messaging-sw.js'); }
+      catch(e){ try{ swReg = await navigator.serviceWorker.ready; }catch(e2){} }
+    }
+    var msg = firebase.messaging();
+    var token = await msg.getToken({ vapidKey: _sfPushClienteVapid, serviceWorkerRegistration: swReg || undefined });
+    if(!token){ toast('No se pudo activar', 'error'); return; }
+    // Guardar el token en la conversación del cliente
+    var sesId = _sfGetSessionId();
+    await db.collection('tiendas').doc(window._sfId).collection('conversaciones').doc(sesId)
+      .set({ pushTokenCliente: token }, { merge: true });
+    var bar = document.getElementById('sfPushBar'); if(bar) bar.style.display = 'none';
+    toast('🔔 Listo, te avisamos cuando te respondamos', 'success');
+    msg.onMessage(function(payload){
+      var t = (payload.notification && payload.notification.title) || 'Te respondieron';
+      var b = (payload.notification && payload.notification.body) || '';
+      toast(t + (b ? ' · ' + b : ''), 'success');
+    });
+  }catch(err){ toast('No se pudo activar: ' + (err.message || ''), 'error'); }
+}
+
 var _sfRespuestasUnsub = null;
 function sfEscucharRespuestas(){
   if(_sfRespuestasUnsub || !window._sfId) return;
@@ -11274,6 +11324,8 @@ async function sfAsesorEnviar(){
     _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora. Probá de nuevo o escribinos por WhatsApp.' });
   }
   _sfAsesorCargando = false; sfAsesorRender();
+  // Después del primer intercambio, ofrecer notificaciones (opcional, no molesta)
+  try{ if(_sfAsesorMsgs.filter(function(m){ return m.role === 'user'; }).length === 1) sfMostrarBarraPush(); }catch(e){}
 }
 
 // ══════════════════════════════════════════════════════
