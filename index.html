@@ -9651,7 +9651,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-75'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-76'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11321,7 +11321,9 @@ async function sfAsesorEnviar(){
 
     _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productosEncontrados.slice(0, 8) });
   }catch(err){
-    _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora. Probá de nuevo o escribinos por WhatsApp.' });
+    console.error('[ASESOR] Error al llamar la función:', err);
+    var detalle = err && (err.message || err.code) ? (' (' + (err.code || '') + ' ' + (err.message || '') + ')') : '';
+    _sfAsesorMsgs.push({ role: 'assistant', content: 'Uy, no pude responder ahora.' + detalle + ' Probá de nuevo o escribinos por WhatsApp.' });
   }
   _sfAsesorCargando = false; sfAsesorRender();
   // Después del primer intercambio, ofrecer notificaciones (opcional, no molesta)
@@ -31152,5 +31154,3 @@ async function lpCargarHistorial(){
 
 </body>
 </html>
-
-  
