@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es"> 
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7380,13 +7380,14 @@
           <!-- ── PESTAÑA CEREBRO DEL ASESOR ── -->
           <div id="tiendaPanelCerebro" style="display:none;max-width:720px">
             <div class="table-card" style="margin-bottom:16px">
-              <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#128230; Proveedores que ofrece el asesor</div>
-              <div style="font-size:12px;color:var(--text-mute);margin-bottom:12px">El asesor <b>solo va a ofrecer productos de los proveedores que marques acá</b>. Los productos de otros proveedores no se muestran a los clientes. Si no marcás ninguno, ofrece de todos.</div>
-              <div id="provPermitidosBox" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"><span style="font-size:12px;color:var(--text-mute)">Cargando proveedores...</span></div>
-              <div style="display:flex;justify-content:flex-end;gap:8px">
-                <button class="btn btn-primary btn-sm" onclick="provPermitidosGuardar()">&#128190; Guardar proveedores</button>
+              <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#127991;&#65039; Marcas que ofrece el asesor</div>
+              <div style="font-size:12px;color:var(--text-mute);margin-bottom:12px">Escribí las marcas o proveedores que querés que el asesor ofrezca, separados por coma (ej: <i>Lusqtoff, Emtop, Hamilton</i>). El asesor <b>solo muestra productos de esas marcas</b> (las busca en el nombre, proveedor o código del producto). Si lo dejás vacío, ofrece de todo.</div>
+              <textarea id="marcasPermitidas" style="width:100%;min-height:70px;padding:11px 13px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:14px;box-sizing:border-box;resize:vertical" placeholder="Lusqtoff, Emtop, Hamilton, ..."></textarea>
+              <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-primary btn-sm" onclick="provPermitidosGuardar()">&#128190; Guardar marcas</button>
               </div>
               <div id="provPermitidosStatus" style="font-size:12px;color:var(--text-mute);margin-top:8px"></div>
+              <div style="font-size:11px;color:var(--text-mute);margin-top:8px" id="provDetectados"></div>
             </div>
             <div class="table-card" style="margin-bottom:16px">
               <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#129504; Cerebro del asesor</div>
@@ -9664,7 +9665,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-83'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-84'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11453,11 +11454,13 @@ async function sfAsesorEnviar(){
           var snap = await col.where('tok', 'array-contains-any', toks).limit(40).get();
           var locales = [];
           snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; locales.push(it); });
-          // Filtrar por proveedores permitidos (si el dueño configuró una lista)
+          // Filtrar por marcas/proveedores permitidos: la marca puede estar en el nombre,
+          // el proveedor O el código del producto. Si aparece en cualquiera, se muestra.
           if(_sfProvPermitidos && _sfProvPermitidos.length){
+            var permNorm = _sfProvPermitidos.map(function(p){ return _sfNorm(p); });
             locales = locales.filter(function(it){
-              var pv = (it.pv || '').trim();
-              return !pv || _sfProvPermitidos.indexOf(pv) >= 0;
+              var campos = _sfNorm((it.n || '') + ' ' + (it.pv || '') + ' ' + (it.c || ''));
+              return permNorm.some(function(marca){ return marca && campos.indexOf(marca) >= 0; });
             });
           }
           // Puntuar: cuántas palabras del término aparecen REALMENTE en el nombre del producto
@@ -11991,46 +11994,42 @@ async function cerebroCargar(){
   }
 }
 
-// ── Proveedores permitidos para el asesor ──
+// ── Marcas/proveedores permitidos para el asesor ──
 var _provPermitidos = [];
 
 function provPermitidosCargar(){
-  var box = document.getElementById('provPermitidosBox'); if(!box) return;
-  // Sacar la lista de proveedores únicos de la base de productos
+  var ta = document.getElementById('marcasPermitidas'); if(!ta) return;
+  // Mostrar los proveedores detectados en la base (como ayuda)
   var provs = {};
   (typeof productos !== 'undefined' && productos ? productos : []).forEach(function(p){
     var pv = (p.proveedor || '').trim();
     if(pv) provs[pv] = 1;
   });
   var lista = Object.keys(provs).sort();
-  // Leer los permitidos guardados
+  var det = document.getElementById('provDetectados');
+  if(det){
+    det.innerHTML = lista.length
+      ? '💡 Proveedores detectados en tus productos: ' + lista.map(function(p){ return eH(p); }).join(', ')
+      : '';
+  }
+  // Leer las marcas guardadas
   db.collection('tiendas').doc(currentEmpresaId).get().then(function(doc){
     var cfg = doc.exists ? doc.data() : {};
     _provPermitidos = Array.isArray(cfg.provPermitidos) ? cfg.provPermitidos : [];
-    if(!lista.length){
-      box.innerHTML = '<span style="font-size:12px;color:var(--text-mute)">No hay proveedores cargados en tus productos todavía.</span>';
-      return;
-    }
-    box.innerHTML = lista.map(function(pv){
-      var activo = _provPermitidos.indexOf(pv) >= 0;
-      return '<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid ' + (activo ? 'var(--accent,#e08e3c)' : 'var(--line,#ddd)') + ';border-radius:99px;cursor:pointer;font-size:13px;background:' + (activo ? '#fff8f0' : 'var(--bg,#fff)') + '">' +
-        '<input type="checkbox" class="prov-chk" value="' + escapeQ(pv) + '"' + (activo ? ' checked' : '') + ' style="margin:0">' +
-        eH(pv) + '</label>';
-    }).join('');
-  }).catch(function(){ box.innerHTML = '<span style="font-size:12px;color:var(--danger)">Error al cargar proveedores</span>'; });
+    ta.value = _provPermitidos.join(', ');
+  }).catch(function(){});
 }
 
 async function provPermitidosGuardar(){
   var st = document.getElementById('provPermitidosStatus');
-  var checks = document.querySelectorAll('#provPermitidosBox .prov-chk:checked');
-  var sel = Array.prototype.map.call(checks, function(c){ return c.value; });
+  var ta = document.getElementById('marcasPermitidas');
+  var sel = (ta.value || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
   if(st) st.textContent = 'Guardando...';
   try{
     await db.collection('tiendas').doc(currentEmpresaId).set({ provPermitidos: sel }, { merge: true });
     _provPermitidos = sel;
-    if(st) st.textContent = '✅ Guardado. El asesor ahora ofrece ' + (sel.length ? 'solo de: ' + sel.join(', ') : 'de todos los proveedores') + '.';
-    toast('Proveedores del asesor guardados ✓', 'success');
-    provPermitidosCargar();
+    if(st) st.textContent = '✅ Guardado. El asesor ahora ofrece ' + (sel.length ? 'solo de: ' + sel.join(', ') : 'de todas las marcas') + '.';
+    toast('Marcas del asesor guardadas ✓', 'success');
   }catch(err){
     if(st) st.textContent = '❌ Error: ' + (err.message || '');
   }
