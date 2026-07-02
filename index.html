@@ -5222,9 +5222,6 @@
         <a class="nav-item" data-module="informes" onclick="navTo('informes')">
           <span class="nav-item-icon"><i class="ti ti-chart-bar"></i></span><span>Informes</span>
         </a>
-        <a class="nav-item" data-module="clientesOnline" onclick="navTo('clientesOnline')">
-          <span class="nav-item-icon"><i class="ti ti-users"></i></span><span>Clientes del Bot</span>
-        </a>
         <div class="nav-group collapsed">
           <div class="nav-group-header" onclick="toggleNavGroupGeneric(this)">
             <span class="nav-item-icon"><i class="ti ti-database"></i></span>
@@ -7568,23 +7565,28 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
         </div>
       </div>
 
-      <!-- ═══ MÓDULO CLIENTES DEL BOT ═══ -->
-      <div class="module" id="moduleClientesOnline">
+      <!-- ═══ MÓDULO INFORMES ═══ -->
+      <div class="module" id="moduleInformes">
         <header class="main-header">
-          <h1 class="main-title">Clientes del Bot</h1>
+          <h1 class="main-title">Informes</h1>
           <div class="main-actions">
             <button class="btn btn-line btn-sm" onclick="cliOnCargar()">&#128260; Actualizar</button>
           </div>
         </header>
-        <details class="ayuda-mod"><summary><span class="ay-ico">&#128101;</span><span>¿Qué es esto?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Acá quedan registrados todos los clientes que consultaron por el asesor online, con sus datos, a qué se dedican (rubro) y qué productos preguntaron.<ul><li>Sirve para conocer a tu público y qué busca cada tipo de cliente.</li><li>A futuro vas a poder mandarles promociones según lo que consultan.</li></ul></div></details>
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--line,#eee);padding:0 20px;background:var(--bg,#fff)">
+          <button id="infTabClientes" onclick="informesSwitchTab('clientes')" style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:700;color:var(--accent);border-bottom:2px solid var(--accent);margin-bottom:-2px;cursor:pointer">&#128101; Clientes del bot</button>
+          <button id="infTabProductos" onclick="informesSwitchTab('productos')" style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-mute);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">&#128230; Productos consultados</button>
+          <button id="infTabVentas" onclick="informesSwitchTab('ventas')" style="padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text-mute);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer">&#128176; Ventas del bot</button>
+        </div>
+        <details class="ayuda-mod"><summary><span class="ay-ico">&#128200;</span><span>¿Qué son los Informes?</span><span class="ay-arrow">&#9662;</span></summary><div class="ay-cuerpo">Estadísticas de tu asesor online.<ul><li><b>Clientes del bot</b>: quién consultó, a qué se dedica, y qué productos preguntó.</li><li><b>Productos consultados</b>: lo más buscado, para saber qué reponer o promocionar.</li><li><b>Ventas del bot</b>: cuánto vende el asesor (se activa cuando el bot cierre pedidos).</li></ul></div></details>
         <div class="main-body">
           <style>
-            #moduleClientesOnline .cli-resumen{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-            #moduleClientesOnline .cli-rubro-card{border:1px solid var(--line,#eee);border-radius:12px;padding:12px 16px;min-width:130px;cursor:pointer;transition:.15s;background:var(--bg,#fff)}
-            #moduleClientesOnline .cli-rubro-card:hover{border-color:var(--accent,#e08e3c)}
-            #moduleClientesOnline .cli-rubro-card.active{border-color:var(--accent,#e08e3c);background:#fff8f0}
-            #moduleClientesOnline .cli-rubro-num{font-size:24px;font-weight:800;color:var(--accent,#e08e3c)}
-            #moduleClientesOnline .cli-rubro-lbl{font-size:12px;color:var(--text-mute);margin-top:2px;text-transform:capitalize}
+            #moduleInformes .cli-resumen{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+            #moduleInformes .cli-rubro-card{border:1px solid var(--line,#eee);border-radius:12px;padding:12px 16px;min-width:130px;cursor:pointer;transition:.15s;background:var(--bg,#fff)}
+            #moduleInformes .cli-rubro-card:hover{border-color:var(--accent,#e08e3c)}
+            #moduleInformes .cli-rubro-card.active{border-color:var(--accent,#e08e3c);background:#fff8f0}
+            #moduleInformes .cli-rubro-num{font-size:24px;font-weight:800;color:var(--accent,#e08e3c)}
+            #moduleInformes .cli-rubro-lbl{font-size:12px;color:var(--text-mute);margin-top:2px;text-transform:capitalize}
             .cli-card{border:1px solid var(--line,#eee);border-radius:12px;padding:14px 16px;margin-bottom:10px;background:var(--bg,#fff)}
             .cli-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
             .cli-nombre{font-weight:700;font-size:14px}
@@ -7593,13 +7595,30 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
             .cli-prods{font-size:12px;margin-top:8px;border-top:1px dashed var(--line,#eee);padding-top:8px}
             .cli-prod-tag{display:inline-block;background:var(--bg-2,#f2f2f5);border-radius:20px;padding:2px 9px;margin:2px 3px 0 0;font-size:11px}
           </style>
-          <div id="cliOnResumen" class="cli-resumen"></div>
-          <div id="cliOnTopProds" style="margin-bottom:18px"></div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <input id="cliOnBuscar" placeholder="Buscar por nombre, teléfono o email…" oninput="cliOnRender()" style="flex:1;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px">
-            <span id="cliOnFiltroRubro" style="display:none;background:var(--accent,#e08e3c);color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;cursor:pointer" onclick="cliOnFiltrarRubro('')">Rubro: <span id="cliOnFiltroRubroTxt"></span> ✕</span>
+
+          <!-- Pestaña Clientes -->
+          <div id="infPanelClientes">
+            <div id="cliOnResumen" class="cli-resumen"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+              <input id="cliOnBuscar" placeholder="Buscar por nombre, teléfono o email…" oninput="cliOnRender()" style="flex:1;padding:9px 12px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px">
+              <span id="cliOnFiltroRubro" style="display:none;background:var(--accent,#e08e3c);color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;cursor:pointer" onclick="cliOnFiltrarRubro('')">Rubro: <span id="cliOnFiltroRubroTxt"></span> ✕</span>
+            </div>
+            <div id="cliOnLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando clientes...</div></div>
           </div>
-          <div id="cliOnLista"><div style="color:var(--text-mute);font-size:13px;text-align:center;padding:30px 0">Cargando clientes...</div></div>
+
+          <!-- Pestaña Productos consultados -->
+          <div id="infPanelProductos" style="display:none">
+            <div style="margin-bottom:14px"><input id="cliOnBuscarProd" placeholder="(el ranking respeta el rubro que elijas en Clientes)" disabled style="width:100%;padding:9px 12px;border:1px solid var(--line,#eee);border-radius:10px;font-size:12px;color:#999;background:#fafafa"></div>
+            <div id="cliOnTopProds"></div>
+          </div>
+
+          <!-- Pestaña Ventas del bot -->
+          <div id="infPanelVentas" style="display:none">
+            <div style="background:var(--bg-2,#faf7f2);border:1px dashed var(--line,#ddd);border-radius:12px;padding:30px 20px;text-align:center;color:var(--text-mute);font-size:13px">
+              💰 <b>Ventas del bot</b><br><br>Esta sección se activa cuando el asesor pueda cerrar pedidos.<br>Ahí vas a ver cuánto vende el bot, qué productos y a qué clientes.
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -9622,7 +9641,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-71'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-72'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10009,7 +10028,7 @@ function navTo(modulo){
   if(modulo==='ia') initIA();
   if(modulo==='tienda'){ initTienda(); setTimeout(function(){ tiendaSwitchTab('config'); }, 400); }
   if(modulo==='pedidosOnline'){ setTimeout(pedidosAutocargar, 300); }
-  if(modulo==='clientesOnline'){ setTimeout(cliOnAutocargar, 300); }
+  if(modulo==='informes'){ setTimeout(cliOnAutocargar, 300); }
   if(modulo==='consultaPrecios') initConsultaPrecios();
   if(modulo==='productos') initProductosMobile();
   // En mobile, cerrar sidebar al navegar
@@ -11512,6 +11531,20 @@ function cliOnRender(){
 }
 
 function cliOnAutocargar(){ cliOnCargar(); }
+
+function informesSwitchTab(tab){
+  var tabs = { clientes: 'infTabClientes', productos: 'infTabProductos', ventas: 'infTabVentas' };
+  var panels = { clientes: 'infPanelClientes', productos: 'infPanelProductos', ventas: 'infPanelVentas' };
+  Object.keys(tabs).forEach(function(t){
+    var btn = document.getElementById(tabs[t]); if(btn){
+      var active = t === tab;
+      btn.style.color = active ? 'var(--accent)' : 'var(--text-mute)';
+      btn.style.fontWeight = active ? '700' : '600';
+      btn.style.borderBottomColor = active ? 'var(--accent)' : 'transparent';
+    }
+    var pan = document.getElementById(panels[t]); if(pan) pan.style.display = (t === tab) ? '' : 'none';
+  });
+}
 
 
 // ══════════════════════════════════════════════════════
