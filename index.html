@@ -9674,7 +9674,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-86'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-87'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11172,7 +11172,7 @@ var _sfCliente = null; // { nombre, tel, email } del cliente que chatea
 function _sfGetCliente(){
   if(_sfCliente) return _sfCliente;
   try{
-    var g = sessionStorage.getItem('sf_cliente_' + (window._sfId || ''));
+    var g = localStorage.getItem('sf_cliente_' + (window._sfId || ''));
     if(g){ _sfCliente = JSON.parse(g); return _sfCliente; }
   }catch(e){}
   return null;
@@ -11237,14 +11237,37 @@ function sfGuardarDatos(){
   var rubro = (document.getElementById('sfDatoRubro').value || '').trim();
   if(!rubro){ mostrarErr('Elegí a qué te dedicás.'); return; }
   _sfCliente = { nombre: nombre, tel: tel, email: email, rubro: rubro };
-  try{ sessionStorage.setItem('sf_cliente_' + (window._sfId || ''), JSON.stringify(_sfCliente)); }catch(e){}
+  try{ localStorage.setItem('sf_cliente_' + (window._sfId || ''), JSON.stringify(_sfCliente)); }catch(e){}
   // Mostramos de nuevo la barra de escribir
   var inputBar = document.querySelector('#sfAsesorPanel .sf-ainput');
   if(inputBar) inputBar.style.display = '';
   sfIniciarChat();
 }
 
-function sfIniciarChat(){
+async function sfIniciarChat(){
+  // Si volvemos y ya hay una sesión guardada, intentar recuperar la conversación anterior
+  if(!_sfAsesorMsgs.length && window._sfId){
+    try{
+      var sesId = _sfGetSessionId();
+      var convDoc = await db.collection('tiendas').doc(window._sfId)
+        .collection('conversaciones').doc(sesId).get();
+      if(convDoc.exists){
+        var cData = convDoc.data();
+        var msgsPrev = Array.isArray(cData.messages) ? cData.messages : [];
+        if(msgsPrev.length){
+          // Reconstruir la conversación anterior
+          msgsPrev.forEach(function(m){
+            var role = (m.role === 'dueno') ? 'dueno' : (m.role === 'assistant' ? 'assistant' : 'user');
+            _sfAsesorMsgs.push({ role: role, content: m.content || '' });
+          });
+          sfAsesorRender();
+          sfEscucharRespuestas();
+          var inp0 = document.getElementById('sfAsesorInput'); if(inp0) setTimeout(function(){ inp0.focus(); }, 200);
+          return;
+        }
+      }
+    }catch(e){ /* si falla, seguimos con saludo normal */ }
+  }
   if(!_sfAsesorMsgs.length){
     var nom = (_sfData.asesorNombre || 'tu asesor');
     var cli = _sfGetCliente();
@@ -11424,11 +11447,11 @@ var _sfAsesorSessionId = null;
 function _sfGetSessionId(){
   if(_sfAsesorSessionId) return _sfAsesorSessionId;
   try{
-    var guardado = sessionStorage.getItem('sf_session_' + (window._sfId || ''));
+    var guardado = localStorage.getItem('sf_session_' + (window._sfId || ''));
     if(guardado){ _sfAsesorSessionId = guardado; return _sfAsesorSessionId; }
   }catch(e){}
   _sfAsesorSessionId = 'sf_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-  try{ sessionStorage.setItem('sf_session_' + (window._sfId || ''), _sfAsesorSessionId); }catch(e){}
+  try{ localStorage.setItem('sf_session_' + (window._sfId || ''), _sfAsesorSessionId); }catch(e){}
   return _sfAsesorSessionId;
 }
 
