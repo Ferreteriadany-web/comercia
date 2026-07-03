@@ -9674,7 +9674,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-88'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-89'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11180,9 +11180,11 @@ var _sfCliente = null; // { nombre, tel, email } del cliente que chatea
 function _sfGetCliente(){
   if(_sfCliente) return _sfCliente;
   try{
-    var g = localStorage.getItem('sf_cliente_' + (window._sfId || ''));
+    var clave = 'sf_cliente_' + (window._sfId || '');
+    var g = localStorage.getItem(clave);
+    console.log('[SESION] buscando cliente con clave:', clave, '→', g ? 'ENCONTRADO' : 'no hay');
     if(g){ _sfCliente = JSON.parse(g); return _sfCliente; }
-  }catch(e){}
+  }catch(e){ console.warn('[SESION] error leyendo cliente:', e); }
   return null;
 }
 
@@ -11245,7 +11247,11 @@ function sfGuardarDatos(){
   var rubro = (document.getElementById('sfDatoRubro').value || '').trim();
   if(!rubro){ mostrarErr('Elegí a qué te dedicás.'); return; }
   _sfCliente = { nombre: nombre, tel: tel, email: email, rubro: rubro };
-  try{ localStorage.setItem('sf_cliente_' + (window._sfId || ''), JSON.stringify(_sfCliente)); }catch(e){}
+  try{
+    var _clave = 'sf_cliente_' + (window._sfId || '');
+    localStorage.setItem(_clave, JSON.stringify(_sfCliente));
+    console.log('[SESION] cliente GUARDADO con clave:', _clave);
+  }catch(e){ console.warn('[SESION] no se pudo guardar:', e); }
   // Mostramos de nuevo la barra de escribir
   var inputBar = document.querySelector('#sfAsesorPanel .sf-ainput');
   if(inputBar) inputBar.style.display = '';
