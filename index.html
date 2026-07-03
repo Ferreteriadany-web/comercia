@@ -9674,7 +9674,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-87'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-88'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10301,8 +10301,12 @@ async function initTienda(){
 }
 // Actualiza SOLO los productos de la tienda (republica el catálogo) usando la config ya guardada.
 // Sirve para refrescar precios/stock sin pasar por el wizard de configuración.
+var _sincronizandoTienda = false;
+
 async function actualizarProductosTienda(){
   if(!currentEmpresaId){ return; }
+  if(_sincronizandoTienda){ if(typeof toast === 'function') toast('Ya hay una sincronización en curso, esperá que termine', 'error'); return; }
+  _sincronizandoTienda = true;
   var btn = document.getElementById('tiendaBtnActualizar');
   if(btn){ btn.disabled = true; btn.textContent = 'Actualizando...'; }
   try{
@@ -10367,6 +10371,7 @@ async function actualizarProductosTienda(){
     if(typeof toast === 'function') toast('Error al actualizar: ' + (err.message || ''), 'error');
   }
   if(btn){ btn.disabled = false; btn.innerHTML = '&#128260; Actualizar productos'; }
+  _sincronizandoTienda = false;
 }
 
 // ══════════════════════════════════════════════════════
@@ -10393,6 +10398,8 @@ function actualizarAvisoCambiosTienda(){
 
 async function guardarPublicarTienda(){
   if(!currentEmpresaId) return;
+  if(_sincronizandoTienda){ if(typeof toast === 'function') toast('Ya hay una sincronización en curso, esperá que termine', 'error'); return; }
+  _sincronizandoTienda = true;
   var btn = document.getElementById('tiendaBtnPublicar');
   if(!currentEmpresaId) return;
   var btn = document.getElementById('tiendaBtnPublicar');
@@ -10494,6 +10501,7 @@ async function guardarPublicarTienda(){
     if(typeof showAlert === 'function') showAlert('tiendaAlert', 'No se pudo publicar: ' + (e.message || ''));
   }finally{
     if(btn){ btn.disabled = false; btn.innerHTML = '&#128722; Guardar y publicar'; }
+    _sincronizandoTienda = false;
   }
 }
 function copiarLinkTienda(){
