@@ -7390,6 +7390,15 @@
               <div style="font-size:11px;color:var(--text-mute);margin-top:8px" id="provDetectados"></div>
             </div>
             <div class="table-card" style="margin-bottom:16px">
+              <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#128722; Link a tu tienda online</div>
+              <div style="font-size:12px;color:var(--text-mute);margin-bottom:12px">Si tenés una tienda online, el asesor va a mostrar un botón "Ver en nuestra tienda" que la abre buscando el producto. Pegá la URL de búsqueda de tu tienda usando <b>{q}</b> donde va el término. Ej: <i>https://ferreteriadany.com.ar/search/?q={q}</i></div>
+              <input id="tiendaOnlineUrl" placeholder="https://tutienda.com/search/?q={q}" style="width:100%;padding:11px 13px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;box-sizing:border-box">
+              <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-primary btn-sm" onclick="tiendaOnlineGuardar()">&#128190; Guardar link</button>
+              </div>
+              <div id="tiendaOnlineStatus" style="font-size:12px;color:var(--text-mute);margin-top:8px"></div>
+            </div>
+            <div class="table-card" style="margin-bottom:16px">
               <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#129504; Cerebro del asesor</div>
               <div style="font-size:12px;color:var(--text-mute);margin-bottom:14px">Escribí acá todo el conocimiento de tu ferretería: qué marcas tenés por rubro, cuándo recomendar cada producto, ventas cruzadas, preguntas clave. El asesor lo usa para responder como un vendedor experto.<br><br>Guardá cada vez que hagas cambios — se aplica de inmediato sin necesidad de publicar la tienda.</div>
               <textarea id="cerebroEditor" style="width:100%;min-height:460px;padding:14px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;font-family:var(--mono,'Courier New',monospace);line-height:1.6;resize:vertical;box-sizing:border-box;background:var(--bg-2,#fafafa)" placeholder="Ej:
@@ -9665,7 +9674,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-84'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-85'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11355,6 +11364,12 @@ function sfAsesorRender(){
         var precio = (_sfData.mostrarPrecio !== false && pr.p) ? (' — ' + sfPeso(pr.p)) : '';
         return '<div class="sf-acard"><span><b>' + sfEsc(pr.n || '') + '</b>' + precio + '</span>' + btn + '</div>';
       }).join('') + '</div>';
+      // Botón "Ver en mi tienda" (si el dueño configuró la URL de su tienda online)
+      if(_sfData && _sfData.tiendaOnlineUrl){
+        var termino = (m.busqueda || (m.productos[0] && m.productos[0].n) || '').toString();
+        var url = _sfData.tiendaOnlineUrl.replace('{q}', encodeURIComponent(termino));
+        bub += '<div style="align-self:flex-start;margin-top:2px"><a href="' + sfEsc(url) + '" target="_blank" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--sf-accent);text-decoration:none;border:1px solid var(--sf-accent);border-radius:8px;padding:6px 12px">🛒 Ver en nuestra tienda online</a></div>';
+      }
     }
     return bub;
   }).join('');
@@ -11485,7 +11500,7 @@ async function sfAsesorEnviar(){
       }
     }
 
-    _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productosEncontrados.slice(0, 8) });
+    _sfAsesorMsgs.push({ role: 'assistant', content: reply, productos: productosEncontrados.slice(0, 8), busqueda: txt });
   }catch(err){
     console.error('[ASESOR] Error al llamar la función:', err);
     var detalle = err && (err.message || err.code) ? (' (' + (err.code || '') + ' ' + (err.message || '') + ')') : '';
@@ -11972,7 +11987,7 @@ function tiendaSwitchTab(tab){
   var btnPublicar = document.getElementById('tiendaBtnPublicar');
   if(btnPublicar) btnPublicar.style.display = tab === 'config' ? '' : 'none';
   // Acciones específicas por tab
-  if(tab === 'cerebro'){ cerebroCargar(); provPermitidosCargar(); }
+  if(tab === 'cerebro'){ cerebroCargar(); provPermitidosCargar(); tiendaOnlineCargar(); }
   if(tab === 'chats'){ convCargar(); }
 }
 
@@ -12033,6 +12048,32 @@ async function provPermitidosGuardar(){
   }catch(err){
     if(st) st.textContent = '❌ Error: ' + (err.message || '');
   }
+}
+
+async function tiendaOnlineGuardar(){
+  var st = document.getElementById('tiendaOnlineStatus');
+  var inp = document.getElementById('tiendaOnlineUrl');
+  var url = (inp.value || '').trim();
+  if(url && url.indexOf('{q}') < 0){
+    if(st){ st.textContent = '⚠️ Falta {q} en la URL (donde va el término de búsqueda).'; st.style.color = '#d33'; }
+    return;
+  }
+  if(st){ st.textContent = 'Guardando...'; st.style.color = ''; }
+  try{
+    await db.collection('tiendas').doc(currentEmpresaId).set({ tiendaOnlineUrl: url }, { merge: true });
+    if(st) st.textContent = url ? '✅ Link guardado. El asesor va a mostrar el botón "Ver en nuestra tienda".' : '✅ Link quitado.';
+    toast('Link de tienda guardado ✓', 'success');
+  }catch(err){
+    if(st) st.textContent = '❌ Error: ' + (err.message || '');
+  }
+}
+
+function tiendaOnlineCargar(){
+  var inp = document.getElementById('tiendaOnlineUrl'); if(!inp) return;
+  db.collection('tiendas').doc(currentEmpresaId).get().then(function(doc){
+    var cfg = doc.exists ? doc.data() : {};
+    inp.value = cfg.tiendaOnlineUrl || '';
+  }).catch(function(){});
 }
 
 async function cerebroGuardar(){
