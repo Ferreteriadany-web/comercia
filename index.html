@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -9674,7 +9674,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-85'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-86'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10717,7 +10717,7 @@ var _sfData = null, _sfCart = [], _sfFiltro = '', _sfRubro = '', _sfRubros = [],
 var _sfItemsById = {}, _sfGridItems = [], _sfLastDoc = null, _sfHasMore = false, _sfCargandoGrid = false, _sfBuscarTimer = null;
 var _SF_PAGE = 24;
 // Normaliza texto (minúsculas, sin acentos) y arma tokens para búsqueda en servidor.
-function _sfNorm(s){ return (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function _sfNorm(s){ return (s || '').toString().toLowerCase().replace(/ñ/g, 'n').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function _sfTokens(str){
   var raw = _sfNorm(str).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/);
   var seen = {}, out = [];
@@ -11478,15 +11478,15 @@ async function sfAsesorEnviar(){
               return permNorm.some(function(marca){ return marca && campos.indexOf(marca) >= 0; });
             });
           }
-          // Puntuar: cuántas palabras del término aparecen REALMENTE en el nombre del producto
+          // Puntuar: cuántas palabras del término aparecen en el producto (nombre, rubro, código, detalle)
           var scored = locales.map(function(it){
-            var hay = _sfNorm((it.n || '') + ' ' + (it.r || ''));
+            var hay = _sfNorm((it.n || '') + ' ' + (it.r || '') + ' ' + (it.c || '') + ' ' + (it.d || ''));
             var sc = 0; toks.forEach(function(t){ if(hay.indexOf(t) >= 0) sc++; });
             return { it: it, sc: sc };
           });
-          // EXIGENCIA: el producto tiene que matchear casi todas las palabras del término.
-          // Si el término tiene 1-2 palabras, las dos; si tiene más, al menos el 70%.
-          var minMatch = toks.length <= 2 ? toks.length : Math.ceil(toks.length * 0.7);
+          // EXIGENCIA flexible: pedimos que matcheen la mayoría de las palabras, pero no todas.
+          // (los nombres reales tienen palabras extra como PN20, MM, códigos, etc.)
+          var minMatch = toks.length <= 2 ? Math.max(1, toks.length - 0) : Math.max(2, Math.ceil(toks.length * 0.6));
           scored = scored.filter(function(s){ return s.sc >= minMatch; });
           scored.sort(function(a, b){ return b.sc - a.sc; });
           scored.slice(0, 3).forEach(function(s){ _sfRegistrar(s.it); productosEncontrados.push(s.it); });
