@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -9674,7 +9674,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-89'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-91'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10725,26 +10725,45 @@ var _sfData = null, _sfCart = [], _sfFiltro = '', _sfRubro = '', _sfRubros = [],
 var _sfItemsById = {}, _sfGridItems = [], _sfLastDoc = null, _sfHasMore = false, _sfCargandoGrid = false, _sfBuscarTimer = null;
 var _SF_PAGE = 24;
 // Normaliza texto (minúsculas, sin acentos) y arma tokens para búsqueda en servidor.
-function _sfNorm(s){ return (s || '').toString().toLowerCase().replace(/ñ/g, 'n').normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function _sfNorm(s){
+  var t = (s || '').toString().toLowerCase().replace(/ñ/g, 'n').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Unificar números: coma decimal → punto, y quitar ceros finales (2,50 → 2.5 ; 2.50 → 2.5)
+  t = t.replace(/(\d),(\d)/g, '$1.$2');           // 2,50 → 2.50
+  t = t.replace(/(\d+)\.(\d*?)0+(\D|$)/g, '$1.$2$3'); // 2.50 → 2.5
+  t = t.replace(/(\d+)\.(\D|$)/g, '$1$2');        // 2. → 2
+  return t;
+}
 function _sfTokens(str){
-  var raw = _sfNorm(str).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/);
+  var raw = _sfNorm(str).replace(/[^a-z0-9. ]/g, ' ').replace(/\s+/g, ' ').split(/\s+/);
   var seen = {}, out = [];
-  for(var i = 0; i < raw.length; i++){ var w = raw[i]; if(w.length >= 2 && !seen[w]){ seen[w] = 1; out.push(w); if(out.length >= 40) break; } }
+  for(var i = 0; i < raw.length; i++){
+    var w = raw[i];
+    // agregar la palabra y su versión sin punto
+    [w, w.replace(/\./g, '')].forEach(function(x){
+      if(x.length >= 2 && !seen[x]){ seen[x] = 1; out.push(x); }
+    });
+    if(out.length >= 40) break;
+  }
   return out;
 }
 // Versión para GUARDAR: agrega los prefijos de cada palabra (co, cod, codo / 20, 20m, 20mm)
 // para que el buscador encuentre por coincidencia parcial. (El buscador usa _sfTokens para la consulta.)
 var TOK_VER = 2; // subir este número fuerza re-indexar todos los productos
 function _sfTokensIndex(str){
-  var raw = _sfNorm(str).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/);
+  var raw = _sfNorm(str).replace(/[^a-z0-9. ]/g, ' ').replace(/\s+/g, ' ').split(/\s+/);
   var seen = {}, out = [];
   for(var i = 0; i < raw.length; i++){
     var w = raw[i]; if(w.length < 2) continue;
-    var maxp = Math.min(w.length, 15);
-    for(var L = 2; L <= maxp; L++){
-      var pre = w.slice(0, L);
-      if(!seen[pre]){ seen[pre] = 1; out.push(pre); if(out.length >= 150) return out; }
-    }
+    // Guardar el token completo (ej "2.5") y también sin punto
+    [w, w.replace(/\./g, '')].forEach(function(base){
+      if(base.length < 2) return;
+      var maxp = Math.min(base.length, 15);
+      for(var L = 2; L <= maxp; L++){
+        var pre = base.slice(0, L);
+        if(!seen[pre]){ seen[pre] = 1; out.push(pre); }
+      }
+    });
+    if(out.length >= 150) return out.slice(0, 150);
   }
   return out;
 }
@@ -11180,11 +11199,9 @@ var _sfCliente = null; // { nombre, tel, email } del cliente que chatea
 function _sfGetCliente(){
   if(_sfCliente) return _sfCliente;
   try{
-    var clave = 'sf_cliente_' + (window._sfId || '');
-    var g = localStorage.getItem(clave);
-    console.log('[SESION] buscando cliente con clave:', clave, '→', g ? 'ENCONTRADO' : 'no hay');
+    var g = localStorage.getItem('sf_cliente_' + (window._sfId || ''));
     if(g){ _sfCliente = JSON.parse(g); return _sfCliente; }
-  }catch(e){ console.warn('[SESION] error leyendo cliente:', e); }
+  }catch(e){}
   return null;
 }
 
@@ -11247,11 +11264,7 @@ function sfGuardarDatos(){
   var rubro = (document.getElementById('sfDatoRubro').value || '').trim();
   if(!rubro){ mostrarErr('Elegí a qué te dedicás.'); return; }
   _sfCliente = { nombre: nombre, tel: tel, email: email, rubro: rubro };
-  try{
-    var _clave = 'sf_cliente_' + (window._sfId || '');
-    localStorage.setItem(_clave, JSON.stringify(_sfCliente));
-    console.log('[SESION] cliente GUARDADO con clave:', _clave);
-  }catch(e){ console.warn('[SESION] no se pudo guardar:', e); }
+  try{ localStorage.setItem('sf_cliente_' + (window._sfId || ''), JSON.stringify(_sfCliente)); }catch(e){}
   // Mostramos de nuevo la barra de escribir
   var inputBar = document.querySelector('#sfAsesorPanel .sf-ainput');
   if(inputBar) inputBar.style.display = '';
