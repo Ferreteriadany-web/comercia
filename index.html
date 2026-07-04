@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -7390,6 +7390,15 @@
               <div style="font-size:11px;color:var(--text-mute);margin-top:8px" id="provDetectados"></div>
             </div>
             <div class="table-card" style="margin-bottom:16px">
+              <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#128269; Probar búsqueda del asesor</div>
+              <div style="font-size:12px;color:var(--text-mute);margin-bottom:12px">Escribí un término (como lo buscaría el bot) y probá si encuentra productos en tu tienda publicada. Sirve para verificar sin tener que publicar todo de nuevo.</div>
+              <div style="display:flex;gap:8px">
+                <input id="testBusqueda" placeholder="Ej: cano redeco 20" style="flex:1;padding:11px 13px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px" onkeydown="if(event.key==='Enter')probarBusquedaAsesor()">
+                <button class="btn btn-primary btn-sm" onclick="probarBusquedaAsesor()">Probar</button>
+              </div>
+              <div id="testBusquedaResultado" style="margin-top:12px;font-size:13px"></div>
+            </div>
+            <div class="table-card" style="margin-bottom:16px">
               <div style="font-weight:700;font-size:15px;margin-bottom:4px">&#128722; Link a tu tienda online</div>
               <div style="font-size:12px;color:var(--text-mute);margin-bottom:12px">Si tenés una tienda online, el asesor va a mostrar un botón "Ver en nuestra tienda" que la abre buscando el producto. Pegá la URL de búsqueda de tu tienda usando <b>{q}</b> donde va el término. Ej: <i>https://ferreteriadany.com.ar/search/?q={q}</i></div>
               <input id="tiendaOnlineUrl" placeholder="https://tutienda.com/search/?q={q}" style="width:100%;padding:11px 13px;border:1px solid var(--line,#ddd);border-radius:10px;font-size:13px;box-sizing:border-box">
@@ -9674,7 +9683,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-91'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-93'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -10731,6 +10740,9 @@ function _sfNorm(s){
   t = t.replace(/(\d),(\d)/g, '$1.$2');           // 2,50 → 2.50
   t = t.replace(/(\d+)\.(\d*?)0+(\D|$)/g, '$1.$2$3'); // 2.50 → 2.5
   t = t.replace(/(\d+)\.(\D|$)/g, '$1$2');        // 2. → 2
+  // Separar letras pegadas a números: PN20 → pn 20 ; 20MM → 20 mm ; 20mm → 20 mm
+  t = t.replace(/([a-z])(\d)/g, '$1 $2');
+  t = t.replace(/(\d)([a-z])/g, '$1 $2');
   return t;
 }
 function _sfTokens(str){
@@ -12097,6 +12109,49 @@ async function provPermitidosGuardar(){
     toast('Marcas del asesor guardadas ✓', 'success');
   }catch(err){
     if(st) st.textContent = '❌ Error: ' + (err.message || '');
+  }
+}
+
+async function probarBusquedaAsesor(){
+  var inp = document.getElementById('testBusqueda');
+  var out = document.getElementById('testBusquedaResultado');
+  if(!inp || !out) return;
+  var termino = (inp.value || '').trim();
+  if(!termino){ out.innerHTML = ''; return; }
+  out.innerHTML = '<span style="color:var(--text-mute)">Buscando...</span>';
+  try{
+    var toks = _sfTokens(termino).slice(0, 10);
+    var col = db.collection('tiendas').doc(currentEmpresaId).collection('cat');
+    var snap = await col.where('tok', 'array-contains-any', toks).limit(40).get();
+    var traidos = [];
+    snap.forEach(function(d){ var it = d.data(); it._id = d.id; traidos.push(it); });
+    // Puntuar igual que el bot
+    var scored = traidos.map(function(it){
+      var hay = _sfNorm((it.n || '') + ' ' + (it.r || '') + ' ' + (it.c || '') + ' ' + (it.d || ''));
+      var sc = 0; toks.forEach(function(t){ if(hay.indexOf(t) >= 0) sc++; });
+      return { it: it, sc: sc };
+    });
+    var minMatch = toks.length <= 2 ? Math.max(1, toks.length) : Math.max(2, Math.ceil(toks.length * 0.6));
+    var pasan = scored.filter(function(s){ return s.sc >= minMatch; }).sort(function(a, b){ return b.sc - a.sc; });
+
+    var html = '<div style="background:#f7f7f8;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#555;margin-bottom:10px">';
+    html += 'Tokens buscados: [' + toks.join(', ') + ']<br>';
+    html += 'Firestore trajo: ' + traidos.length + ' productos<br>';
+    html += 'Pasan el filtro (match ≥ ' + minMatch + '): ' + pasan.length;
+    html += '</div>';
+
+    if(!traidos.length){
+      html += '<div style="color:#d33">❌ Firestore no devolvió NADA. Los productos no están publicados con estos tokens. Hay que tocar "Actualizar productos".</div>';
+    } else if(!pasan.length){
+      html += '<div style="color:#e08e3c">⚠️ Se trajeron productos pero ninguno matchea bien. Ejemplos de lo que trajo:</div>';
+      html += traidos.slice(0, 5).map(function(it){ return '<div style="font-size:12px;padding:3px 0">• ' + eH(it.n || '') + '</div>'; }).join('');
+    } else {
+      html += '<div style="color:#16a34a;margin-bottom:6px">✅ ' + pasan.length + ' producto(s) encontrado(s):</div>';
+      html += pasan.slice(0, 8).map(function(s){ return '<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #eee">• ' + eH(s.it.n || '') + ' <span style="color:#999">(match ' + s.sc + '/' + toks.length + ')</span></div>'; }).join('');
+    }
+    out.innerHTML = html;
+  }catch(err){
+    out.innerHTML = '<div style="color:#d33">Error: ' + eH(err.message || err) + '</div>';
   }
 }
 
