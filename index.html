@@ -9683,7 +9683,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-93'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-94'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11531,13 +11531,28 @@ async function sfAsesorEnviar(){
           var snap = await col.where('tok', 'array-contains-any', toks).limit(40).get();
           var locales = [];
           snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; locales.push(it); });
-          // Filtrar por marcas/proveedores permitidos: la marca puede estar en el nombre,
-          // el proveedor O el código del producto. Si aparece en cualquiera, se muestra.
+          // Filtrar por marcas/proveedores permitidos.
+          // CLAVE (descubierto del catálogo real): la marca suele estar SOLO en el prefijo del
+          // código, no en el nombre. Ej: EMTOP-xxx, HAMILTON-xxx, LUSQ-xxx. Por eso el filtro
+          // principal es: ¿el código empieza con la marca?
           if(_sfProvPermitidos && _sfProvPermitidos.length){
-            var permNorm = _sfProvPermitidos.map(function(p){ return _sfNorm(p); });
+            var permNorm = _sfProvPermitidos.map(function(p){
+              var n = _sfNorm(p).replace(/[^a-z0-9]/g, '');
+              return { full: _sfNorm(p), code: n, corto: n.slice(0, 4) };
+            });
             locales = locales.filter(function(it){
+              var codigo = _sfNorm(it.c || '').replace(/[^a-z0-9]/g, '');
               var campos = _sfNorm((it.n || '') + ' ' + (it.pv || '') + ' ' + (it.c || ''));
-              return permNorm.some(function(marca){ return marca && campos.indexOf(marca) >= 0; });
+              return permNorm.some(function(m){
+                if(!m.code) return false;
+                // 1) el código empieza con el nombre completo de la marca (ej "hamilton...")
+                if(codigo.indexOf(m.code) === 0) return true;
+                // 2) el código empieza con las primeras 4 letras (ej "lusq", "emto", "belt")
+                if(m.corto.length >= 4 && codigo.indexOf(m.corto) === 0) return true;
+                // 3) la marca aparece en el nombre o proveedor
+                if(m.full && campos.indexOf(m.full) >= 0) return true;
+                return false;
+              });
             });
           }
           // Puntuar: cuántas palabras del término aparecen en el producto (nombre, rubro, código, detalle)
