@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -9683,7 +9683,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-94'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-95'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11524,17 +11524,65 @@ async function sfAsesorEnviar(){
     if(terminos.length && window._sfId){
       try{
         var col = db.collection('tiendas').doc(window._sfId).collection('cat');
+        // Preparar el filtro de marcas una sola vez
+        var permNorm = null;
+        if(_sfProvPermitidos && _sfProvPermitidos.length){
+          permNorm = _sfProvPermitidos.map(function(p){
+            var n = _sfNorm(p).replace(/[^a-z0-9]/g, '');
+            return { full: _sfNorm(p), code: n, corto: n.slice(0, 4) };
+          });
+        }
+        function _pasaMarca(it){
+          if(!permNorm) return true;
+          var codigo = _sfNorm(it.c || '').replace(/[^a-z0-9]/g, '');
+          var campos = _sfNorm((it.n || '') + ' ' + (it.pv || '') + ' ' + (it.c || ''));
+          return permNorm.some(function(m){
+            if(!m.code) return false;
+            if(codigo.indexOf(m.code) === 0) return true;
+            if(m.corto.length >= 4 && codigo.indexOf(m.corto) === 0) return true;
+            if(m.full && campos.indexOf(m.full) >= 0) return true;
+            return false;
+          });
+        }
+        // Hacer TODAS las búsquedas EN PARALELO (mucho más rápido que una por una)
+        var busquedas = terminos.slice(0, 4).map(function(termino){
+          var toks = _sfTokens(termino).slice(0, 10);
+          if(!toks.length) return Promise.resolve([]);
+          return col.where('tok', 'array-contains-any', toks).limit(30).get().then(function(snap){
+            var locales = [];
+            snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; if(_pasaMarca(it)) locales.push(it); });
+            var scored = locales.map(function(it){
+              var hay = _sfNorm((it.n || '') + ' ' + (it.r || '') + ' ' + (it.c || '') + ' ' + (it.d || ''));
+              var sc = 0; toks.forEach(function(t){ if(hay.indexOf(t) >= 0) sc++; });
+              return { it: it, sc: sc };
+            });
+            var minMatch = toks.length <= 2 ? Math.max(1, toks.length) : Math.max(2, Math.ceil(toks.length * 0.6));
+            return scored.filter(function(s){ return s.sc >= minMatch; })
+              .sort(function(a, b){ return b.sc - a.sc; })
+              .slice(0, 3).map(function(s){ return s.it; });
+          }).catch(function(){ return []; });
+        });
+        var resultados = await Promise.all(busquedas);
+        var vistos = {};
+        resultados.forEach(function(lista){
+          lista.forEach(function(it){
+            var k = _sfKey(it);
+            if(!vistos[k]){ vistos[k] = 1; _sfRegistrar(it); productosEncontrados.push(it); }
+          });
+        });
+      }catch(err){ console.warn('[ASESOR] error en búsqueda:', err); }
+    }
+    if(false){
+      try{
+        var col2 = db.collection('tiendas').doc(window._sfId).collection('cat');
         for(var ti = 0; ti < terminos.length; ti++){
           var toks = _sfTokens(terminos[ti]).slice(0, 10);
           if(!toks.length) continue;
           // Traemos un lote amplio para después filtrar con exigencia
-          var snap = await col.where('tok', 'array-contains-any', toks).limit(40).get();
+          var snap = await col2.where('tok', 'array-contains-any', toks).limit(40).get();
           var locales = [];
           snap.forEach(function(doc){ var it = doc.data(); it._id = doc.id; locales.push(it); });
           // Filtrar por marcas/proveedores permitidos.
-          // CLAVE (descubierto del catálogo real): la marca suele estar SOLO en el prefijo del
-          // código, no en el nombre. Ej: EMTOP-xxx, HAMILTON-xxx, LUSQ-xxx. Por eso el filtro
-          // principal es: ¿el código empieza con la marca?
           if(_sfProvPermitidos && _sfProvPermitidos.length){
             var permNorm = _sfProvPermitidos.map(function(p){
               var n = _sfNorm(p).replace(/[^a-z0-9]/g, '');
@@ -11545,11 +11593,8 @@ async function sfAsesorEnviar(){
               var campos = _sfNorm((it.n || '') + ' ' + (it.pv || '') + ' ' + (it.c || ''));
               return permNorm.some(function(m){
                 if(!m.code) return false;
-                // 1) el código empieza con el nombre completo de la marca (ej "hamilton...")
                 if(codigo.indexOf(m.code) === 0) return true;
-                // 2) el código empieza con las primeras 4 letras (ej "lusq", "emto", "belt")
                 if(m.corto.length >= 4 && codigo.indexOf(m.corto) === 0) return true;
-                // 3) la marca aparece en el nombre o proveedor
                 if(m.full && campos.indexOf(m.full) >= 0) return true;
                 return false;
               });
@@ -11561,8 +11606,6 @@ async function sfAsesorEnviar(){
             var sc = 0; toks.forEach(function(t){ if(hay.indexOf(t) >= 0) sc++; });
             return { it: it, sc: sc };
           });
-          // EXIGENCIA flexible: pedimos que matcheen la mayoría de las palabras, pero no todas.
-          // (los nombres reales tienen palabras extra como PN20, MM, códigos, etc.)
           var minMatch = toks.length <= 2 ? Math.max(1, toks.length - 0) : Math.max(2, Math.ceil(toks.length * 0.6));
           scored = scored.filter(function(s){ return s.sc >= minMatch; });
           scored.sort(function(a, b){ return b.sc - a.sc; });
