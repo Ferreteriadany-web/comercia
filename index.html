@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -9683,7 +9683,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.25-95'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.25-96'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
@@ -11556,8 +11556,14 @@ async function sfAsesorEnviar(){
               var sc = 0; toks.forEach(function(t){ if(hay.indexOf(t) >= 0) sc++; });
               return { it: it, sc: sc };
             });
-            var minMatch = toks.length <= 2 ? Math.max(1, toks.length) : Math.max(2, Math.ceil(toks.length * 0.6));
-            return scored.filter(function(s){ return s.sc >= minMatch; })
+            // Estrategia flexible: nos quedamos con el MEJOR nivel de match disponible.
+            // Si algún producto matchea todas las palabras, mostramos esos. Si no, bajamos el
+            // listón progresivamente para no dejar al cliente sin resultados. Pero exigimos
+            // siempre matchear al menos la primera palabra (la principal, ej "taladro").
+            var maxSc = 0; scored.forEach(function(s){ if(s.sc > maxSc) maxSc = s.sc; });
+            if(maxSc === 0) return [];
+            var umbral = Math.max(1, Math.min(maxSc, Math.ceil(toks.length * 0.6)));
+            return scored.filter(function(s){ return s.sc >= umbral; })
               .sort(function(a, b){ return b.sc - a.sc; })
               .slice(0, 3).map(function(s){ return s.it; });
           }).catch(function(){ return []; });
@@ -12190,7 +12196,9 @@ async function probarBusquedaAsesor(){
       return { it: it, sc: sc };
     });
     var minMatch = toks.length <= 2 ? Math.max(1, toks.length) : Math.max(2, Math.ceil(toks.length * 0.6));
-    var pasan = scored.filter(function(s){ return s.sc >= minMatch; }).sort(function(a, b){ return b.sc - a.sc; });
+    var maxScT = 0; scored.forEach(function(s){ if(s.sc > maxScT) maxScT = s.sc; });
+    var umbralT = maxScT === 0 ? 99 : Math.max(1, Math.min(maxScT, Math.ceil(toks.length * 0.6)));
+    var pasan = scored.filter(function(s){ return s.sc >= umbralT; }).sort(function(a, b){ return b.sc - a.sc; });
 
     var html = '<div style="background:#f7f7f8;border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#555;margin-bottom:10px">';
     html += 'Tokens buscados: [' + toks.join(', ') + ']<br>';
