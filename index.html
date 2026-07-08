@@ -30534,6 +30534,7 @@ async function lpProcesarArchivo(file){
     lpImpCtx = {
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
+      _archivoFile: (/\.xlsx$/i.test(file.name) ? file : null),   // para extraer imágenes embebidas
       map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
     };
 
@@ -30719,17 +30720,35 @@ function lpAbrirMapeoColumnas(){
   if(!lpImpCtx){ return; }
   var cont = document.getElementById('lpMapeoCampos');
   var headers = lpImpCtx.headers;
-  var html = '<div style="grid-column:1/-1;font-size:12px;color:var(--text-mute)">Encabezados detectados en la fila ' + (lpImpCtx.headerRowIdx + 1) + '. Asigná cada campo:</div>';
+  // Ejemplo real de cada columna: primer valor no vacío en las filas de
+  // datos. Clave cuando la lista no tiene encabezados ("Columna 1, 2, 3...").
+  var nCols = headers.length;
+  lpImpCtx.rowsRaw.slice(lpImpCtx.headerRowIdx + 1, lpImpCtx.headerRowIdx + 60).forEach(function(rr){
+    if(rr) nCols = Math.max(nCols, rr.length);
+  });
+  var ejemplos = [];
+  for(var ci = 0; ci < nCols; ci++){
+    var ej = '';
+    for(var fi = lpImpCtx.headerRowIdx + 1; fi < Math.min(lpImpCtx.rowsRaw.length, lpImpCtx.headerRowIdx + 60); fi++){
+      var rr2 = lpImpCtx.rowsRaw[fi];
+      var v = rr2 ? rr2[ci] : null;
+      if(v !== null && v !== undefined && String(v).trim() !== ''){ ej = String(v).trim().slice(0, 24); break; }
+    }
+    ejemplos.push(ej);
+  }
+  var html = '<div style="grid-column:1/-1;font-size:12px;color:var(--text-mute)">Asigná cada campo. Al lado de cada columna te mostramos un ejemplo de lo que contiene:</div>';
   LP_CAMPOS_MAP.forEach(function(campo){
     // ocultar "proveedor" si no es sábana
     if(campo.k === 'proveedor' && lpImpCtx.modo !== 'sabana') return;
     var actual = (lpImpCtx.map && typeof lpImpCtx.map[campo.k] === 'number') ? lpImpCtx.map[campo.k] : -1;
     var sel = '<select onchange="lpImpCtx.map[\'' + campo.k + '\']=Number(this.value)">';
     sel += '<option value="-1">— ninguna —</option>';
-    headers.forEach(function(h, idx){
+    for(var idx = 0; idx < nCols; idx++){
       var selected = (actual === idx) ? ' selected' : '';
-      sel += '<option value="' + idx + '"' + selected + '>' + eH(h || ('Columna ' + (idx+1))) + '</option>';
-    });
+      var nombreCol = headers[idx] || ('Columna ' + (idx + 1));
+      var etiqueta = nombreCol + (ejemplos[idx] ? '  →  ej: ' + ejemplos[idx] : '  (vacía)');
+      sel += '<option value="' + idx + '"' + selected + '>' + eH(etiqueta) + '</option>';
+    }
     sel += '</select>';
     html += '<div class="cli-mapeo-item"><label>' + eH(campo.label) + '</label>' + sel + '</div>';
   });
@@ -30797,6 +30816,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       }
     }
     var fila = { codigoProv: codigo, descripcion: desc, precioNeto: precio,
+      _filaExcel: j,   // fila original del archivo (para vincular imágenes embebidas)
       codBarraProv: (colCodBarra >= 0 ? lpNormalizarCodBarra(r[colCodBarra]) : ''),
       ivaCustom: (isNaN(iva) || iva === null) ? null : iva, descProducto: descProd };
     // Margen por producto desde el archivo (override del tramo del proveedor).
@@ -30879,6 +30899,87 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       toast('Hay ítems en dólares: cargá la cotización', 'info');
     }
   }
+  // Buscar imágenes embebidas en el Excel y vincularlas a las filas (async, no bloquea)
+  try{ lpVincularImagenesEmbebidas(); }catch(e){ console.warn(e); }
+}
+
+// ─── Imágenes embebidas del Excel ───
+// Muchas listas traen la foto del producto pegada en la celda. SheetJS no
+// las ve; ExcelJS sí, con su fila de anclaje. Acá las asociamos a las filas
+// importadas (misma fila del archivo, con tolerancia ±2 porque suelen venir
+// corridas). La subida a Storage ocurre recién al APLICAR.
+async function lpVincularImagenesEmbebidas(){
+  try{
+    var ctx = lpImpCtx, imp = lpState.importacion;
+    if(!ctx || !ctx._archivoFile || !imp || !imp.rows || !imp.rows.length) return;
+    if(typeof ExcelJS === 'undefined') return;
+    var porFila = {};
+    imp.rows.forEach(function(r){ if(typeof r._filaExcel === 'number') porFila[r._filaExcel] = r; });
+    if(!Object.keys(porFila).length) return;   // (extracción IA: no aplica)
+
+    var buf = await ctx._archivoFile.arrayBuffer();
+    var wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    var ws = wb.worksheets[0];
+    if(!ws || !ws.getImages) return;
+    var imgs = ws.getImages();
+    if(!imgs.length) return;
+
+    var n = 0;
+    imgs.forEach(function(im){
+      var media = wb.getImage ? wb.getImage(im.imageId) : null;
+      if(!media || !media.buffer) return;
+      var tl = im.range && im.range.tl;
+      var fila = tl ? Math.round(tl.nativeRow != null ? tl.nativeRow : tl.row) : -1;
+      if(fila < 0) return;
+      var r = porFila[fila] || porFila[fila + 1] || porFila[fila - 1] || porFila[fila + 2] || porFila[fila - 2];
+      if(!r || r._imgEmbebida) return;
+      r._imgEmbebida = { buffer: media.buffer, ext: media.extension || 'png' };
+      n++;
+    });
+    if(n) toast('🖼 ' + n + ' foto(s) encontradas en el Excel: se cargan a los productos al aplicar (sin pisar fotos existentes)', 'info');
+  }catch(e){ console.warn('lpVincularImagenesEmbebidas', e); }
+}
+
+// Sube las fotos embebidas de las filas aplicadas: comprime con la misma
+// función del alta manual, respeta la convención de rutas de Storage y
+// NUNCA pisa una foto existente del producto.
+async function lpSubirFotosImportadas(filas){
+  var conImg = (filas || []).filter(function(r){
+    return r._imgEmbebida && !(r.productoActual && (r.productoActual.fotoUrl || r.productoActual.foto));
+  });
+  if(!conImg.length) return;
+  toast('Subiendo ' + conImg.length + ' foto(s) de la lista...', 'info');
+  var updates = [];
+  for(var i = 0; i < conImg.length; i++){
+    var r = conImg[i];
+    try{
+      var blob = new Blob([r._imgEmbebida.buffer]);
+      var comp = (typeof comprimirImagen === 'function') ? await comprimirImagen(blob, 800, 0.82) : blob;
+      var docId = (r.productoActual && r.productoActual.docId) || lpSanitizarIdProducto(r.codigoProv);
+      var path = 'empresas/' + currentEmpresaId + '/productos/' + docId + '/' + Date.now() + '.jpg';
+      var ref = storage.ref(path);
+      await ref.put(comp, { contentType: 'image/jpeg' });
+      var url = await ref.getDownloadURL();
+      updates.push({ docId: docId, fotoUrl: url, fotoPath: path });
+    }catch(e){ console.warn('foto embebida falló:', r.codigoProv, e); }
+  }
+  for(var s = 0; s < updates.length; s += 400){
+    var lote = updates.slice(s, s + 400);
+    var batch = db.batch();
+    lote.forEach(function(u){
+      batch.set(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(u.docId),
+        { fotoUrl: u.fotoUrl, fotoPath: u.fotoPath, updatedAt: new Date().toISOString() }, { merge: true });
+    });
+    await batch.commit();
+  }
+  try{
+    updates.forEach(function(u){
+      var p = (typeof productos !== 'undefined') && productos.find ? productos.find(function(x){ return x._id === u.docId; }) : null;
+      if(p){ p.fotoUrl = u.fotoUrl; p.fotoPath = u.fotoPath; }
+    });
+  }catch(e){}
+  if(updates.length) toast('🖼 ' + updates.length + ' foto(s) cargadas a los productos', 'success');
 }
 
 function lpLeerArchivo(file){
@@ -31569,6 +31670,8 @@ async function lpEjecutarAplicar(filas){
     var provTxt = (imp.modo === 'sabana') ? (' en ' + Object.keys(porProv).length + ' proveedores') : '';
     var omitTxt = noEnCatalogo.length ? (' · ' + noEnCatalogo.length + ' no estaban en el catálogo') : '';
     toast('✅ Aplicado: ' + totalActualizados + ' actualizados, ' + totalCreados + ' nuevos' + provTxt + omitTxt, 'success');
+    // Fotos embebidas del Excel (si las hubo): subirlas ahora, sin bloquear el flujo si fallan
+    try{ await lpSubirFotosImportadas(filas); }catch(e){ console.warn('fotos importadas:', e); }
     if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo(); // avisar a todos
     lpState.importacion = null;
     lpVolverAPaso1();
