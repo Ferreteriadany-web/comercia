@@ -30973,6 +30973,26 @@ async function lpSubirFotosImportadas(filas){
     });
     await batch.commit();
   }
+  // Persistir TAMBIÉN en el cache local (IndexedDB): la app dibuja desde ahí,
+  // y justo después del aplicar se recarga con idbGetTodos — si no guardamos
+  // acá, las fotos quedan en la nube pero no impactan en pantalla.
+  // OJO: put() reemplaza el registro entero, así que fusionamos sobre el
+  // producto completo, nunca guardamos solo {fotoUrl}.
+  try{
+    var todosLocal = await idbGetTodos(currentEmpresaId);
+    var porIdLocal = {};
+    todosLocal.forEach(function(p){ porIdLocal[p._id] = p; });
+    var paraGuardar = [];
+    updates.forEach(function(u){
+      var p = porIdLocal[u.docId];
+      if(p){
+        p.fotoUrl = u.fotoUrl; p.fotoPath = u.fotoPath;
+        p.updatedAt = new Date().toISOString();
+        paraGuardar.push(p);
+      }
+    });
+    if(paraGuardar.length) await idbGuardarBatch(currentEmpresaId, paraGuardar);
+  }catch(e){ console.warn('cache local de fotos:', e); }
   try{
     updates.forEach(function(u){
       var p = (typeof productos !== 'undefined') && productos.find ? productos.find(function(x){ return x._id === u.docId; }) : null;
