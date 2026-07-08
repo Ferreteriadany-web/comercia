@@ -6981,6 +6981,9 @@
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-mute);margin-right:auto;cursor:pointer" title="Si está tildado, solo se actualizan precios de productos que ya tenés en el catálogo. Los que no estén, se listan en un aviso al final (no se crean).">
                   <input type="checkbox" id="lpSoloActualizar"> Solo actualizar precios (no crear nuevos)
                 </label>
+                <label class="lp-checkbox" title="Por defecto las fotos existentes se respetan. Marcá esto para reemplazarlas por las del Excel (la anterior se borra del almacenamiento).">
+                  <input type="checkbox" id="lpReemplazarFotos"> Reemplazar fotos existentes
+                </label>
                 <button class="btn btn-sm btn-light" onclick="lpCancelarImport()">Cancelar</button>
                 <button class="btn btn-sm" onclick="lpAplicarSoloNuevos()" id="lpBtnSoloNuevos">Solo nuevos (0)</button>
                 <button class="btn btn-sm btn-primary" onclick="lpAplicarTodo()" id="lpBtnAplicar">Aplicar seleccionados (0)</button>
@@ -30978,18 +30981,37 @@ async function lpVincularImagenesEmbebidas(){
     var imgs = ws.getImages();
     if(!imgs.length) return;
 
-    var n = 0;
-    imgs.forEach(function(im){
+    // PASO 1: hash de cada imagen → en cuántas filas distintas está anclada.
+    // Una imagen repetida en 3+ filas es un LOGO o banner de marca, no la
+    // foto del producto: se excluye (evita el logo de STEELPRO como foto).
+    var hashImg = function(buf){
+      var h = 5381, paso = Math.max(1, Math.floor(buf.length / 4096));
+      for(var bi = 0; bi < buf.length; bi += paso){ h = ((h * 33) ^ buf[bi]) >>> 0; }
+      return h.toString(36) + '-' + buf.length;
+    };
+    var filasPorHash = {};
+    var pre = imgs.map(function(im){
       var media = wb.getImage ? wb.getImage(im.imageId) : null;
-      if(!media || !media.buffer) return;
+      if(!media || !media.buffer) return null;
       var tl = im.range && im.range.tl;
       var fila = tl ? Math.round(tl.nativeRow != null ? tl.nativeRow : tl.row) : -1;
-      if(fila < 0) return;
-      var r = porFila[fila] || porFila[fila + 1] || porFila[fila - 1] || porFila[fila + 2] || porFila[fila - 2];
+      if(fila < 0) return null;
+      var k = hashImg(media.buffer);
+      if(!filasPorHash[k]) filasPorHash[k] = {};
+      filasPorHash[k][fila] = true;
+      return { media: media, fila: fila, k: k };
+    }).filter(Boolean);
+
+    // PASO 2: vincular solo imágenes NO-logo a su fila (exacta o ±2)
+    var n = 0, logosExcluidos = 0;
+    pre.forEach(function(p){
+      if(Object.keys(filasPorHash[p.k]).length > 2){ logosExcluidos++; return; }  // logo
+      var r = porFila[p.fila] || porFila[p.fila + 1] || porFila[p.fila - 1] || porFila[p.fila + 2] || porFila[p.fila - 2];
       if(!r || r._imgEmbebida) return;
-      r._imgEmbebida = { buffer: media.buffer, ext: media.extension || 'png' };
+      r._imgEmbebida = { buffer: p.media.buffer, ext: p.media.extension || 'png' };
       n++;
     });
+    if(logosExcluidos) console.log('Imágenes de logo/banner excluidas:', logosExcluidos);
     if(n) toast('🖼 ' + n + ' foto(s) encontradas en el Excel: se cargan a los productos al aplicar (sin pisar fotos existentes)', 'info');
   }catch(e){ console.warn('lpVincularImagenesEmbebidas', e); }
 }
@@ -30999,8 +31021,11 @@ var LP_FOTO_TIMEOUT_MS = 30000;   // tope por foto: si una se traba, se saltea
 // función del alta manual, respeta la convención de rutas de Storage y
 // NUNCA pisa una foto existente del producto.
 async function lpSubirFotosImportadas(filas){
+  var reemplazar = !!(document.getElementById('lpReemplazarFotos') && document.getElementById('lpReemplazarFotos').checked);
   var conImg = (filas || []).filter(function(r){
-    return r._imgEmbebida && !(r.productoActual && (r.productoActual.fotoUrl || r.productoActual.foto));
+    if(!r._imgEmbebida) return false;
+    var tieneFoto = r.productoActual && (r.productoActual.fotoUrl || r.productoActual.foto);
+    return reemplazar || !tieneFoto;
   });
   if(!conImg.length) return;
   toast('Subiendo ' + conImg.length + ' foto(s) de la lista...', 'info');
@@ -31022,6 +31047,10 @@ async function lpSubirFotosImportadas(filas){
         catch(e){ comp = blob; }   // si no comprime, se sube tal cual
       }
       var docId = (r.productoActual && r.productoActual.docId) || lpSanitizarIdProducto(r.codigoProv);
+      // Si estamos reemplazando, borrar la foto anterior de Storage (sin basura)
+      if(reemplazar && r.productoActual && r.productoActual.fotoPath){
+        try{ await storage.ref(r.productoActual.fotoPath).delete(); }catch(e){}
+      }
       var path = 'empresas/' + currentEmpresaId + '/productos/' + docId + '/' + Date.now() + '.jpg';
       var ref = storage.ref(path);
       await ref.put(comp, { contentType: 'image/jpeg' });
@@ -31208,7 +31237,9 @@ function lpProcesarMatching(){
       docId: matched._id,
       precioVenta: matched.precioVenta || 0,
       descripcionActual: matched.descripcion || matched.nombre || '',
-      moneda: matched.moneda || null
+      moneda: matched.moneda || null,
+      fotoUrl: matched.fotoUrl || null,
+      fotoPath: matched.fotoPath || null
     } : null;
 
     // Resolver proveedor de la fila (solo en sábana; en simple ya viene asignado).
