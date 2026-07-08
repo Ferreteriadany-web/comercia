@@ -6901,6 +6901,7 @@
                   <p class="lp-pane-title" style="margin:0">Vista previa</p>
                   <p class="lp-pane-sub" id="lpPreviewSubtitle"></p>
                 </div>
+                <button class="btn btn-sm btn-light" id="lpBtnDescargarNorm" style="display:none" onclick="lpDescargarNormalizado()" title="Descarga el Excel limpio que armó la IA (código, descripción y precio), listo para archivar o reimportar sin IA">&#128229; Descargar Excel normalizado</button>
                 <button class="btn btn-sm btn-light" onclick="lpAbrirMapeoColumnas()" title="Elegí a mano qué columna es el código, el precio, el IVA, el descuento, etc.">&#9881; Revisar columnas</button>
               </div>
 
@@ -30338,7 +30339,40 @@ function lpSetupDropzone(){
   });
 }
 
+// ─── Descarga del Excel normalizado (post-extracción por IA) ───
+// Genera un .xlsx limpio con las pautas de Comercia (Código, Descripción,
+// Precio, Moneda) desde las filas de la vista previa — incluye las
+// ediciones hechas ahí. Reimportable después SIN IA: los encabezados son
+// los que la detección por reglas reconoce sola.
+function lpDescargarNormalizado(){
+  var imp = lpState.importacion;
+  if(!lpState.importacionEsExtraccionIA || !imp || !imp.rows || imp.rows.length === 0){
+    toast('No hay una extracción por IA para descargar', 'error');
+    return;
+  }
+  try{
+    var aoa = [['Codigo', 'Descripcion', 'Precio', 'Moneda']];
+    imp.rows.forEach(function(r){
+      aoa.push([r.codigoProv, r.descripcion, r.precioNeto, r._moneda || lpState.monedaImport || 'ARS']);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch: 26}, {wch: 52}, {wch: 14}, {wch: 8}];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lista normalizada');
+    var base = String(imp.archivo || 'lista').replace(/\.[^.]+$/, '');
+    XLSX.writeFile(wb, base + '_normalizado.xlsx');
+    toast('Excel normalizado descargado: ' + imp.rows.length + ' productos. Guardalo: la próxima lo importás directo, sin IA.', 'success');
+  }catch(err){
+    console.error('lpDescargarNormalizado', err);
+    toast('No pude generar el Excel: ' + (err.message || err), 'error');
+  }
+}
+
 async function lpProcesarArchivo(file){
+  // Cada importación nueva arranca limpia: sin marca de extracción previa
+  lpState.importacionEsExtraccionIA = false;
+  var _bn = document.getElementById('lpBtnDescargarNorm');
+  if(_bn) _bn.style.display = 'none';
   var modo = lpState.modoImport || 'simple';
   var prov = null;
   if(modo === 'simple'){
@@ -30582,6 +30616,11 @@ async function lpExtraerConIA(){
     var map = { codigo: 0, desc: 1, precio: 2, codBarra: -1, iva: -1, descuento: -1,
                 proveedor: -1, moneda: -1, margen: -1, bulto: -1, precioNeto: -1, precioVentaDirecto: -1 };
     lpFinalizarImport(synth, 0, map, lpImpCtx.modo, lpImpCtx.prov, lpImpCtx.archivo);
+    // Marcar que esta importación vino de una extracción por IA y habilitar
+    // la descarga del Excel normalizado desde la vista previa.
+    lpState.importacionEsExtraccionIA = true;
+    var btnNorm = document.getElementById('lpBtnDescargarNorm');
+    if(btnNorm) btnNorm.style.display = '';
 
     if(d.nota) toast('IA: ' + d.nota, 'info');
     var nImportados = (lpState.importacion && lpState.importacion.rows) ? lpState.importacion.rows.length : d.productos.length;
@@ -30617,9 +30656,25 @@ async function lpMapearConIA(automatico){
     var m = res && res.data && res.data.mapeo;
     if(!m || !m.columnas) throw new Error('respuesta vacía');
 
-    // Lista "de diseño" (secciones + variantes, paneles lado a lado): el
-    // mapeo de columnas no la puede expresar → modo extracción.
-    if(m.estructura === 'diseno'){
+    // Lista "de diseño": la IA lo dice, O el mapeo es incoherente y lo
+    // detectamos nosotros (guardián determinístico): código y precio en la
+    // misma columna, o la mayoría de las filas de datos sin descripción
+    // (la firma de las listas visuales con títulos de sección).
+    var colIA = m.columnas;
+    var sospechoso = (colIA.codigo >= 0 && colIA.codigo === colIA.precio);
+    if(!sospechoso && colIA.desc >= 0){
+      var hrIA = (m.headerRowIdx >= 0 ? m.headerRowIdx : lpImpCtx.headerRowIdx);
+      var totIA = 0, vaciasIA = 0;
+      for(var fi = hrIA + 1; fi < lpImpCtx.rowsRaw.length; fi++){
+        var rrIA = lpImpCtx.rowsRaw[fi];
+        if(!rrIA || !rrIA.some(function(c){ return c !== null && String(c).trim() !== ''; })) continue;
+        totIA++;
+        var dvIA = rrIA[colIA.desc];
+        if(dvIA === null || dvIA === undefined || String(dvIA).trim() === '') vaciasIA++;
+      }
+      if(totIA >= 10 && (vaciasIA / totIA) > 0.5) sospechoso = true;
+    }
+    if(m.estructura === 'diseno' || sospechoso){
       var okExt = await lpExtraerConIA();
       if(okExt){ lpCerrarMapeo(); return true; }
       // si la extracción falla, seguimos al modal con lo que haya
