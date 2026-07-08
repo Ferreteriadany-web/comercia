@@ -7268,6 +7268,7 @@
             <div id="lpMapeoCampos" class="cli-mapeo"></div>
           </div>
           <div class="modal-actions">
+            <button class="btn btn-sm btn-light" id="lpBtnMapeoIA" style="margin-right:auto" onclick="lpMapearConIA(false)">&#10024; Detectar con IA</button>
             <button class="btn btn-sm btn-light" onclick="lpCerrarMapeo()">Cancelar</button>
             <button class="btn btn-sm btn-primary" onclick="lpAplicarMapeoManual()">Procesar lista</button>
           </div>
@@ -30503,8 +30504,10 @@ async function lpProcesarArchivo(file){
     };
 
     if(colCodigo < 0 || colPrecio < 0){
-      // No se detectaron columnas clave → pedir mapeo manual en vez de fallar
-      lpAbrirMapeoColumnas();
+      // No se detectaron columnas clave → probar con IA y, si falla, mapeo manual
+      toast('No reconocí las columnas. Analizando la lista con IA...', 'info');
+      var okIA = await lpMapearConIA(true);
+      if(!okIA) lpAbrirMapeoColumnas();
       return;
     }
 
@@ -30532,6 +30535,130 @@ var LP_CAMPOS_MAP = [
   { k: 'proveedor', label: 'Proveedor (solo lista sábana)' },
   { k: 'moneda',    label: 'Moneda' }
 ];
+
+// ─── Código determinístico desde la descripción ───
+// Para listas SIN código de proveedor (las "de diseño"): misma descripción
+// → siempre el mismo código, así una reimportación ACTUALIZA el producto
+// en vez de duplicarlo. Slug legible + hash djb2 para evitar colisiones.
+function lpCodigoDesdeDescripcion(desc){
+  var s = String(desc || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+  var h = 5381;
+  for(var i = 0; i < s.length; i++){ h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; }
+  var slug = s.replace(/\s+/g, '-').slice(0, 16).replace(/-+$/, '');
+  return 'D-' + slug.toUpperCase() + '-' + h.toString(36).toUpperCase();
+}
+
+// ─── Extracción con IA para listas "de diseño" ───
+// La IA devuelve productos ya normalizados (secciones + variantes combinadas,
+// comillas de repetición resueltas, paneles lado a lado separados). Acá les
+// generamos código y los metemos por el MISMO pipeline de siempre armando
+// una tabla sintética de 3 columnas → lpFinalizarImport hace dedup,
+// matching, cálculo y vista previa igual que con cualquier Excel.
+async function lpExtraerConIA(){
+  if(!lpImpCtx) return false;
+  toast('Lista de diseño detectada: interpretando con IA (puede tardar unos segundos)...', 'info');
+  try{
+    var filas = lpImpCtx.rowsRaw.slice(0, 400).map(function(f){
+      return (f || []).slice(0, 12).map(function(c){
+        return (c === null || c === undefined) ? '' : String(c).slice(0, 60);
+      });
+    });
+    var res = await functions.httpsCallable('iaExtraerLista')({ filas: filas, nombreArchivo: lpImpCtx.archivo });
+    var d = res && res.data;
+    if(!d || !Array.isArray(d.productos) || d.productos.length === 0) throw new Error('la IA no encontró productos');
+
+    if(d.monedaLista === 'USD'){
+      lpSetMonedaImport('USD');
+      var sm = document.getElementById('lpMonedaImport');
+      if(sm) sm.value = 'USD';
+    }
+
+    var synth = [['codigo', 'descripcion', 'precio']];
+    d.productos.forEach(function(p){
+      synth.push([lpCodigoDesdeDescripcion(p.descripcion), p.descripcion, p.precio]);
+    });
+    var map = { codigo: 0, desc: 1, precio: 2, codBarra: -1, iva: -1, descuento: -1,
+                proveedor: -1, moneda: -1, margen: -1, bulto: -1, precioNeto: -1, precioVentaDirecto: -1 };
+    lpFinalizarImport(synth, 0, map, lpImpCtx.modo, lpImpCtx.prov, lpImpCtx.archivo);
+
+    if(d.nota) toast('IA: ' + d.nota, 'info');
+    var nImportados = (lpState.importacion && lpState.importacion.rows) ? lpState.importacion.rows.length : d.productos.length;
+    toast('Lista interpretada por IA: ' + nImportados + ' productos. Los códigos se generaron desde la descripción. Revisá la vista previa antes de aplicar.', d.confianza >= 70 ? 'success' : 'info');
+    return true;
+  }catch(err){
+    console.error('lpExtraerConIA', err);
+    toast('No pude interpretar la lista: ' + (err.message || err), 'error');
+    return false;
+  }
+}
+
+// ─── Mapeo con IA ───
+// Manda las primeras filas CRUDAS (con índices intactos, incluidas las
+// vacías) a la Cloud Function iaMapearLista y aplica el mapeo devuelto
+// sobre lpImpCtx (usa las mismas claves que el mapeo manual). Nunca
+// procesa a ciegas: siempre abre el modal pre-cargado para confirmar.
+var lpIAOcupado = false;
+async function lpMapearConIA(automatico){
+  if(!lpImpCtx || lpIAOcupado) return false;
+  lpIAOcupado = true;
+  var btn = document.getElementById('lpBtnMapeoIA');
+  if(btn){ btn.disabled = true; btn.innerHTML = 'Analizando...'; }
+  try{
+    // Primeras 30 filas TAL CUAL (sin filtrar vacías, para que los índices
+    // de fila que devuelva la IA coincidan con rowsRaw).
+    var muestra = lpImpCtx.rowsRaw.slice(0, 30).map(function(fila){
+      return (fila || []).slice(0, 40).map(function(c){
+        return (c === null || c === undefined) ? '' : String(c).slice(0, 60);
+      });
+    });
+    var res = await functions.httpsCallable('iaMapearLista')({ muestra: muestra, nombreArchivo: lpImpCtx.archivo });
+    var m = res && res.data && res.data.mapeo;
+    if(!m || !m.columnas) throw new Error('respuesta vacía');
+
+    // Lista "de diseño" (secciones + variantes, paneles lado a lado): el
+    // mapeo de columnas no la puede expresar → modo extracción.
+    if(m.estructura === 'diseno'){
+      var okExt = await lpExtraerConIA();
+      if(okExt){ lpCerrarMapeo(); return true; }
+      // si la extracción falla, seguimos al modal con lo que haya
+    }
+
+    // Fila de encabezado (si la IA encontró una distinta, actualizar headers)
+    if(m.headerRowIdx >= 0 && m.headerRowIdx < lpImpCtx.rowsRaw.length){
+      lpImpCtx.headerRowIdx = m.headerRowIdx;
+      lpImpCtx.headers = (lpImpCtx.rowsRaw[m.headerRowIdx] || []).map(function(h){ return String(h || '').trim(); });
+    }
+    // Aplicar solo las columnas que la IA detectó (no pisa con -1 lo ya elegido)
+    Object.keys(m.columnas).forEach(function(k){
+      if(m.columnas[k] >= 0 && lpImpCtx.map.hasOwnProperty(k)) lpImpCtx.map[k] = m.columnas[k];
+    });
+    // Moneda de toda la lista (solo si no hay columna de moneda por fila).
+    // Primero el estado (lpSetMonedaImport ya tolera DOM ausente), después el select.
+    if(m.monedaLista === 'USD' && !(m.columnas.moneda >= 0)){
+      lpSetMonedaImport('USD');
+      var selMon = document.getElementById('lpMonedaImport');
+      if(selMon) selMon.value = 'USD';
+    }
+    // Aviso importante: el flujo de Comercia asume precios NETOS (sin IVA).
+    if(m.ivaIncluido === true){
+      toast('Ojo: los precios de esta lista parecen INCLUIR IVA. Comercia asume precios netos: revisá con el proveedor antes de aplicar.', 'error');
+    }
+    if(m.nota) toast('IA: ' + m.nota, 'info');
+    lpAbrirMapeoColumnas();
+    toast('Mapeo sugerido por IA (confianza ' + m.confianza + '%). Revisalo y tocá Procesar.', m.confianza >= 70 ? 'success' : 'info');
+    return true;
+  }catch(err){
+    console.error('lpMapearConIA', err);
+    if(!automatico) toast('No pude analizar la lista con IA: ' + (err.message || err), 'error');
+    return false;
+  }finally{
+    lpIAOcupado = false;
+    var btn2 = document.getElementById('lpBtnMapeoIA');
+    if(btn2){ btn2.disabled = false; btn2.innerHTML = '&#10024; Detectar con IA'; }
+  }
+}
 
 function lpAbrirMapeoColumnas(){
   if(!lpImpCtx){ return; }
