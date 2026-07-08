@@ -3886,7 +3886,7 @@
   .mobile-menu-btn{
     display:none;
     position:fixed;
-    top:12px;
+    top:calc(12px + env(safe-area-inset-top, 0px));
     left:12px;
     z-index:1100;
     width:44px;
@@ -3962,12 +3962,13 @@
       display:flex;
       position:fixed;
       left:0; right:0; bottom:0;
-      height:60px;
-      padding-bottom:env(safe-area-inset-bottom, 0);
+      height:calc(60px + env(safe-area-inset-bottom, 0px));
+      padding-bottom:env(safe-area-inset-bottom, 0px);
       background:var(--card, #1c1c1e);
       border-top:1px solid rgba(255,255,255,.08);
       z-index:950;
       box-shadow:0 -4px 20px rgba(0,0,0,.25);
+      box-sizing:border-box;
     }
     .mtab{
       flex:1;
@@ -4003,6 +4004,9 @@
       transition:transform .28s ease;
       z-index:1000;
       box-shadow:8px 0 24px rgba(0,0,0,.3);
+      padding-top:env(safe-area-inset-top, 0px);
+      box-sizing:border-box;
+      overflow-y:auto;
     }
     .sidebar.mobile-open{transform:translateX(0)}
     .sidebar-toggle{display:none}
@@ -4014,6 +4018,7 @@
     /* Headers más compactos */
     .main-header{
       padding:14px 14px 14px 64px;
+      padding-top:calc(14px + env(safe-area-inset-top, 0px));
       flex-direction:column;
       align-items:flex-start;
       gap:10px;
@@ -9723,7 +9728,7 @@ var currentUser = null;
 var currentUserData = null;
 var currentEmpresa = null;
 var currentEmpresaId = null;
-var APP_VERSION = 'v2026.06.26-103'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
+var APP_VERSION = 'v2026.06.26-104'; // se sube con cada cambio; sirve para saber qué versión tiene cada dispositivo
 var productos = [];
 var productosFiltered = [];
 var prodPage = 0;
