@@ -30473,6 +30473,25 @@ async function lpProcesarArchivo(file){
     }
     if(colPrecio < 0) colPrecio = lpDetectarCol(headers, ['precio neto', 'neto', 'precio', 'costo', 'valor', 'importe', 'precio lista'], excl);
 
+    // Lista BIMONEDA: columna de precio en DÓLARES separada de la de PESOS
+    // (ej: "DOLARES" y "PESOS" de WinuE/Bulonar). Por fila: si hay valor en
+    // la de dólares, esa fila es USD; si no, vale la de pesos en ARS.
+    var colPrecioDolar = lpDetectarCol(headers, ['dolares', 'dólares', 'dolar', 'dólar', 'usd', 'u$s', 'us$'], excl);
+    if(colPrecioDolar >= 0){
+      var colPesos = lpDetectarCol(headers, ['pesos'], excl);
+      if(colPrecio < 0 || colPrecio === colPrecioDolar){
+        colPrecio = (colPesos >= 0 && colPesos !== colPrecioDolar) ? colPesos : colPrecioDolar;
+      }
+      if(colPrecio === colPrecioDolar){
+        // No hay columna de pesos: la lista entera está en dólares
+        colPrecioDolar = -1;
+        lpSetMonedaImport('USD');
+        var selMonDet = document.getElementById('lpMonedaImport');
+        if(selMonDet) selMonDet.value = 'USD';
+        toast('La columna de precios está en DÓLARES: moneda de la lista puesta en U$S', 'info');
+      }
+    }
+
     // Precio de venta DIRECTO: solo lo auto-detectamos si es el campo específico
     // de los export de Dux ("Precio De Venta Con Iva"). Para otras listas, el
     // usuario lo asigna a mano (es opcional y opt-in), porque un PVP suele ser
@@ -30535,7 +30554,7 @@ async function lpProcesarArchivo(file){
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
       _archivoFile: (/\.xlsx$/i.test(file.name) ? file : null),   // para extraer imágenes embebidas
-      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
+      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, precioDolar: colPrecioDolar, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -30560,6 +30579,7 @@ var lpImpCtx = null;
 var LP_CAMPOS_MAP = [
   { k: 'codigo',    label: 'Código del producto *' },
   { k: 'precio',    label: 'Precio (neto / lista) *' },
+  { k: 'precioDolar', label: 'Precio en U$S (si hay columna aparte en dólares)' },
   { k: 'desc',      label: 'Descripción' },
   { k: 'iva',       label: 'IVA (%)' },
   { k: 'descuento', label: 'Descuento por producto (%)' },
@@ -30614,7 +30634,7 @@ async function lpExtraerConIA(){
     d.productos.forEach(function(p){
       synth.push([lpCodigoDesdeDescripcion(p.descripcion), p.descripcion, p.precio]);
     });
-    var map = { codigo: 0, desc: 1, precio: 2, codBarra: -1, iva: -1, descuento: -1,
+    var map = { codigo: 0, desc: 1, precio: 2, codBarra: -1, precioDolar: -1, iva: -1, descuento: -1,
                 proveedor: -1, moneda: -1, margen: -1, bulto: -1, precioNeto: -1, precioVentaDirecto: -1 };
     lpFinalizarImport(synth, 0, map, lpImpCtx.modo, lpImpCtx.prov, lpImpCtx.archivo);
     // Marcar que esta importación vino de una extracción por IA y habilitar
@@ -30779,9 +30799,11 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colPrecioNeto = (colMap.precioNeto>=0?colMap.precioNeto:-1);
   var colVentaDirecto = (colMap.precioVentaDirecto>=0?colMap.precioVentaDirecto:-1);
   var colCodBarra = (colMap.codBarra>=0?colMap.codBarra:-1);
+  var colPrecioDolar = (colMap.precioDolar>=0?colMap.precioDolar:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
-  // Si la lista trae su propia columna de moneda, esa manda por fila (no el selector global).
-  lpState.tieneColMoneda = (colMoneda >= 0);
+  // Si la lista trae su propia columna de moneda (o precio en U$S aparte),
+  // esa manda por fila (no el selector global).
+  lpState.tieneColMoneda = (colMoneda >= 0 || colPrecioDolar >= 0);
 
   var rows = [];
   for(var j = headerRowIdx + 1; j < rowsRaw.length; j++){
@@ -30789,6 +30811,13 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     if(!r || r.every(function(c){ return c === null || c === ''; })) continue;
     var codigo = String(r[colCodigo] || '').trim();
     var precio = lpParseNum(r[colPrecio]);
+    var monedaPorColumna = null;
+    if(colPrecioDolar >= 0){
+      // Bimoneda: la columna de dólares manda si tiene valor en esta fila
+      var pUsd = lpParseNum(r[colPrecioDolar]);
+      if(!isNaN(pUsd) && pUsd > 0){ precio = pUsd; monedaPorColumna = 'USD'; }
+      else if(!isNaN(precio) && precio > 0){ monedaPorColumna = 'ARS'; }
+    }
     if(!codigo || isNaN(precio) || precio <= 0) continue;
     var desc = colDesc >= 0 ? String(r[colDesc] || '').trim() : '';
     var iva = colIva >= 0 ? lpParseNum(r[colIva]) : null;
@@ -30836,6 +30865,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       var mv = String(r[colMoneda] || '').trim().toLowerCase();
       if(mv){ fila._monedaRaw = /u\$s|usd|d[oó]lar|dolar|us\$|u\.s/.test(mv) ? 'USD' : 'ARS'; }
     }
+    if(monedaPorColumna && !fila._monedaRaw){ fila._monedaRaw = monedaPorColumna; }
     if(colBulto >= 0){
       var ubv = lpParseNum(r[colBulto]);
       if(!isNaN(ubv) && ubv > 1) fila.unidadesPorBulto = Math.round(ubv);
