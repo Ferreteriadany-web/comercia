@@ -16212,6 +16212,7 @@ function comprimirImagen(file, maxSize, quality){
   return new Promise(function(resolve, reject){
     var img = new Image();
     var url = URL.createObjectURL(file);
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('No se pudo decodificar la imagen')); };
     img.onload = function(){
       URL.revokeObjectURL(url);
       var w = img.width;
@@ -30993,6 +30994,7 @@ async function lpVincularImagenesEmbebidas(){
   }catch(e){ console.warn('lpVincularImagenesEmbebidas', e); }
 }
 
+var LP_FOTO_TIMEOUT_MS = 30000;   // tope por foto: si una se traba, se saltea
 // Sube las fotos embebidas de las filas aplicadas: comprime con la misma
 // función del alta manual, respeta la convención de rutas de Storage y
 // NUNCA pisa una foto existente del producto.
@@ -31003,19 +31005,47 @@ async function lpSubirFotosImportadas(filas){
   if(!conImg.length) return;
   toast('Subiendo ' + conImg.length + ' foto(s) de la lista...', 'info');
   var updates = [];
-  for(var i = 0; i < conImg.length; i++){
-    var r = conImg[i];
-    try{
-      var blob = new Blob([r._imgEmbebida.buffer]);
-      var comp = (typeof comprimirImagen === 'function') ? await comprimirImagen(blob, 800, 0.82) : blob;
+  var btnFotos = document.getElementById('lpBtnAplicar');
+  var hechas = 0, falladas = 0;
+
+  // Una foto: MIME correcto (sin él, el navegador puede no decodificar y
+  // colgarse), compresión, subida y URL. Con TOPE de 30s: si una foto se
+  // traba por lo que sea, se saltea y las demás siguen.
+  async function subirUna(r){
+    var trabajo = (async function(){
+      var ext = String(r._imgEmbebida.ext || 'png').toLowerCase();
+      var mime = 'image/' + (ext === 'jpg' ? 'jpeg' : ext);
+      var blob = new Blob([r._imgEmbebida.buffer], { type: mime });
+      var comp = blob;
+      if(typeof comprimirImagen === 'function'){
+        try{ comp = await comprimirImagen(blob, 800, 0.82); }
+        catch(e){ comp = blob; }   // si no comprime, se sube tal cual
+      }
       var docId = (r.productoActual && r.productoActual.docId) || lpSanitizarIdProducto(r.codigoProv);
       var path = 'empresas/' + currentEmpresaId + '/productos/' + docId + '/' + Date.now() + '.jpg';
       var ref = storage.ref(path);
       await ref.put(comp, { contentType: 'image/jpeg' });
       var url = await ref.getDownloadURL();
-      updates.push({ docId: docId, fotoUrl: url, fotoPath: path });
-    }catch(e){ console.warn('foto embebida falló:', r.codigoProv, e); }
+      return { docId: docId, fotoUrl: url, fotoPath: path };
+    })();
+    var tope = new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('timeout')); }, LP_FOTO_TIMEOUT_MS); });
+    try{
+      var u = await Promise.race([trabajo, tope]);
+      updates.push(u);
+    }catch(e){
+      falladas++;
+      console.warn('foto embebida falló:', r.codigoProv, e && e.message);
+    }finally{
+      hechas++;
+      if(btnFotos) btnFotos.textContent = 'Subiendo fotos ' + hechas + ' / ' + conImg.length + '...';
+    }
   }
+
+  // Pool de 4 en paralelo: ~5 veces más rápido que de a una, sin saturar
+  var cola = conImg.slice();
+  async function trabajador(){ while(cola.length){ await subirUna(cola.shift()); } }
+  await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
+  if(falladas) toast(falladas + ' foto(s) no se pudieron subir (se saltearon), el resto quedó bien', 'info');
   for(var s = 0; s < updates.length; s += 400){
     var lote = updates.slice(s, s + 400);
     var batch = db.batch();
@@ -31199,6 +31229,13 @@ function lpProcesarMatching(){
     //  3) sino 0 (solo aplica el descuento del proveedor).
     if(row.descProducto == null){
       row.descProducto = (matched && matched.descuentoProducto != null) ? matched.descuentoProducto : 0;
+    }
+
+    // IVA por producto: mismo criterio que el descuento y el margen:
+    //  1) el del Excel (si vino), 2) sino el guardado en el producto
+    //  (de una importación previa), 3) sino el default del proveedor.
+    if(row.ivaCustom == null && matched && matched.ivaProducto != null){
+      row.ivaCustom = Number(matched.ivaProducto);
     }
 
     // Margen por producto:
@@ -31639,6 +31676,9 @@ async function lpEjecutarAplicar(filas){
           fechaUltimoCambioPrecio: firebase.firestore.FieldValue.serverTimestamp()
         };
         if(margenGuardar != null) dataFs.margenProducto = margenGuardar;
+        // IVA por producto: solo si la fila lo trae (de la columna del Excel o
+        // recuperado de una importación previa). Nunca pisar con vacío.
+        if(r.ivaCustom != null) dataFs.ivaProducto = Number(r.ivaCustom);
         if(r.unidadesPorBulto) dataFs.unidadesPorBulto = r.unidadesPorBulto;
         // Datos para cache local (con Date string)
         var dataLocal = {
@@ -31652,6 +31692,7 @@ async function lpEjecutarAplicar(filas){
           fechaUltimoCambioPrecio: nowIso
         };
         if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
+        if(r.ivaCustom != null) dataLocal.ivaProducto = Number(r.ivaCustom);
         if(r.unidadesPorBulto) dataLocal.unidadesPorBulto = r.unidadesPorBulto;
         // Código de barras: solo lo guardamos si la lista lo trae (no pisamos uno existente con vacío).
         if(r.codBarraProv){ dataFs.codBarra = r.codBarraProv; dataLocal.codBarra = r.codBarraProv; }
