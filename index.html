@@ -4916,6 +4916,33 @@
   .cli-mapeo-item select{ background:var(--bg-card); border:1px solid var(--border); border-radius:7px; padding:7px 9px; font-size:13px; color:var(--text); font-family:inherit; }
   .cli-mapeo-item select:focus{ outline:none; border-color:var(--accent); }
 
+
+/* ═══ FIXES MÓVILES (auditoría) ═══
+   1. z-index: los modales y el carrito quedaban DEBAJO de la tabbar
+      inferior (950) → botones de confirmar tapados e intocables.
+   2. dvh: en móvil 100vh incluye la barra del navegador retraída; el
+      fondo de los modales quedaba fuera de la pantalla. dvh = alto real.
+      (Los navegadores viejos ignoran la línea dvh y usan la vh anterior.)
+   3. overflow-x: mata el scroll horizontal fantasma de la página. */
+.modal-overlay{z-index:1200}
+.toast{z-index:1300}
+.modal{max-height:90dvh}
+@media (max-width:768px){
+  html, body{overflow-x:hidden}
+  .modal{max-height:calc(100dvh - 12px)}
+  .modal-actions{bottom:-18px}          /* el padding móvil del modal es 18px, no 32 */
+  .ventas-cart{z-index:1150; padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px))}
+  .data-table{font-size:12px}
+}
+/* Alturas basadas en el viewport REAL (dvh) para los paneles con vh */
+.cc-list-panel{max-height:calc(100dvh - 130px)}
+.ventas-prov-sidebar{max-height:calc(100dvh - 130px)}
+.ventas-cart{min-height:calc(100dvh - 90px)}
+@media (max-width:768px){
+  /* En móvil el carrito no debe FORZAR altura de pantalla completa:
+     que crezca con su contenido y el botón quede siempre a la vista */
+  .ventas-cart{min-height:0; max-height:calc(100dvh - 70px); overflow-y:auto}
+}
 </style>
 </head>
 <body>
@@ -31014,6 +31041,47 @@ async function lpVincularImagenesEmbebidas(){
     if(logosExcluidos) console.log('Imágenes de logo/banner excluidas:', logosExcluidos);
     if(n) toast('🖼 ' + n + ' foto(s) encontradas en el Excel: se cargan a los productos al aplicar (sin pisar fotos existentes)', 'info');
   }catch(e){ console.warn('lpVincularImagenesEmbebidas', e); }
+}
+
+// ─── Utilidad de mantenimiento: quitar fotos por lista de códigos ───
+// Para limpiar fotos mal asignadas (ej. logos de marca que entraron como foto
+// de producto). Se ejecuta desde la consola del navegador:
+//   lpQuitarFotosPorCodigos(['BLN-801', 'BLN-803', ...])
+// Borra el archivo de Storage, limpia fotoUrl/fotoPath en Firestore, el cache
+// local (IndexedDB) y la memoria. Solo toca los productos de la lista.
+async function lpQuitarFotosPorCodigos(codigos){
+  if(!Array.isArray(codigos) || !codigos.length){ toast('Pasá una lista de códigos', 'error'); return; }
+  var buscados = {};
+  codigos.forEach(function(c){ buscados[String(c).trim().toLowerCase()] = true; });
+  var afectados = (productos || []).filter(function(p){
+    return p.codigo && buscados[String(p.codigo).trim().toLowerCase()] && (p.fotoUrl || p.fotoPath);
+  });
+  if(!afectados.length){ toast('Ningún producto de la lista tiene foto para quitar', 'info'); return; }
+  toast('Quitando la foto de ' + afectados.length + ' producto(s)...', 'info');
+  var limpiados = [];
+  for(var i = 0; i < afectados.length; i++){
+    var p = afectados[i];
+    if(p.fotoPath){ try{ await storage.ref(p.fotoPath).delete(); }catch(e){} }
+    limpiados.push(p);
+  }
+  for(var s = 0; s < limpiados.length; s += 400){
+    var lote = limpiados.slice(s, s + 400);
+    var batch = db.batch();
+    lote.forEach(function(p){
+      batch.set(db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id),
+        { fotoUrl: firebase.firestore.FieldValue.delete(), fotoPath: firebase.firestore.FieldValue.delete(),
+          updatedAt: new Date().toISOString() }, { merge: true });
+    });
+    await batch.commit();
+  }
+  try{
+    limpiados.forEach(function(p){ delete p.fotoUrl; delete p.fotoPath; p.updatedAt = new Date().toISOString(); });
+    await idbGuardarBatch(currentEmpresaId, limpiados);
+  }catch(e){ console.warn('cache local:', e); }
+  if(typeof renderProductos === 'function') renderProductos();
+  if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
+  toast('✅ Foto quitada en ' + limpiados.length + ' producto(s)', 'success');
+  return limpiados.length;
 }
 
 var LP_FOTO_TIMEOUT_MS = 30000;   // tope por foto: si una se traba, se saltea
