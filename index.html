@@ -4933,6 +4933,16 @@
   .modal-actions{bottom:-18px}          /* el padding móvil del modal es 18px, no 32 */
   .ventas-cart{z-index:1150; padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px))}
   .data-table{font-size:12px}
+  /* ── Tabbar: más fina y con auto-ocultado al scrollear ── */
+  .mobile-tabbar{
+    height:calc(54px + env(safe-area-inset-bottom, 0px));
+    transition:transform .25s ease;
+    will-change:transform;
+  }
+  .mobile-tabbar.tb-oculta{transform:translateY(110%)}   /* 110%: esconde también la sombra */
+  .mtab{gap:2px; padding:5px 2px; font-size:9.5px}
+  .mtab i{font-size:20px}
+  .main-body{padding-bottom:68px !important}
 }
 /* Alturas basadas en el viewport REAL (dvh) para los paneles con vh */
 .cc-list-panel{max-height:calc(100dvh - 130px)}
@@ -32509,5 +32519,25 @@ async function lpCargarHistorial(){
   function cpCambiarPageSize(v){ cpState.pageSize = parseInt(v,10)||50; cpState.page = 1; cpRender(); }
 </script>
 
+<script>
+// ─── Tabbar móvil con auto-ocultado ───
+// Scrolleás para ABAJO (buscando contenido) → la barra se esconde y ganás
+// toda la pantalla. Scrolleás para ARRIBA o llegás al tope → reaparece al
+// instante. Escucha en fase de captura para cubrir también los paneles con
+// scroll interno (grid de ventas, listas, etc.), no solo la página.
+function _tabbarOnScroll(e){
+  var el = (e.target === document) ? (document.scrollingElement || document.documentElement) : e.target;
+  if(!el || typeof el.scrollTop !== 'number') return;
+  var y = el.scrollTop;
+  var delta = y - (el._tbY || 0);
+  el._tbY = y;
+  if(Math.abs(delta) < 3) return;               // ignorar micro-movimientos (jitter táctil)
+  var bar = document.querySelector('.mobile-tabbar');
+  if(!bar) return;
+  if(y <= 10 || delta < 0){ bar.classList.remove('tb-oculta'); }
+  else if(y > 60){ bar.classList.add('tb-oculta'); }
+}
+document.addEventListener('scroll', _tabbarOnScroll, true);
+</script>
 </body>
 </html>
