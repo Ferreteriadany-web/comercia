@@ -9808,7 +9808,21 @@ function initPagosProveedores(){
 
 async function pagosCargar(){
   try{
-    var snap = await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').get();
+    var col = db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores');
+    var snap;
+    try{
+      // Tope de 8s: en celular la señal puede estar caída aunque el navegador
+      // diga que hay red, y el get() al servidor cuelga para siempre.
+      snap = await Promise.race([
+        col.get(),
+        new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('sin-respuesta')); }, 8000); })
+      ]);
+    }catch(e1){
+      // Caemos al cache local de Firestore: instantáneo, muestra lo conocido.
+      console.warn('pagosCargar: servidor no responde, usando cache local', e1);
+      snap = await col.get({ source: 'cache' });
+      toast('Sin se\u00f1al estable: mostrando los pagos guardados en este dispositivo', 'info');
+    }
     pagosState.items = snap.docs.map(function(d){ var o = d.data(); o._id = d.id; return o; });
     pagosState.cargado = true;
   }catch(e){ console.error('pagosCargar', e); toast('No se pudieron cargar los pagos', 'error'); }
@@ -9990,14 +10004,17 @@ async function pagosGuardar(){
   try{
     var col = db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores');
     if(id){
-      await col.doc(id).update(data);
+      // Con tope: si la señal está caída, el update queda encolado y sigue solo
+      await fbEsperarConTope(col.doc(id).update(data));
       var idx = pagosState.items.findIndex(function(x){ return x._id===id; });
       if(idx>=0) pagosState.items[idx] = Object.assign(pagosState.items[idx], data);
     }else{
       data.estado = 'pendiente';
       data.creadoEn = new Date().toISOString();
-      var ref = await col.add(data);
+      // id pre-generado: no dependemos de la respuesta del servidor para tenerlo
+      var ref = col.doc();
       data._id = ref.id;
+      await fbEsperarConTope(ref.set(data));
       pagosState.items.push(data);
     }
     pagosCerrarModal();
@@ -10009,7 +10026,7 @@ async function pagosGuardar(){
 async function pagosMarcarPagado(id){
   try{
     var nowIso = new Date().toISOString();
-    await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).update({ estado:'pagado', pagadoEn:nowIso });
+    await fbEsperarConTope(db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).update({ estado:'pagado', pagadoEn:nowIso }));
     var p = pagosState.items.find(function(x){ return x._id===id; });
     if(p){ p.estado='pagado'; p.pagadoEn=nowIso; }
     pagosRender();
@@ -10020,7 +10037,7 @@ async function pagosMarcarPagado(id){
 async function pagosBorrar(id){
   if(!await confirmComercia('¿Borrar este pago? Esta acción no se puede deshacer.')) return;
   try{
-    await db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).delete();
+    await fbEsperarConTope(db.collection('empresas').doc(currentEmpresaId).collection('pagos_proveedores').doc(id).delete());
     pagosState.items = pagosState.items.filter(function(x){ return x._id!==id; });
     pagosCerrarModal();
     pagosRender();
@@ -21243,12 +21260,15 @@ async function confirmarVenta(){
     var coleccionDestino = (modoVenta === 'presupuesto') ? 'presupuestos' : 'ventas';
     // ¿Estamos sin internet? Si es así, NO esperamos al servidor: guardamos local y se sube solo.
     var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
+    var _escrituraPendiente = false;
     var ref = db.collection('empresas').doc(currentEmpresaId).collection(coleccionDestino).doc();
     ventaData._id = ref.id;
     if(_sinNet){
       ref.set(ventaData).catch(function(e){ console.warn('Venta pendiente de subir:', e); });
     } else {
-      await ref.set(ventaData);
+      // Con tope: si la señal está caída aunque el navegador diga que hay
+      // red, la venta queda encolada en el dispositivo y NO colgamos la UI.
+      if(!(await fbEsperarConTope(ref.set(ventaData)))) _escrituraPendiente = true;
     }
 
     // Descontar stock (siempre, incluso si queda negativo)
@@ -21292,7 +21312,7 @@ async function confirmarVenta(){
         if(_sinNet){
           batch.commit().catch(function(e){ console.warn('Stock pendiente de subir:', e); });
         } else {
-          await batch.commit();
+          if(!(await fbEsperarConTope(batch.commit()))) _escrituraPendiente = true;
         }
         await idbGuardarBatch(currentEmpresaId, cacheUpdates);
       }catch(stockErr){
@@ -21338,6 +21358,9 @@ async function confirmarVenta(){
 
     closeModals();
     toast((modoVenta==='presupuesto' ? 'Presupuesto '+nroTicket+' guardado \u00b7 ' : 'Venta '+nroTicket+' registrada \u00b7 ')+fmtPeso(total), 'success');
+    if(_escrituraPendiente){
+      toast('Se\u00f1al inestable: la venta qued\u00f3 guardada en este dispositivo y se sincroniza sola al volver la conexi\u00f3n', 'info');
+    }
     if(typeof closeMobileCart === 'function') closeMobileCart();
 
     setTimeout(function(){ mostrarTicket(ventaData); }, 400);
@@ -22137,7 +22160,7 @@ async function anularRemito(vId){
 
     var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
     if(_sinNet){ batch.commit().catch(function(e){ console.warn('Anulaci\u00f3n pendiente de subir:', e); }); }
-    else { await batch.commit(); }
+    else { await fbEsperarConTope(batch.commit()); }
 
     v.anulada = true; v.anuladaEn = ahora;
     if(prodsLocal.length && typeof idbGuardarBatch === 'function'){ try{ await idbGuardarBatch(currentEmpresaId, prodsLocal); }catch(e){} }
@@ -22332,7 +22355,7 @@ async function _editRemitoGuardar(){
     }
     var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
     if(_sinNet){ batch.commit().catch(function(er){ console.warn('Edici\u00f3n pendiente de subir:', er); }); }
-    else { await batch.commit(); }
+    else { await fbEsperarConTope(batch.commit()); }
     v.items = newItems; v.subtotalesPorObra = spo; v.neto = t.neto; v.ivaMonto = t.ivaMonto; v.descuentoPct = Number(e.descPct) || 0; v.descuentoMonto = t.descMonto; v.total = t.totalFinal; v.pagos = nuevosPagos;
     if(prodsLocal.length && typeof idbGuardarBatch === 'function'){ try{ await idbGuardarBatch(currentEmpresaId, prodsLocal); }catch(x){} }
     var ovEl = document.getElementById('editRemitoOverlay'); if(ovEl) ovEl.remove();
@@ -26979,6 +27002,26 @@ async function ccExportarExcel(esCierre){
 }
 
 // ── Registrar venta en cuenta corriente (llamado desde confirmarVenta) ──
+// Espera un write de Firestore con TOPE de tiempo. En celulares,
+// navigator.onLine suele MENTIR (dice "hay red" con la señal caída) y los
+// await de Firestore quedan esperando la confirmación del servidor para
+// siempre → "Guardando..." eterno. Con la persistencia activada, el write
+// ya quedó encolado en el dispositivo y se sube solo al reconectar, así
+// que si el servidor no confirma en `ms`, seguimos adelante.
+// Devuelve true si el servidor confirmó, false si quedó pendiente.
+// Los errores REALES (permisos, datos inválidos) sí se lanzan al instante.
+function fbEsperarConTope(promesa, ms){
+  return new Promise(function(resolve, reject){
+    var listo = false;
+    var timer = setTimeout(function(){ if(!listo){ listo = true; resolve(false); } }, ms || 8000);
+    promesa.then(function(){ if(!listo){ listo = true; clearTimeout(timer); resolve(true); } })
+      .catch(function(e){
+        if(!listo){ listo = true; clearTimeout(timer); reject(e); }
+        else { console.warn('Write pendiente falló al sincronizar:', e); }
+      });
+  });
+}
+
 async function registrarVentaEnCtaCte(cliente, ventaData, montoCtaCte){
   if(!cliente || !currentEmpresaId) return;
   var ahora = new Date();
@@ -27062,7 +27105,7 @@ async function registrarVentaEnCtaCte(cliente, ventaData, montoCtaCte){
   // Si NO hay internet, no esperamos al servidor (la suma queda encolada y se aplica al volver).
   var _sinNet = (typeof navigator !== 'undefined' && navigator.onLine === false);
   if(_sinNet){ batch.commit().catch(function(e){ console.warn('Cta cte pendiente de subir:', e); }); }
-  else { await batch.commit(); }
+  else { await fbEsperarConTope(batch.commit()); }
 
   // Vista local optimista (se corrige sola cuando sincroniza el cliente)
   cliente.saldoCC = nuevoSaldo;
