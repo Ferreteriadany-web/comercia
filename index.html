@@ -20974,8 +20974,11 @@ function showClienteDropdown(query){
     filt = clientes.slice(0, 20);
   }
 
+  var _qDig = (query||'').replace(/\D/g, '');
+  var filaAltaArca = '<div class="dd-item" style="border-top:1px dashed var(--border);color:var(--primary);font-weight:600" '+
+    'onclick="arcaAbrirAltaCliente(\''+escapeQ(_qDig)+'\')">&#10133; Cargar cliente nuevo con CUIT (ARCA)</div>';
   if(filt.length === 0){
-    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>'+eH(query)+'</strong>"</div>';
+    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>'+eH(query)+'</strong>"</div>' + filaAltaArca;
     dd.classList.add('show');
     return;
   }
@@ -21002,6 +21005,7 @@ function showClienteDropdown(query){
       '</div>'+
     '</div>';
   });
+  html += filaAltaArca;
   dd.innerHTML = html;
   dd.classList.add('show');
 }
@@ -32519,6 +32523,162 @@ async function lpCargarHistorial(){
   function cpCambiarPageSize(v){ cpState.pageSize = parseInt(v,10)||50; cpState.page = 1; cpRender(); }
 </script>
 
+<div class="modal-overlay" id="modalClienteArca">
+  <div class="modal" style="max-width:470px">
+    <div style="font-size:11px;letter-spacing:1.5px;color:var(--primary);font-weight:700">NUEVO CLIENTE</div>
+    <h2 style="margin:4px 0 14px">Alta r&aacute;pida con ARCA</h2>
+    <div style="display:flex;gap:8px">
+      <input class="form-input" id="arcaCuit" type="text" inputmode="numeric" maxlength="13" placeholder="CUIT (11 d&iacute;gitos)" style="flex:1;font-family:var(--mono)">
+      <button class="btn btn-primary" id="arcaBtnConsultar" onclick="arcaConsultar()">Consultar</button>
+    </div>
+    <div id="arcaEstado" style="font-size:11px;margin-top:6px;color:var(--text-mute)"></div>
+    <div id="arcaCampos" style="display:none;margin-top:12px">
+      <label class="form-label">Raz&oacute;n social / Nombre</label>
+      <input class="form-input" id="arcaRazon">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div><label class="form-label">Cat. fiscal</label>
+          <select class="form-input" id="arcaCatFiscal">
+            <option value="RI">Responsable Inscripto</option>
+            <option value="MONOTRIBUTO">Monotributo</option>
+            <option value="CF">Consumidor Final</option>
+            <option value="EXENTO">Exento</option>
+            <option value="NO_RESP">No Responsable</option>
+          </select></div>
+        <div><label class="form-label">Tel&eacute;fono (opcional)</label><input class="form-input" id="arcaTelefono" inputmode="tel"></div>
+      </div>
+      <label class="form-label" style="margin-top:10px">Direcci&oacute;n</label>
+      <input class="form-input" id="arcaDireccion">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div><label class="form-label">Localidad</label><input class="form-input" id="arcaLocalidad"></div>
+        <div><label class="form-label">Provincia</label><input class="form-input" id="arcaProvincia"></div>
+      </div>
+      <label class="lp-checkbox" style="margin-top:12px"><input type="checkbox" id="arcaTieneCC"> Habilitar cuenta corriente</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-sm btn-light" onclick="document.getElementById('modalClienteArca').classList.remove('show')">Cancelar</button>
+      <button class="btn btn-sm btn-primary" id="arcaBtnGuardar" onclick="arcaGuardarCliente()" disabled>Guardar y usar en la venta</button>
+    </div>
+  </div>
+</div>
+<script>
+// ─── Alta rápida de clientes con ARCA ───
+// Desde el buscador de clientes de la venta: tipeás un CUIT, ARCA devuelve
+// razón social, condición fiscal y domicilio, revisás y queda creado Y
+// seleccionado en la venta. Guardado con tope de red (no se cuelga sin señal).
+
+function arcaValidarCuit(cuit){
+  var s = String(cuit || '').replace(/\D/g, '');
+  if(s.length !== 11) return false;
+  var mult = [5,4,3,2,7,6,5,4,3,2];
+  var suma = 0;
+  for(var i = 0; i < 10; i++) suma += parseInt(s[i], 10) * mult[i];
+  var dv = 11 - (suma % 11);
+  if(dv === 11) dv = 0; else if(dv === 10) dv = 9;
+  return dv === parseInt(s[10], 10);
+}
+
+function arcaAbrirAltaCliente(prefill){
+  var dd = document.getElementById('vClienteDropdown');
+  if(dd) dd.classList.remove('show');
+  ['arcaRazon','arcaTelefono','arcaDireccion','arcaLocalidad','arcaProvincia'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
+  document.getElementById('arcaCatFiscal').value = 'CF';
+  document.getElementById('arcaTieneCC').checked = false;
+  document.getElementById('arcaCampos').style.display = 'none';
+  document.getElementById('arcaBtnGuardar').disabled = true;
+  document.getElementById('arcaEstado').textContent = '';
+  var cuitInp = document.getElementById('arcaCuit');
+  cuitInp.value = (prefill && /^\d{7,11}$/.test(prefill)) ? prefill : '';
+  document.getElementById('modalClienteArca').classList.add('show');
+  if(arcaValidarCuit(cuitInp.value)) arcaConsultar();   // si vino un CUIT válido, consulta sola
+  else setTimeout(function(){ cuitInp.focus(); }, 100);
+}
+
+async function arcaConsultar(){
+  var cuit = document.getElementById('arcaCuit').value.replace(/\D/g, '');
+  var est = document.getElementById('arcaEstado');
+  if(!arcaValidarCuit(cuit)){
+    est.textContent = 'CUIT inv\u00e1lido: revis\u00e1 los 11 d\u00edgitos (el verificador no cierra).';
+    est.style.color = 'var(--danger)';
+    return;
+  }
+  var btn = document.getElementById('arcaBtnConsultar');
+  btn.disabled = true; btn.textContent = 'Consultando...';
+  est.textContent = 'Consultando el padr\u00f3n de ARCA...';
+  est.style.color = 'var(--text-mute)';
+  try{
+    var res = await functions.httpsCallable('arcaConsultarCuit')({ cuit: cuit });
+    var d = res && res.data;
+    if(!d || !d.ok) throw new Error((d && d.error) || 'sin respuesta');
+    var c = d.cliente;
+    document.getElementById('arcaRazon').value = c.razonSocial || '';
+    document.getElementById('arcaCatFiscal').value = c.catFiscal || 'CF';
+    document.getElementById('arcaDireccion').value = c.direccion || '';
+    document.getElementById('arcaLocalidad').value = c.localidad || '';
+    document.getElementById('arcaProvincia').value = c.provincia || '';
+    document.getElementById('arcaCampos').style.display = '';
+    document.getElementById('arcaBtnGuardar').disabled = false;
+    est.textContent = '\u2713 Datos de ARCA cargados' + (c.estadoClave && c.estadoClave !== 'ACTIVO' ? ' \u00b7 OJO: clave ' + c.estadoClave : '') + '. Revis\u00e1 y guard\u00e1.';
+    est.style.color = 'var(--success)';
+  }catch(err){
+    console.error('arcaConsultar', err);
+    est.textContent = 'No se pudo consultar: ' + (err.message || err) + ' \u2014 pod\u00e9s completar los datos a mano igual.';
+    est.style.color = 'var(--danger)';
+    document.getElementById('arcaCampos').style.display = '';
+    document.getElementById('arcaBtnGuardar').disabled = false;
+  }finally{
+    btn.disabled = false; btn.textContent = 'Consultar';
+  }
+}
+
+async function arcaGuardarCliente(){
+  var razon = document.getElementById('arcaRazon').value.trim();
+  if(!razon){ toast('La raz\u00f3n social es obligatoria', 'error'); return; }
+  var cuit = document.getElementById('arcaCuit').value.replace(/\D/g, '');
+  var btn = document.getElementById('arcaBtnGuardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try{
+    var data = {
+      razonSocial: razon, nombre: '', fantasia: '', codigo: '',
+      tipo: '', origen: 'venta',
+      telefono: document.getElementById('arcaTelefono').value.trim(),
+      email: '',
+      direccion: document.getElementById('arcaDireccion').value.trim(),
+      localidad: document.getElementById('arcaLocalidad').value.trim(),
+      provincia: document.getElementById('arcaProvincia').value.trim(),
+      catFiscal: document.getElementById('arcaCatFiscal').value,
+      tipoDoc: 'CUIT', numDoc: cuit,
+      tieneCC: document.getElementById('arcaTieneCC').checked,
+      limite: 0,
+      observaciones: 'Alta r\u00e1pida v\u00eda ARCA',
+      creadoEn: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    // Duplicado por CUIT: si ya existe, lo seleccionamos en vez de crear otro
+    var existente = clientes.find(function(x){ return (x.numDoc||'').replace(/\D/g,'') === cuit; });
+    if(existente){
+      document.getElementById('modalClienteArca').classList.remove('show');
+      seleccionarClienteVenta(existente._id);
+      toast('Ese CUIT ya estaba cargado: seleccion\u00e9 a ' + existente.razonSocial, 'info');
+      return;
+    }
+    var ref = db.collection('empresas').doc(currentEmpresaId).collection('clientes').doc();
+    await fbEsperarConTope(ref.set(data));           // con se\u00f1al zombie no se cuelga
+    var nuevo = Object.assign({ _id: ref.id }, data);
+    clientes.push(nuevo);
+    try{ await idbGuardarClientes(currentEmpresaId, [nuevo]); }catch(e){}
+    document.getElementById('modalClienteArca').classList.remove('show');
+    seleccionarClienteVenta(ref.id);
+    toast('Cliente ' + razon + ' creado y seleccionado', 'success');
+  }catch(err){
+    console.error('arcaGuardarCliente', err);
+    toast('No se pudo guardar: ' + (err.message || err), 'error');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar y usar en la venta';
+  }
+}
+</script>
 <script>
 // ─── Tabbar móvil con auto-ocultado ───
 // Scrolleás para ABAJO (buscando contenido) → la barra se esconde y ganás
