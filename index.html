@@ -20975,10 +20975,14 @@ function showClienteDropdown(query){
   }
 
   var _qDig = (query||'').replace(/\D/g, '');
-  var filaAltaArca = '<div class="dd-item" style="border-top:1px dashed var(--border);color:var(--primary);font-weight:600" '+
-    'onclick="arcaAbrirAltaCliente(\''+escapeQ(_qDig)+'\')">&#10133; Cargar cliente nuevo con CUIT (ARCA)</div>';
+  var filaAltaArca = '<div class="dd-nuevo" onclick="arcaAbrirAltaCliente(\''+escapeQ(_qDig)+'\')">'+
+      '<div class="dd-nuevo-icono">+</div>'+
+      '<div><div class="dd-nuevo-titulo">Nuevo cliente</div>'+
+      '<div class="dd-nuevo-sub">Con el CUIT, ARCA completa los datos</div></div>'+
+    '</div>';
   if(filt.length === 0){
-    dd.innerHTML = '<div class="dd-empty">Sin resultados para "<strong>'+eH(query)+'</strong>"</div>' + filaAltaArca;
+    dd.innerHTML = '<div class="dd-empty">No encontramos "<strong>'+eH(query)+'</strong>"</div>'+
+      '<button class="dd-vacio-cta" onclick="arcaAbrirAltaCliente(\''+escapeQ(_qDig)+'\')">Crear cliente nuevo</button>';
     dd.classList.add('show');
     return;
   }
@@ -21005,8 +21009,7 @@ function showClienteDropdown(query){
       '</div>'+
     '</div>';
   });
-  html += filaAltaArca;
-  dd.innerHTML = html;
+  dd.innerHTML = filaAltaArca + html;
   dd.classList.add('show');
 }
 
@@ -32523,36 +32526,113 @@ async function lpCargarHistorial(){
   function cpCambiarPageSize(v){ cpState.pageSize = parseInt(v,10)||50; cpState.page = 1; cpRender(); }
 </script>
 
+<style>
+/* ═══ Alta de cliente: acción principal del buscador + modal ═══ */
+.dd-nuevo{
+  display:flex; align-items:center; gap:11px;
+  padding:11px 13px; cursor:pointer;
+  border-bottom:1px solid var(--line);
+  background:transparent; transition:background .12s;
+}
+.dd-nuevo:hover{ background:var(--success-soft) }
+.dd-nuevo-icono{
+  width:34px; height:34px; flex:none;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--primary); color:#fff;
+  border-radius:var(--r-sm); font-size:16px; font-weight:700;
+}
+.dd-nuevo-titulo{ font-weight:700; font-size:13px; color:var(--text) }
+.dd-nuevo-sub{ font-size:11px; color:var(--text-mute); margin-top:1px }
+.dd-vacio-cta{
+  display:block; width:calc(100% - 28px); margin:2px 14px 14px;
+  padding:10px; text-align:center;
+  background:var(--primary); color:#fff; border:none; cursor:pointer;
+  border-radius:var(--r-sm); font-weight:700; font-size:13px;
+}
+.arca-head{ display:flex; align-items:center; gap:12px; margin-bottom:16px }
+.arca-head-icono{
+  width:42px; height:42px; flex:none;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--primary); color:#fff;
+  border-radius:var(--r-md); font-size:20px;
+}
+.arca-eyebrow{ font-size:10px; letter-spacing:1.5px; color:var(--primary); font-weight:700; text-transform:uppercase }
+.arca-titulo{ font-size:19px; font-weight:800; margin:1px 0 0 }
+.arca-cuit-fila{ display:flex; gap:8px }
+.arca-cuit-fila input{
+  flex:1; font-family:var(--mono); font-size:17px; letter-spacing:1px;
+  text-align:center;
+}
+.arca-manual{
+  display:inline-block; margin-top:8px; font-size:11.5px;
+  color:var(--text-mute); text-decoration:underline; cursor:pointer;
+  background:none; border:none; padding:0;
+}
+.arca-resultado{
+  display:none; margin-top:12px; padding:9px 12px;
+  background:var(--success-soft); border-left:3px solid var(--success);
+  border-radius:var(--r-sm); font-size:12px; color:var(--success); font-weight:600;
+}
+.arca-error{
+  display:none; margin-top:12px; padding:9px 12px;
+  background:rgba(220,60,60,.07); border-left:3px solid var(--danger);
+  border-radius:var(--r-sm); font-size:12px; color:var(--danger);
+}
+.arca-label{
+  display:block; font-size:10px; letter-spacing:1px; text-transform:uppercase;
+  color:var(--text-mute); font-weight:700; margin:12px 0 4px;
+}
+.arca-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:0 12px }
+</style>
 <div class="modal-overlay" id="modalClienteArca">
-  <div class="modal" style="max-width:470px">
-    <div style="font-size:11px;letter-spacing:1.5px;color:var(--primary);font-weight:700">NUEVO CLIENTE</div>
-    <h2 style="margin:4px 0 14px">Alta r&aacute;pida con ARCA</h2>
-    <div style="display:flex;gap:8px">
-      <input class="form-input" id="arcaCuit" type="text" inputmode="numeric" maxlength="13" placeholder="CUIT (11 d&iacute;gitos)" style="flex:1;font-family:var(--mono)">
+  <div class="modal" style="max-width:460px">
+    <div class="arca-head">
+      <div class="arca-head-icono">&#128100;</div>
+      <div>
+        <div class="arca-eyebrow">Nuevo cliente</div>
+        <h2 class="arca-titulo">Alta con CUIT</h2>
+      </div>
+    </div>
+    <div class="arca-cuit-fila">
+      <input class="form-input" id="arcaCuit" type="text" inputmode="numeric" maxlength="13" placeholder="20-12345678-9">
       <button class="btn btn-primary" id="arcaBtnConsultar" onclick="arcaConsultar()">Consultar</button>
     </div>
-    <div id="arcaEstado" style="font-size:11px;margin-top:6px;color:var(--text-mute)"></div>
-    <div id="arcaCampos" style="display:none;margin-top:12px">
-      <label class="form-label">Raz&oacute;n social / Nombre</label>
+    <div id="arcaEstado" style="font-size:11px;margin-top:6px;color:var(--text-mute)">ARCA completa los datos con el CUIT.</div>
+    <button class="arca-manual" onclick="arcaModoManual()">Cargar los datos a mano</button>
+    <div class="arca-resultado" id="arcaResultado"></div>
+    <div class="arca-error" id="arcaError"></div>
+    <div id="arcaCampos" style="display:none">
+      <label class="arca-label">Raz&oacute;n social / Nombre</label>
       <input class="form-input" id="arcaRazon">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-        <div><label class="form-label">Cat. fiscal</label>
+      <div class="arca-grid2">
+        <div>
+          <label class="arca-label">Categor&iacute;a fiscal</label>
           <select class="form-input" id="arcaCatFiscal">
             <option value="RI">Responsable Inscripto</option>
             <option value="MONOTRIBUTO">Monotributo</option>
             <option value="CF">Consumidor Final</option>
             <option value="EXENTO">Exento</option>
             <option value="NO_RESP">No Responsable</option>
-          </select></div>
-        <div><label class="form-label">Tel&eacute;fono (opcional)</label><input class="form-input" id="arcaTelefono" inputmode="tel"></div>
+          </select>
+        </div>
+        <div>
+          <label class="arca-label">Tel&eacute;fono (opcional)</label>
+          <input class="form-input" id="arcaTelefono" inputmode="tel">
+        </div>
       </div>
-      <label class="form-label" style="margin-top:10px">Direcci&oacute;n</label>
+      <label class="arca-label">Direcci&oacute;n</label>
       <input class="form-input" id="arcaDireccion">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-        <div><label class="form-label">Localidad</label><input class="form-input" id="arcaLocalidad"></div>
-        <div><label class="form-label">Provincia</label><input class="form-input" id="arcaProvincia"></div>
+      <div class="arca-grid2">
+        <div>
+          <label class="arca-label">Localidad</label>
+          <input class="form-input" id="arcaLocalidad">
+        </div>
+        <div>
+          <label class="arca-label">Provincia</label>
+          <input class="form-input" id="arcaProvincia">
+        </div>
       </div>
-      <label class="lp-checkbox" style="margin-top:12px"><input type="checkbox" id="arcaTieneCC"> Habilitar cuenta corriente</label>
+      <label class="lp-checkbox" style="margin-top:14px"><input type="checkbox" id="arcaTieneCC"> Habilitar cuenta corriente</label>
     </div>
     <div class="modal-actions">
       <button class="btn btn-sm btn-light" onclick="document.getElementById('modalClienteArca').classList.remove('show')">Cancelar</button>
@@ -32587,7 +32667,9 @@ function arcaAbrirAltaCliente(prefill){
   document.getElementById('arcaTieneCC').checked = false;
   document.getElementById('arcaCampos').style.display = 'none';
   document.getElementById('arcaBtnGuardar').disabled = true;
-  document.getElementById('arcaEstado').textContent = '';
+  document.getElementById('arcaEstado').textContent = 'ARCA completa los datos con el CUIT.';
+  var _res = document.getElementById('arcaResultado'); if(_res){ _res.style.display = 'none'; _res.textContent = ''; }
+  var _err = document.getElementById('arcaError'); if(_err){ _err.style.display = 'none'; _err.textContent = ''; }
   var cuitInp = document.getElementById('arcaCuit');
   cuitInp.value = (prefill && /^\d{7,11}$/.test(prefill)) ? prefill : '';
   document.getElementById('modalClienteArca').classList.add('show');
@@ -32595,18 +32677,27 @@ function arcaAbrirAltaCliente(prefill){
   else setTimeout(function(){ cuitInp.focus(); }, 100);
 }
 
+function arcaModoManual(){
+  document.getElementById('arcaCampos').style.display = '';
+  document.getElementById('arcaBtnGuardar').disabled = false;
+  document.getElementById('arcaEstado').textContent = 'Complet\u00e1 los datos y guard\u00e1. El CUIT es opcional en modo manual.';
+  setTimeout(function(){ var r = document.getElementById('arcaRazon'); if(r) r.focus(); }, 80);
+}
+
 async function arcaConsultar(){
   var cuit = document.getElementById('arcaCuit').value.replace(/\D/g, '');
   var est = document.getElementById('arcaEstado');
+  var resCard = document.getElementById('arcaResultado');
+  var errCard = document.getElementById('arcaError');
+  if(resCard){ resCard.style.display = 'none'; }
+  if(errCard){ errCard.style.display = 'none'; }
   if(!arcaValidarCuit(cuit)){
-    est.textContent = 'CUIT inv\u00e1lido: revis\u00e1 los 11 d\u00edgitos (el verificador no cierra).';
-    est.style.color = 'var(--danger)';
+    if(errCard){ errCard.textContent = 'Ese CUIT no cierra: revis\u00e1 los 11 d\u00edgitos.'; errCard.style.display = 'block'; }
     return;
   }
   var btn = document.getElementById('arcaBtnConsultar');
   btn.disabled = true; btn.textContent = 'Consultando...';
   est.textContent = 'Consultando el padr\u00f3n de ARCA...';
-  est.style.color = 'var(--text-mute)';
   try{
     var res = await functions.httpsCallable('arcaConsultarCuit')({ cuit: cuit });
     var d = res && res.data;
@@ -32619,12 +32710,18 @@ async function arcaConsultar(){
     document.getElementById('arcaProvincia').value = c.provincia || '';
     document.getElementById('arcaCampos').style.display = '';
     document.getElementById('arcaBtnGuardar').disabled = false;
-    est.textContent = '\u2713 Datos de ARCA cargados' + (c.estadoClave && c.estadoClave !== 'ACTIVO' ? ' \u00b7 OJO: clave ' + c.estadoClave : '') + '. Revis\u00e1 y guard\u00e1.';
-    est.style.color = 'var(--success)';
+    est.textContent = '';
+    if(resCard){
+      resCard.textContent = '\u2713 Encontrado en ARCA' + (c.estadoClave && c.estadoClave !== 'ACTIVO' ? ' \u00b7 clave fiscal ' + c.estadoClave : '') + ' \u2014 revis\u00e1 y guard\u00e1';
+      resCard.style.display = 'block';
+    }
   }catch(err){
     console.error('arcaConsultar', err);
-    est.textContent = 'No se pudo consultar: ' + (err.message || err) + ' \u2014 pod\u00e9s completar los datos a mano igual.';
-    est.style.color = 'var(--danger)';
+    est.textContent = '';
+    if(errCard){
+      errCard.textContent = 'No se pudo consultar: ' + (err.message || err);
+      errCard.style.display = 'block';
+    }
     document.getElementById('arcaCampos').style.display = '';
     document.getElementById('arcaBtnGuardar').disabled = false;
   }finally{
