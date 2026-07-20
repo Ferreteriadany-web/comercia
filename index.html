@@ -31089,16 +31089,33 @@ async function lpVincularImagenesEmbebidas(){
       return { media: media, fila: fila, k: k };
     }).filter(Boolean);
 
-    // PASO 2: vincular solo imágenes NO-logo a su fila (exacta o ±2)
-    var n = 0, logosExcluidos = 0;
+    // Distinguir LOGO de FOTO DE FAMILIA. Ambos se repiten, pero distinto:
+    //  · LOGO (ej. STEELPRO): la MISMA imagen aparece desparramada por toda la
+    //    lista, en filas lejanas entre sí → muchos CLUSTERS separados.
+    //  · FOTO DE FAMILIA (catálogos que ponen 1 foto para varias variantes):
+    //    la misma imagen aparece en filas VECINAS → un solo cluster contiguo.
+    // Regla: agrupamos las filas de cada imagen en clusters (corte si hay un
+    // salto > 3 filas). Más de 2 clusters = logo. 1-2 clusters = foto real.
+    var esLogo = function(k){
+      var filas = Object.keys(filasPorHash[k]).map(Number).sort(function(a,b){ return a - b; });
+      if(filas.length <= 2) return false;
+      var clusters = 1;
+      for(var i = 1; i < filas.length; i++){ if(filas[i] - filas[i-1] > 3) clusters++; }
+      return clusters > 2;
+    };
+
+    // PASO 2: vincular. Una foto puede COMPARTIRSE entre varias filas de su
+    // familia, por eso no la marcamos como "usada" tras el primer match.
+    var n = 0, logosExcluidos = {};
     pre.forEach(function(p){
-      if(Object.keys(filasPorHash[p.k]).length > 2){ logosExcluidos++; return; }  // logo
+      if(esLogo(p.k)){ logosExcluidos[p.k] = true; return; }
       var r = porFila[p.fila] || porFila[p.fila + 1] || porFila[p.fila - 1] || porFila[p.fila + 2] || porFila[p.fila - 2];
       if(!r || r._imgEmbebida) return;
       r._imgEmbebida = { buffer: p.media.buffer, ext: p.media.extension || 'png' };
       n++;
     });
-    if(logosExcluidos) console.log('Imágenes de logo/banner excluidas:', logosExcluidos);
+    var logosExcluidosN = Object.keys(logosExcluidos).length;
+    if(logosExcluidosN) console.log('Logos/banners excluidos (imágenes distintas):', logosExcluidosN);
     if(n) toast('🖼 ' + n + ' foto(s) encontradas en el Excel: se cargan a los productos al aplicar (sin pisar fotos existentes)', 'info');
   }catch(e){ console.warn('lpVincularImagenesEmbebidas', e); }
 }
