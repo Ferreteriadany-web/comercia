@@ -30620,6 +30620,10 @@ async function lpProcesarArchivo(file){
       colVentaDirecto = lpDetectarCol(headers, ['precio de venta con iva', 'precio de venta con impuestos', 'precio venta con iva', 'precio de venta c/iva'], excl);
     }
 
+    // Columna de URL de imagen: para listas cuyas fotos son links (no embebidas).
+    // Al aplicar, la URL se guarda como fotoUrl del producto (sin descargar).
+    var colImgUrl = lpDetectarCol(headers, ['url imagen', 'imagen url', 'url foto', 'foto url', 'url de imagen', 'link imagen', 'imagen', 'foto', 'url']);
+
     // Si este proveedor ya tiene un mapeo guardado de una importación anterior,
     // lo aplicamos por NOMBRE de columna (más robusto que la posición). Solo
     // pisa la detección cuando la columna guardada existe en este archivo.
@@ -30667,7 +30671,7 @@ async function lpProcesarArchivo(file){
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
       _archivoFile: (/\.xlsx$/i.test(file.name) ? file : null),   // para extraer imágenes embebidas
-      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, precioDolar: colPrecioDolar, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto }
+      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, precioDolar: colPrecioDolar, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto, imgUrl: colImgUrl }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -30913,6 +30917,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colVentaDirecto = (colMap.precioVentaDirecto>=0?colMap.precioVentaDirecto:-1);
   var colCodBarra = (colMap.codBarra>=0?colMap.codBarra:-1);
   var colPrecioDolar = (colMap.precioDolar>=0?colMap.precioDolar:-1);
+  var colImgUrl = (colMap.imgUrl>=0?colMap.imgUrl:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
   // Si la lista trae su propia columna de moneda (o precio en U$S aparte),
   // esa manda por fila (no el selector global).
@@ -30987,6 +30992,10 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
       // lpParseNum resuelve "1.250" (miles), "1250.50", "1.250,50" y "$ 1.250"
       var vd = lpParseNum(r[colVentaDirecto]);
       if(!isNaN(vd) && vd > 0) fila._ventaDirecta = vd;
+    }
+    if(colImgUrl >= 0){
+      var _u = String(r[colImgUrl] || '').trim();
+      if(/^https?:\/\//i.test(_u)) fila._imgUrl = _u;
     }
     if(modo === 'sabana'){
       var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
@@ -31856,6 +31865,14 @@ async function lpEjecutarAplicar(filas){
         // recuperado de una importación previa). Nunca pisar con vacío.
         if(r.ivaCustom != null) dataFs.ivaProducto = Number(r.ivaCustom);
         if(r.unidadesPorBulto) dataFs.unidadesPorBulto = r.unidadesPorBulto;
+        // Foto por URL (listas con links en vez de imágenes embebidas): se
+        // guarda el link tal cual. No pisa una foto propia salvo que el
+        // usuario haya marcado "Reemplazar fotos existentes".
+        if(r._imgUrl){
+          var _yaTieneFoto = r.productoActual && (r.productoActual.fotoUrl || r.productoActual.foto);
+          var _reemplazarUrl = !!(document.getElementById('lpReemplazarFotos') && document.getElementById('lpReemplazarFotos').checked);
+          if(!_yaTieneFoto || _reemplazarUrl){ dataFs.fotoUrl = r._imgUrl; dataFs.fotoPath = null; }
+        }
         // Datos para cache local (con Date string)
         var dataLocal = {
           precioVenta: r.calc.final,
@@ -31870,6 +31887,7 @@ async function lpEjecutarAplicar(filas){
         if(margenGuardar != null) dataLocal.margenProducto = margenGuardar;
         if(r.ivaCustom != null) dataLocal.ivaProducto = Number(r.ivaCustom);
         if(r.unidadesPorBulto) dataLocal.unidadesPorBulto = r.unidadesPorBulto;
+        if(dataFs.fotoUrl){ dataLocal.fotoUrl = dataFs.fotoUrl; dataLocal.fotoPath = null; }
         // Código de barras: solo lo guardamos si la lista lo trae (no pisamos uno existente con vacío).
         if(r.codBarraProv){ dataFs.codBarra = r.codBarraProv; dataLocal.codBarra = r.codBarraProv; }
         var esCrear = (r.estado === 'crear');
