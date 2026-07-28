@@ -20439,8 +20439,12 @@ function renderGridVentas(){
     var imgHtml = p.fotoUrl
       ? '<img src="'+eH(p.fotoUrl)+'" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'\'"><span class="vcard-initial" style="display:none">'+eH(inicial)+'</span>'
       : '<span class="vcard-initial">'+eH(inicial)+'</span>';
+    var fichaBtn = p.fichaTecnica
+      ? '<button class="vcard-info" onclick="event.stopPropagation();vVerFicha(\''+escapeQ(p._id)+'\')" title="Ver ficha t\u00e9cnica">i</button>'
+      : '';
     html += '<div class="vcard '+(inCart?'in-cart':'')+'" '+(inCart?'data-qty="'+inCart+'"':'')+
             ' onclick="agregarAlCarrito(\''+escapeQ(p._id)+'\')" title="'+eH(p.descripcion||'')+'">'+
+      fichaBtn+
       '<div class="vcard-img">'+
         imgHtml+
       '</div>'+
@@ -20472,6 +20476,23 @@ function vGridPrevPage(){
 function vGridNextPage(){
   var totalPages = Math.ceil(_vGridResults.length / vGridPageSize);
   if(vGridPage < totalPages - 1){ vGridPage++; renderGridVentas(); }
+}
+
+// Muestra la ficha técnica del producto en un modal (opción B: tarjeta limpia,
+// ficha al tocar la ⓘ). La ficha viene de la lista importada (columna Ficha Técnica).
+function vVerFicha(id){
+  var p = (typeof productos !== 'undefined' ? productos : []).find(function(x){ return x._id === id; });
+  if(!p || !p.fichaTecnica){ return; }
+  var cont = document.getElementById('vFichaContenido');
+  var tit = document.getElementById('vFichaTitulo');
+  if(tit) tit.textContent = p.descripcion || p.codigo || 'Ficha técnica';
+  if(cont){
+    // La ficha es texto plano con specs tipo "Potencia: 220W Cilindrada: 45cc".
+    // La mostramos tal cual, respetando saltos si los hubiera.
+    cont.textContent = p.fichaTecnica;
+  }
+  var m = document.getElementById('modalFichaTecnica');
+  if(m) m.classList.add('show');
 }
 
 function agregarAlCarrito(id){
@@ -30623,6 +30644,9 @@ async function lpProcesarArchivo(file){
     // Columna de URL de imagen: para listas cuyas fotos son links (no embebidas).
     // Al aplicar, la URL se guarda como fotoUrl del producto (sin descargar).
     var colImgUrl = lpDetectarCol(headers, ['url imagen', 'imagen url', 'url foto', 'foto url', 'url de imagen', 'link imagen', 'imagen', 'foto', 'url']);
+    // Ficha técnica / descripción larga (se muestra en la tarjeta del POS).
+    // Nombre inequívoco para no confundir con la columna del nombre del producto.
+    var colFicha = lpDetectarCol(headers, ['ficha tecnica', 'ficha técnica', 'ficha', 'caracteristicas', 'características', 'especificaciones', 'descripcion larga', 'descripcion tecnica']);
 
     // Si este proveedor ya tiene un mapeo guardado de una importación anterior,
     // lo aplicamos por NOMBRE de columna (más robusto que la posición). Solo
@@ -30671,7 +30695,7 @@ async function lpProcesarArchivo(file){
       rowsRaw: rowsRaw, headerRowIdx: headerRowIdx, headers: (rowsRaw[headerRowIdx]||[]).map(function(h){ return String(h||'').trim(); }),
       modo: modo, prov: prov, archivo: file.name,
       _archivoFile: (/\.xlsx$/i.test(file.name) ? file : null),   // para extraer imágenes embebidas
-      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, precioDolar: colPrecioDolar, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto, imgUrl: colImgUrl }
+      map: { codigo: colCodigo, codBarra: colCodBarra, desc: colDesc, precio: colPrecio, precioDolar: colPrecioDolar, iva: colIva, descuento: colDescuento, proveedor: colProveedor, moneda: colMoneda, margen: colMargen, bulto: colBulto, precioNeto: colPrecioNeto, precioVentaDirecto: colVentaDirecto, imgUrl: colImgUrl, ficha: colFicha }
     };
 
     if(colCodigo < 0 || colPrecio < 0){
@@ -30918,6 +30942,7 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
   var colCodBarra = (colMap.codBarra>=0?colMap.codBarra:-1);
   var colPrecioDolar = (colMap.precioDolar>=0?colMap.precioDolar:-1);
   var colImgUrl = (colMap.imgUrl>=0?colMap.imgUrl:-1);
+  var colFicha = (colMap.ficha>=0?colMap.ficha:-1);
   var sabanaSinColProv = (modo === 'sabana' && colProveedor < 0);
   // Si la lista trae su propia columna de moneda (o precio en U$S aparte),
   // esa manda por fila (no el selector global).
@@ -30996,6 +31021,10 @@ function lpFinalizarImport(rowsRaw, headerRowIdx, colMap, modo, prov, archivo){
     if(colImgUrl >= 0){
       var _u = String(r[colImgUrl] || '').trim();
       if(/^https?:\/\//i.test(_u)) fila._imgUrl = _u;
+    }
+    if(colFicha >= 0){
+      var _fx = String(r[colFicha] || '').trim();
+      if(_fx) fila._ficha = _fx;
     }
     if(modo === 'sabana'){
       var pnombre = colProveedor >= 0 ? String(r[colProveedor] || '').trim() : '';
@@ -31873,6 +31902,9 @@ async function lpEjecutarAplicar(filas){
           var _reemplazarUrl = !!(document.getElementById('lpReemplazarFotos') && document.getElementById('lpReemplazarFotos').checked);
           if(!_yaTieneFoto || _reemplazarUrl){ dataFs.fotoUrl = r._imgUrl; dataFs.fotoPath = null; }
         }
+        // Ficha técnica: se guarda como descripción larga del producto,
+        // sin pisar una ficha ya cargada a mano (salvo que venga vacía la vieja).
+        if(r._ficha){ dataFs.fichaTecnica = r._ficha; }
         // Datos para cache local (con Date string)
         var dataLocal = {
           precioVenta: r.calc.final,
@@ -31888,6 +31920,7 @@ async function lpEjecutarAplicar(filas){
         if(r.ivaCustom != null) dataLocal.ivaProducto = Number(r.ivaCustom);
         if(r.unidadesPorBulto) dataLocal.unidadesPorBulto = r.unidadesPorBulto;
         if(dataFs.fotoUrl){ dataLocal.fotoUrl = dataFs.fotoUrl; dataLocal.fotoPath = null; }
+        if(dataFs.fichaTecnica){ dataLocal.fichaTecnica = dataFs.fichaTecnica; }
         // Código de barras: solo lo guardamos si la lista lo trae (no pisamos uno existente con vacío).
         if(r.codBarraProv){ dataFs.codBarra = r.codBarraProv; dataLocal.codBarra = r.codBarraProv; }
         var esCrear = (r.estado === 'crear');
@@ -32619,6 +32652,34 @@ async function lpCargarHistorial(){
 }
 .arca-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:0 12px }
 </style>
+<style>
+.vcard{ position:relative }
+.vcard-info{
+  position:absolute; top:6px; right:6px; z-index:2;
+  width:22px; height:22px; border-radius:50%;
+  border:none; cursor:pointer;
+  background:var(--primary); color:#fff;
+  font-family:Georgia, serif; font-style:italic; font-weight:700; font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.2); opacity:.9;
+}
+.vcard-info:hover{ opacity:1; transform:scale(1.1) }
+#vFichaContenido{
+  white-space:pre-wrap; line-height:1.7; font-size:14px; color:var(--text);
+  background:var(--bg-soft, #f7f5f2); border-radius:var(--r-md);
+  padding:16px; margin-top:8px; max-height:55vh; overflow-y:auto;
+}
+</style>
+<div class="modal-overlay" id="modalFichaTecnica">
+  <div class="modal" style="max-width:480px">
+    <div class="arca-eyebrow">Ficha técnica</div>
+    <h2 class="arca-titulo" id="vFichaTitulo" style="margin-bottom:4px">Producto</h2>
+    <div id="vFichaContenido"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm btn-primary" onclick="document.getElementById('modalFichaTecnica').classList.remove('show')">Cerrar</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalClienteArca">
   <div class="modal" style="max-width:460px">
     <div class="arca-head">
