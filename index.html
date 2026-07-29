@@ -20249,21 +20249,37 @@ function bindVentasSearch(){
   if(!inp || inp._bound) return;
   inp._bound = true;
   var timer = null;
+  // Detección de PISTOLA LECTORA: escribe varios caracteres por milisegundo.
+  // Un humano tarda >40ms entre teclas. Medimos el ritmo: si el texto entró
+  // como ráfaga (rápido y sin borrar), es un escaneo → auto-agrega. Si lo
+  // tipeó una persona, NUNCA auto-agrega: filtra el grid y la persona elige.
+  var _ultTecla = 0, _rafaga = 0;
+  inp.addEventListener('keydown', function(e){
+    var ahora = Date.now();
+    var dt = ahora - _ultTecla;
+    _ultTecla = ahora;
+    if(e.key && e.key.length === 1){          // carácter imprimible
+      if(dt < 35) _rafaga++;                    // tecla veloz → cuenta ráfaga
+      else _rafaga = 0;                         // pausa humana → corta ráfaga
+    }
+  });
   inp.addEventListener('input', function(){
     if(timer) clearTimeout(timer);
     var val = inp.value;
     _vSearchQuery = val;
+    var eraRafaga = _rafaga >= 4;               // 5+ teclas seguidas veloces = pistola (un código de barras real siempre supera esto)
     timer = setTimeout(function(){
       var t = (val || '').trim();
-      // ESCÁNER SIN ENTER: si lo tipeado coincide EXACTO con un código o código de barras,
-      // lo agregamos directo al carrito (muchas pistolas no mandan Enter). Funciona aunque
-      // haya un filtro de proveedor puesto, porque busca en todo el catálogo.
-      if(t.length >= 3){
+      // AUTO-AGREGADO solo si vino de PISTOLA (ráfaga). El tipeo humano jamás
+      // agrega solo: esto arregla el bug de que un código que coincide con el
+      // código de proveedor de otro producto se metía al carrito sin querer.
+      if(eraRafaga && t.length >= 3){
         var m = buscarProductoPorCodigo(t);
         if(m){
           agregarAlCarrito(m._id);
           inp.value = '';
           _vSearchQuery = '';
+          _rafaga = 0;
           renderGridVentas();
           return;
         }
@@ -20310,8 +20326,14 @@ function bindVentasSearch(){
 }
 
 // ── Renderizado del grid ─────────────────────────────
+// Quita acentos y unifica: "MARTÍLLO" y "martillo" matchean igual.
+function _sinAcento(s){
+  return String(s==null?'':s).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function getProductosFiltrados(){
-  var q = (_vSearchQuery||'').trim().toLowerCase();
+  var q = _sinAcento((_vSearchQuery||'').trim());
   var prov = _vProvFiltro;
 
   var base = productos;
@@ -20337,11 +20359,11 @@ function getProductosFiltrados(){
 
   for(var i=0;i<base.length;i++){
     var p = base[i];
-    var code = (p.codigo||'').toLowerCase();
-    var desc = (p.descripcion||'').toLowerCase();
-    var bar  = (p.codBarra||'').toLowerCase();
-    var marca= (p.marca||'').toLowerCase();
-    var rubro= (p.rubro||'').toLowerCase();
+    var code = _sinAcento(p.codigo);
+    var desc = _sinAcento(p.descripcion);
+    var bar  = _sinAcento(p.codBarra);
+    var marca= _sinAcento(p.marca);
+    var rubro= _sinAcento(p.rubro);
     var haystack = code+' '+desc+' '+bar+' '+marca+' '+rubro;
 
     if(single){
