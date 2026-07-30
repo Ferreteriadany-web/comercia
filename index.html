@@ -28882,12 +28882,30 @@ function lpFotosSeleccion(fileList, origen){
   var files = Array.from(fileList || []).filter(function(f){ return /\.(jpe?g|png|webp|gif)$/i.test(f.name); });
   if(!files.length){ toast('No se encontraron imágenes', 'error'); return; }
 
-  // Índice de productos por código normalizado (para match O(1))
+  // Normaliza un código para comparar: minúsculas, sin prefijo de proveedor
+  // (LUSQ-, VILLA-, DANIEL-, BLN-, etc.), sin guiones/espacios/underscores.
+  // Así "LMB-20" (carpeta) matchea con "LUSQ-LMB-20" (producto).
+  // Para PRODUCTOS: registra con y sin prefijo de proveedor.
+  function sinSeparadores(s){ return normCod(s).replace(/[-_\s]/g, ''); }
+  function sinPrefijo(s){
+    // quita SOLO prefijos conocidos de proveedor (no cualquier cosa con guión)
+    return normCod(s).replace(/^(lusq|villa|daniel|bln|bulonar|aliafor)-/, '');
+  }
+
+  // Índice de productos por varias claves (para match O(1) tolerante)
   var porCod = {};
+  function registrar(k, p){ if(k && !porCod[k]) porCod[k] = p; }
+  function registrarProducto(cod, p){
+    if(!cod) return;
+    registrar(normCod(cod), p);                          // lusq-lmb-20
+    registrar(sinSeparadores(cod), p);                   // lusqlmb20
+    var np = sinPrefijo(cod);                            // lmb-20
+    registrar(np, p);
+    registrar(sinSeparadores(np), p);                    // lmb20  ← clave para carpetas
+  }
   (productos || []).forEach(function(p){
-    if(p.codigo) porCod[normCod(p.codigo)] = p;
-    // también por código de proveedor si lo tuviera guardado
-    if(p.codBarra) { var k = normCod(p.codBarra); if(!porCod[k]) porCod[k] = p; }
+    registrarProducto(p.codigo, p);
+    if(p.codBarra) registrarProducto(p.codBarra, p);
   });
 
   // De cada archivo saco códigos candidatos: nombre sin extensión, y el nombre
@@ -28899,9 +28917,20 @@ function lpFotosSeleccion(fileList, origen){
     var archivo = partes[partes.length - 1].replace(/\.[^.]+$/, '');   // sin extensión
     var carpeta = partes.length > 1 ? partes[partes.length - 2] : '';
     var cand = [];
-    var limpiar = function(s){ return s.replace(/[_\s]*(alta|web|principal|\d+|\(\d+\))$/i, '').trim(); };
-    [archivo, limpiar(archivo), carpeta, limpiar(carpeta)].forEach(function(c){
-      if(c) cand.push(normCod(c));
+    // Sufijos que SÍ son de foto (no parte del código): _alta, _web, _1..._9
+    // al final SOLO si van tras un separador, (1), " copia". Nunca corta
+    // números pegados al código (LMB-20 conserva el 20).
+    var limpiar = function(s){
+      return s.replace(/[_\s]+(alta|web|principal|hd|grande|chica)$/i, '')
+              .replace(/[_\s]\d{1,2}$/,'')       // "_2" al final (separado)
+              .replace(/\s*\(\d+\)$/,'')        // "(1)" al final
+              .replace(/[_\s]+copia$/i,'').trim();
+    };
+    [archivo, carpeta].forEach(function(base){
+      if(!base) return;
+      cand.push(normCod(base)); cand.push(sinSeparadores(base));   // lmb-20 y lmb20
+      var l = limpiar(base);
+      if(l && l !== base){ cand.push(normCod(l)); cand.push(sinSeparadores(l)); }
     });
     return cand;
   }
