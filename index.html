@@ -28986,15 +28986,20 @@ function lpFotosSeleccion(fileList, origen){
       if(n.length >= 3) cand.push(n);
       var l = normaliza(limpiar(base));
       if(l && l !== n && l.length >= 3) cand.push(l);
-      // Código al PRINCIPIO del nombre. Robusto a varios formatos:
-      //  "7797. JUEGO"    "8390- 8391"    "8521 - 8557"    "7386 - Pistola"
-      // El código es el primer grupo de dígitos/letras, cortado por el primer
-      // separador que sea punto, guión o espacio (con o sin espacios alrededor).
-      var m = String(base).match(/^\s*([A-Za-z]?\d{3,}[A-Za-z]?)\s*[.\-–_|\s]/);
-      if(m && m[1] && m[1].length >= 3){ cand.push(normaliza(m[1])); }
-      // Fallback: si arranca con dígitos pegados a un punto/guión sin espacio
-      var m2 = String(base).match(/^\s*(\d{3,})[.\-]/);
-      if(m2 && m2[1]){ cand.push(normaliza(m2[1])); }
+      // ── Extracción de código robusta (Bremen y otros catálogos) ──
+      // Los nombres vienen en MUCHOS formatos: código al inicio, al final,
+      // con prefijo de letras (ali-6565), pegado, con punto, etc. Probamos
+      // varias formas EN ORDEN DE CONFIANZA. Como el match está limitado al
+      // proveedor elegido, usar los números del nombre es seguro.
+      // A. Código al inicio: "8390- ...", "7797. ...", "ali-6565-..."
+      var mA = String(base).match(/^\s*([A-Za-z]{0,4}-?\d{3,}[A-Za-z]?)\s*[.\-–_|\s]/);
+      if(mA && mA[1]){ cand.push(normaliza(mA[1])); cand.push(sinPrefijo(normaliza(mA[1]))); }
+      // B. Prefijo de letras + número: "ali-6565", "aut-7240", "boc-4553"
+      var mB = String(base).match(/^([A-Za-z]{2,4})-(\d{3,5})/);
+      if(mB && mB[2]){ cand.push(mB[2]); }
+      // C. Cualquier número de 3 a 5 dígitos, en orden de aparición (respaldo)
+      var nums = String(base).match(/\d{3,5}/g) || [];
+      nums.forEach(function(n){ cand.push(n); });
     });
     return cand;
   }
