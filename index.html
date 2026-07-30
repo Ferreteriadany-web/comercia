@@ -28986,10 +28986,15 @@ function lpFotosSeleccion(fileList, origen){
       if(n.length >= 3) cand.push(n);
       var l = normaliza(limpiar(base));
       if(l && l !== n && l.length >= 3) cand.push(l);
-      // Código al PRINCIPIO del nombre: "8293 - Cinta - ML - 01" → "8293".
-      // Toma lo que va antes del primer separador " - " / " _ " / " | ".
-      var m = String(base).match(/^\s*([A-Za-z0-9./]+)\s*[-_|]/);
+      // Código al PRINCIPIO del nombre. Robusto a varios formatos:
+      //  "7797. JUEGO"    "8390- 8391"    "8521 - 8557"    "7386 - Pistola"
+      // El código es el primer grupo de dígitos/letras, cortado por el primer
+      // separador que sea punto, guión o espacio (con o sin espacios alrededor).
+      var m = String(base).match(/^\s*([A-Za-z]?\d{3,}[A-Za-z]?)\s*[.\-–_|\s]/);
       if(m && m[1] && m[1].length >= 3){ cand.push(normaliza(m[1])); }
+      // Fallback: si arranca con dígitos pegados a un punto/guión sin espacio
+      var m2 = String(base).match(/^\s*(\d{3,})[.\-]/);
+      if(m2 && m2[1]){ cand.push(normaliza(m2[1])); }
     });
     return cand;
   }
