@@ -2475,7 +2475,7 @@
   .prod-foto-preview img{
     width:100%;
     height:100%;
-    object-fit:cover;
+    object-fit:contain;   /* foto completa */
   }
   .prod-foto-placeholder{
     font-size:36px;
@@ -3217,7 +3217,8 @@
   .vcard-img img{
     width:100%;
     height:100%;
-    object-fit:cover;
+    object-fit:contain;   /* foto completa, sin recortar el producto */
+    background:#fff;
     display:block;
   }
 
@@ -7078,6 +7079,7 @@
               <div id="lpFotosPreview" style="max-height:220px;overflow-y:auto;font-size:12px;border:1px solid var(--line);border-radius:var(--r-sm);padding:8px;margin-bottom:12px"></div>
               <button class="btn btn-primary" id="lpFotosBtnSubir" onclick="lpFotosSubir()">Subir fotos a los productos</button>
               <div id="lpFotosProgreso" style="margin-top:10px;font-size:13px;color:var(--text-mute)"></div>
+              <button class="btn btn-sm btn-light" id="lpFotosUndo" onclick="lpFotosDeshacer()" style="display:none;margin-top:10px">Deshacer</button>
             </div>
           </div>
 
@@ -11069,7 +11071,7 @@ function injectStorefrontStyles(){
     '.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}',
     '.sf-card{background:#fff;border:1px solid #ececec;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}',
     '.sf-thumb{aspect-ratio:1/1;background:#f0f0f1;display:flex;align-items:center;justify-content:center;overflow:hidden}',
-    '.sf-thumb img{width:100%;height:100%;object-fit:cover}',
+    '.sf-thumb img{width:100%;height:100%;object-fit:contain;background:#fff}',
     '.sf-thumb .sf-noimg{font-size:30px;opacity:.3}',
     '.sf-body{padding:11px 12px;display:flex;flex-direction:column;gap:6px;flex:1}',
     '.sf-pname{font-size:13.5px;font-weight:600;line-height:1.3;color:#1a1a2e}',
@@ -28877,35 +28879,48 @@ function lpCambiarTab(tab){
 // cuyo CÓDIGO coincide con el nombre del archivo O de la carpeta que la contiene.
 // Es la vía confiable: el nombre = código, sin adivinar por posición.
 var _lpFotosPendientes = [];   // [{file, code, prod}]
+var _lpFotosUltimaCarga = [];  // códigos tocados en la última subida (para deshacer)
+
+async function lpFotosDeshacer(){
+  if(!_lpFotosUltimaCarga.length){ toast('No hay carga para deshacer', 'info'); return; }
+  if(!confirm('¿Quitar las ' + _lpFotosUltimaCarga.length + ' fotos que acabás de cargar? Los productos quedan sin foto.')) return;
+  await lpQuitarFotosPorCodigos(_lpFotosUltimaCarga);
+  _lpFotosUltimaCarga = [];
+  var undo = document.getElementById('lpFotosUndo');
+  if(undo) undo.style.display = 'none';
+}
 
 function lpFotosSeleccion(fileList, origen){
   var files = Array.from(fileList || []).filter(function(f){ return /\.(jpe?g|png|webp|gif)$/i.test(f.name); });
   if(!files.length){ toast('No se encontraron imágenes', 'error'); return; }
 
-  // Normaliza un código para comparar: minúsculas, sin prefijo de proveedor
-  // (LUSQ-, VILLA-, DANIEL-, BLN-, etc.), sin guiones/espacios/underscores.
-  // Así "LMB-20" (carpeta) matchea con "LUSQ-LMB-20" (producto).
-  // Para PRODUCTOS: registra con y sin prefijo de proveedor.
-  function sinSeparadores(s){ return normCod(s).replace(/[-_\s]/g, ''); }
+  // Normalización para comparar códigos. ESTRICTA para evitar falsos matches:
+  // baja a minúsculas y unifica separadores, pero NO borra los separadores ni
+  // mezcla partes distintas del código. "lmb-20" y "lmb-20p" siguen distintos.
+  function normaliza(s){
+    return normCod(s).replace(/[\s_]+/g, '-')   // espacios/underscore → guión
+                     .replace(/-+/g, '-')         // guiones repetidos → uno
+                     .replace(/^-|-$/g, '');       // sin guión al borde
+  }
+  // Quita SOLO el prefijo de proveedor conocido, exacto.
   function sinPrefijo(s){
-    // quita SOLO prefijos conocidos de proveedor (no cualquier cosa con guión)
-    return normCod(s).replace(/^(lusq|villa|daniel|bln|bulonar|aliafor)-/, '');
+    return normaliza(s).replace(/^(lusq|villa|daniel|bln|bulonar|aliafor)-/, '');
   }
 
-  // Índice de productos por varias claves (para match O(1) tolerante)
+  // Índice: cada producto se registra por su código EXACTO normalizado y por su
+  // código SIN el prefijo de proveedor. Nada más. Sin claves laxas.
   var porCod = {};
-  function registrar(k, p){ if(k && !porCod[k]) porCod[k] = p; }
-  function registrarProducto(cod, p){
-    if(!cod) return;
-    registrar(normCod(cod), p);                          // lusq-lmb-20
-    registrar(sinSeparadores(cod), p);                   // lusqlmb20
-    var np = sinPrefijo(cod);                            // lmb-20
-    registrar(np, p);
-    registrar(sinSeparadores(np), p);                    // lmb20  ← clave para carpetas
+  function registrar(k, p){
+    if(!k || k.length < 3) return;                 // claves de <3 chars son ambiguas: se ignoran
+    if(!porCod[k]) porCod[k] = p;
   }
   (productos || []).forEach(function(p){
-    registrarProducto(p.codigo, p);
-    if(p.codBarra) registrarProducto(p.codBarra, p);
+    if(p.codigo){
+      registrar(normaliza(p.codigo), p);           // lusq-lmb-20
+      registrar(sinPrefijo(p.codigo), p);          // lmb-20
+    }
+    // OJO: el código de barras NO se usa para matchear fotos (es numérico y
+    // colisiona fácil, como pasó con 5982). Solo el código de producto.
   });
 
   // De cada archivo saco códigos candidatos: nombre sin extensión, y el nombre
@@ -28917,20 +28932,19 @@ function lpFotosSeleccion(fileList, origen){
     var archivo = partes[partes.length - 1].replace(/\.[^.]+$/, '');   // sin extensión
     var carpeta = partes.length > 1 ? partes[partes.length - 2] : '';
     var cand = [];
-    // Sufijos que SÍ son de foto (no parte del código): _alta, _web, _1..._9
-    // al final SOLO si van tras un separador, (1), " copia". Nunca corta
-    // números pegados al código (LMB-20 conserva el 20).
+    // Quita SOLO sufijos evidentes de foto, tras separador, sin comer el código.
     var limpiar = function(s){
-      return s.replace(/[_\s]+(alta|web|principal|hd|grande|chica)$/i, '')
-              .replace(/[_\s]\d{1,2}$/,'')       // "_2" al final (separado)
-              .replace(/\s*\(\d+\)$/,'')        // "(1)" al final
-              .replace(/[_\s]+copia$/i,'').trim();
+      return s.replace(/[_\s]+(alta|web|principal|hd|grande|chica|copia)$/i, '')
+              .replace(/[_\s]+\d{1,2}$/,'')      // "_2" separado al final
+              .replace(/\s*\(\d+\)$/,'')        // "(1)"
+              .trim();
     };
     [archivo, carpeta].forEach(function(base){
       if(!base) return;
-      cand.push(normCod(base)); cand.push(sinSeparadores(base));   // lmb-20 y lmb20
-      var l = limpiar(base);
-      if(l && l !== base){ cand.push(normCod(l)); cand.push(sinSeparadores(l)); }
+      var n = normaliza(base);
+      if(n.length >= 3) cand.push(n);
+      var l = normaliza(limpiar(base));
+      if(l && l !== n && l.length >= 3) cand.push(l);
     });
     return cand;
   }
@@ -29008,8 +29022,15 @@ async function lpFotosSubir(){
   await Promise.all([worker(), worker(), worker(), worker()]);
 
   if(localUpdates.length){ try{ await idbGuardarBatch(currentEmpresaId, localUpdates); }catch(e){} }
+  // Guardar qué productos se tocaron, para poder DESHACER esta carga
+  _lpFotosUltimaCarga = localUpdates.map(function(p){ return p.codigo; });
   prog.textContent = '';
   toast('&#128247; ' + ok + ' foto(s) cargadas' + (fallas ? ' \u00b7 ' + fallas + ' fallaron' : ''), fallas ? 'info' : 'success');
+  var undo = document.getElementById('lpFotosUndo');
+  if(undo && _lpFotosUltimaCarga.length){
+    undo.style.display = '';
+    undo.textContent = '\u21b6 Deshacer esta carga (' + _lpFotosUltimaCarga.length + ' fotos)';
+  }
   if(typeof renderProductos === 'function') renderProductos();
   if(typeof marcarCambioCatalogo === 'function') marcarCambioCatalogo();
   btn.disabled = false;
