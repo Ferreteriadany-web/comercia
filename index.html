@@ -28929,9 +28929,11 @@ function lpFotosSeleccion(fileList, origen){
                      .replace(/-+/g, '-')         // guiones repetidos → uno
                      .replace(/^-|-$/g, '');       // sin guión al borde
   }
-  // Quita SOLO el prefijo de proveedor conocido, exacto.
+  // Quita el prefijo de proveedor: cualquier bloque de letras + guión al inicio.
+  // "bremen-8201"→"8201", "daniel-125/c"→"125/c", "lusq-lmb-20"→"lmb-20".
+  // Es seguro porque el match ya está acotado al proveedor elegido.
   function sinPrefijo(s){
-    return normaliza(s).replace(/^(lusq|villa|daniel|bln|bulonar|aliafor)-/, '');
+    return normaliza(s).replace(/^[a-z]+-/, '');
   }
 
   // Proveedor seleccionado: si hay uno, SOLO se indexan sus productos. Esto
