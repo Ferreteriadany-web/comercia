@@ -7054,6 +7054,13 @@
               </div>
             </div>
 
+            <div style="background:rgba(220,60,60,.06);border-left:3px solid var(--danger);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px;font-size:12.5px">
+              <b>Importante:</b> eleg&iacute; el proveedor de estas fotos. As&iacute; una foto solo se asigna a un producto de <b>ese</b> proveedor, y no se mezcla con otro que tenga el mismo n&uacute;mero de c&oacute;digo.
+            </div>
+            <label class="arca-label">Proveedor de estas fotos</label>
+            <select class="form-input" id="lpFotosProveedor" style="max-width:340px;margin-bottom:14px" onchange="lpFotosProvCambio()">
+              <option value="">Todos los proveedores (menos seguro)</option>
+            </select>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
               <label class="btn btn-primary" style="cursor:pointer">
                 &#128193; Elegir carpeta
@@ -28871,6 +28878,7 @@ function lpCambiarTab(tab){
     lpCargarHistorial();
   } else if(tab === 'fotos'){
     document.getElementById('lpPaneFotos').classList.add('active');
+    lpFotosPoblarProveedores();
   }
 }
 
@@ -28880,6 +28888,24 @@ function lpCambiarTab(tab){
 // Es la vía confiable: el nombre = código, sin adivinar por posición.
 var _lpFotosPendientes = [];   // [{file, code, prod}]
 var _lpFotosUltimaCarga = [];  // códigos tocados en la última subida (para deshacer)
+var _lpFotosArchivosCache = null;  // últimos archivos elegidos (para re-filtrar al cambiar proveedor)
+
+function lpFotosPoblarProveedores(){
+  var sel = document.getElementById('lpFotosProveedor');
+  if(!sel) return;
+  var set = {};
+  (productos || []).forEach(function(p){ var v = (p.proveedor||'').trim(); if(v) set[v] = (set[v]||0) + 1; });
+  var provs = Object.keys(set).sort();
+  var actual = sel.value;
+  sel.innerHTML = '<option value="">Todos los proveedores (menos seguro)</option>' +
+    provs.map(function(pr){ return '<option value="' + eH(pr) + '">' + eH(pr) + ' (' + set[pr] + ')</option>'; }).join('');
+  if(actual) sel.value = actual;
+}
+
+function lpFotosProvCambio(){
+  // si ya se eligieron archivos, re-filtrar con el nuevo proveedor
+  if(_lpFotosArchivosCache) lpFotosSeleccion(_lpFotosArchivosCache, 'archivos');
+}
 
 async function lpFotosDeshacer(){
   if(!_lpFotosUltimaCarga.length){ toast('No hay carga para deshacer', 'info'); return; }
@@ -28893,6 +28919,7 @@ async function lpFotosDeshacer(){
 function lpFotosSeleccion(fileList, origen){
   var files = Array.from(fileList || []).filter(function(f){ return /\.(jpe?g|png|webp|gif)$/i.test(f.name); });
   if(!files.length){ toast('No se encontraron imágenes', 'error'); return; }
+  _lpFotosArchivosCache = files;   // recordar para re-filtrar si cambia el proveedor
 
   // Normalización para comparar códigos. ESTRICTA para evitar falsos matches:
   // baja a minúsculas y unifica separadores, pero NO borra los separadores ni
@@ -28907,6 +28934,18 @@ function lpFotosSeleccion(fileList, origen){
     return normaliza(s).replace(/^(lusq|villa|daniel|bln|bulonar|aliafor)-/, '');
   }
 
+  // Proveedor seleccionado: si hay uno, SOLO se indexan sus productos. Esto
+  // evita que una foto de Bremen (código 8201) caiga en un producto DANIEL-8201:
+  // Daniel queda fuera del universo de búsqueda.
+  var provSel = '';
+  var selEl = document.getElementById('lpFotosProveedor');
+  if(selEl) provSel = (selEl.value || '').trim().toLowerCase();
+
+  var universo = (productos || []).filter(function(p){
+    if(!provSel) return true;
+    return (p.proveedor || '').trim().toLowerCase() === provSel;
+  });
+
   // Índice: cada producto se registra por su código EXACTO normalizado y por su
   // código SIN el prefijo de proveedor. Nada más. Sin claves laxas.
   var porCod = {};
@@ -28914,7 +28953,7 @@ function lpFotosSeleccion(fileList, origen){
     if(!k || k.length < 3) return;                 // claves de <3 chars son ambiguas: se ignoran
     if(!porCod[k]) porCod[k] = p;
   }
-  (productos || []).forEach(function(p){
+  universo.forEach(function(p){
     if(p.codigo){
       registrar(normaliza(p.codigo), p);           // lusq-lmb-20
       registrar(sinPrefijo(p.codigo), p);          // lmb-20
