@@ -7080,8 +7080,11 @@
                   <div style="color:var(--text-mute)"><b id="lpFotosNoMatch">0</b> sin producto (se ignoran)</div>
                 </div>
               </div>
-              <label class="lp-checkbox" style="margin-bottom:12px">
+              <label class="lp-checkbox" style="margin-bottom:8px">
                 <input type="checkbox" id="lpFotosReemplazar" checked> Reemplazar la foto si el producto ya tiene una
+              </label>
+              <label class="lp-checkbox" style="margin-bottom:12px">
+                <input type="checkbox" id="lpFotosHerencia" checked onchange="_lpFotosHerenciaFamilia=this.checked; if(_lpFotosArchivosCache) lpFotosSeleccion(_lpFotosArchivosCache,'archivos');"> Compartir foto entre productos de la misma familia (ej. medidas de un mismo artículo)
               </label>
               <div id="lpFotosPreview" style="max-height:220px;overflow-y:auto;font-size:12px;border:1px solid var(--line);border-radius:var(--r-sm);padding:8px;margin-bottom:12px"></div>
               <button class="btn btn-primary" id="lpFotosBtnSubir" onclick="lpFotosSubir()">Subir fotos a los productos</button>
@@ -28889,6 +28892,7 @@ function lpCambiarTab(tab){
 var _lpFotosPendientes = [];   // [{file, code, prod}]
 var _lpFotosUltimaCarga = [];  // códigos tocados en la última subida (para deshacer)
 var _lpFotosArchivosCache = null;  // últimos archivos elegidos (para re-filtrar al cambiar proveedor)
+var _lpFotosHerenciaFamilia = true; // familias comparten foto de un hermano cercano
 
 function lpFotosPoblarProveedores(){
   var sel = document.getElementById('lpFotosProveedor');
@@ -29005,20 +29009,58 @@ function lpFotosSeleccion(fileList, origen){
     return cand;
   }
 
-  var pend = [], noMatch = 0, vistos = {}, archivoUsado = {};
+  var pend = [], noMatch = 0, vistos = {};
   files.forEach(function(f){
     var prods = null;
     var cands = candidatos(f);
     for(var i = 0; i < cands.length; i++){ if(porCod[cands[i]]){ prods = porCod[cands[i]]; break; } }
     if(prods && prods.length){
-      // Repartir esta foto a TODOS los productos de la familia que aún no
-      // tengan una asignada en esta sesión. Así una foto compartida cubre a
-      // todas las variantes (arandela nº0, nº1, nº2...), no solo a la primera.
       prods.forEach(function(prod){
         if(!vistos[prod._id]){ vistos[prod._id] = true; pend.push({ file: f, prod: prod }); }
       });
     } else noMatch++;
   });
+
+  // ── HERENCIA DE FAMILIA ──
+  // Muchos proveedores usan una foto para una familia (adaptadores, alambres,
+  // arandelas por medida) y solo fotografían una variante. Los productos sin
+  // foto propia heredan la de un HERMANO cercano de su misma familia: mismo
+  // tipo de producto (primera palabra de la descripción) y código cercano en
+  // el listado. Solo si el proveedor está seleccionado (para no cruzar familias
+  // de proveedores distintos).
+  if(_lpFotosHerenciaFamilia && provSel){
+    // universo ordenado por código, con el archivo asignado a cada uno
+    var archivoDe = {};
+    pend.forEach(function(x){ archivoDe[x.prod._id] = x.file; });
+    var tipoDe = function(p){
+      var d = (p.descripcion || '').toUpperCase().replace(/[^A-ZÑ ]/g, ' ');
+      var ws = d.split(/\s+/).filter(function(w){ return w.length > 3 && ['PARA','CON','LOS','LAS','POR'].indexOf(w) < 0; });
+      return ws[0] || '';
+    };
+    // ordenar el universo por código (para que 'hermano cercano' tenga sentido)
+    var orden = universo.slice().sort(function(a,b){
+      return String(a.codigo||'').localeCompare(String(b.codigo||''), undefined, {numeric:true});
+    });
+    var heredadas = 0;
+    orden.forEach(function(p, idx){
+      if(vistos[p._id]) return;              // ya tiene foto propia
+      var t = tipoDe(p);
+      if(!t) return;
+      // buscar hermano con foto en ±5 posiciones, mismo tipo
+      for(var d = 1; d <= 5 && !vistos[p._id]; d++){
+        [idx - d, idx + d].forEach(function(j){
+          if(vistos[p._id] || j < 0 || j >= orden.length) return;
+          var q = orden[j];
+          if(archivoDe[q._id] && tipoDe(q) === t){
+            vistos[p._id] = true;
+            pend.push({ file: archivoDe[q._id], prod: p, heredada: true });
+            heredadas++;
+          }
+        });
+      }
+    });
+    if(heredadas) console.log('[fotos] herencia de familia:', heredadas, 'productos');
+  }
 
   _lpFotosPendientes = pend;
   document.getElementById('lpFotosTotal').textContent = files.length;
