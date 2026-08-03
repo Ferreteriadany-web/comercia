@@ -7084,7 +7084,7 @@
                 <input type="checkbox" id="lpFotosReemplazar" checked> Reemplazar la foto si el producto ya tiene una
               </label>
               <label class="lp-checkbox" style="margin-bottom:12px">
-                <input type="checkbox" id="lpFotosHerencia" checked onchange="_lpFotosHerenciaFamilia=this.checked; if(_lpFotosArchivosCache) lpFotosSeleccion(_lpFotosArchivosCache,'archivos');"> Compartir foto entre productos de la misma familia (ej. medidas de un mismo artículo)
+                <input type="checkbox" id="lpFotosHerencia" onchange="_lpFotosHerenciaFamilia=this.checked; if(_lpFotosArchivosCache) lpFotosSeleccion(_lpFotosArchivosCache,'archivos');"> Compartir foto entre productos de la misma familia (ej. medidas de un mismo artículo)
               </label>
               <div id="lpFotosPreview" style="max-height:220px;overflow-y:auto;font-size:12px;border:1px solid var(--line);border-radius:var(--r-sm);padding:8px;margin-bottom:12px"></div>
               <button class="btn btn-primary" id="lpFotosBtnSubir" onclick="lpFotosSubir()">Subir fotos a los productos</button>
@@ -28892,7 +28892,7 @@ function lpCambiarTab(tab){
 var _lpFotosPendientes = [];   // [{file, code, prod}]
 var _lpFotosUltimaCarga = [];  // códigos tocados en la última subida (para deshacer)
 var _lpFotosArchivosCache = null;  // últimos archivos elegidos (para re-filtrar al cambiar proveedor)
-var _lpFotosHerenciaFamilia = true; // familias comparten foto de un hermano cercano
+var _lpFotosHerenciaFamilia = false; // OFF por defecto: una foto equivocada es peor que sin foto
 
 function lpFotosPoblarProveedores(){
   var sel = document.getElementById('lpFotosProveedor');
@@ -29032,10 +29032,16 @@ function lpFotosSeleccion(fileList, origen){
     // universo ordenado por código, con el archivo asignado a cada uno
     var archivoDe = {};
     pend.forEach(function(x){ archivoDe[x.prod._id] = x.file; });
-    var tipoDe = function(p){
-      var d = (p.descripcion || '').toUpperCase().replace(/[^A-ZÑ ]/g, ' ');
-      var ws = d.split(/\s+/).filter(function(w){ return w.length > 3 && ['PARA','CON','LOS','LAS','POR'].indexOf(w) < 0; });
-      return ws[0] || '';
+    // "Firma" de familia: la descripción SIN números ni medidas. Dos productos
+    // son de la misma familia solo si su firma es idéntica (misma descripción
+    // salvo la medida). "LIJA AL AGUA GRANO 120" y "...GRANO 150" → misma firma
+    // "LIJA AL AGUA GRANO". Un crique tiene otra firma → nunca hereda de una lija.
+    var firmaDe = function(p){
+      return (p.descripcion || '').toUpperCase()
+        .replace(/BREMEN|®|\[|\]/g, ' ')
+        .replace(/\d+/g, ' ')                 // quita todos los números/medidas
+        .replace(/[^A-ZÑ ]/g, ' ')
+        .replace(/\s+/g, ' ').trim();
     };
     // ordenar el universo por código (para que 'hermano cercano' tenga sentido)
     var orden = universo.slice().sort(function(a,b){
@@ -29044,14 +29050,14 @@ function lpFotosSeleccion(fileList, origen){
     var heredadas = 0;
     orden.forEach(function(p, idx){
       if(vistos[p._id]) return;              // ya tiene foto propia
-      var t = tipoDe(p);
-      if(!t) return;
-      // buscar hermano con foto en ±5 posiciones, mismo tipo
-      for(var d = 1; d <= 5 && !vistos[p._id]; d++){
+      var fp = firmaDe(p);
+      if(!fp || fp.length < 6) return;       // firma muy corta = poco específica, no arriesgar
+      // buscar hermano con foto en ±3 posiciones cuya firma sea IDÉNTICA
+      for(var d = 1; d <= 3 && !vistos[p._id]; d++){
         [idx - d, idx + d].forEach(function(j){
           if(vistos[p._id] || j < 0 || j >= orden.length) return;
           var q = orden[j];
-          if(archivoDe[q._id] && tipoDe(q) === t){
+          if(archivoDe[q._id] && firmaDe(q) === fp){   // misma firma exacta = misma familia
             vistos[p._id] = true;
             pend.push({ file: archivoDe[q._id], prod: p, heredada: true });
             heredadas++;
