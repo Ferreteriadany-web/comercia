@@ -28952,16 +28952,17 @@ function lpFotosSeleccion(fileList, origen){
   // código SIN el prefijo de proveedor. Nada más. Sin claves laxas.
   var porCod = {};
   function registrar(k, p){
-    if(!k || k.length < 3) return;                 // claves de <3 chars son ambiguas: se ignoran
-    if(!porCod[k]) porCod[k] = p;
+    if(!k || k.length < 3) return;                 // claves de <3 chars son ambiguas
+    if(!porCod[k]) porCod[k] = [];
+    // una misma clave puede corresponder a VARIOS productos de una familia
+    // (ej. arandela nº0, nº1, nº2 que comparten foto). Guardamos todos.
+    if(porCod[k].indexOf(p) < 0) porCod[k].push(p);
   }
   universo.forEach(function(p){
     if(p.codigo){
-      registrar(normaliza(p.codigo), p);           // lusq-lmb-20
-      registrar(sinPrefijo(p.codigo), p);          // lmb-20
+      registrar(normaliza(p.codigo), p);
+      registrar(sinPrefijo(p.codigo), p);
     }
-    // OJO: el código de barras NO se usa para matchear fotos (es numérico y
-    // colisiona fácil, como pasó con 5982). Solo el código de producto.
   });
 
   // De cada archivo saco códigos candidatos: nombre sin extensión, y el nombre
@@ -29004,14 +29005,18 @@ function lpFotosSeleccion(fileList, origen){
     return cand;
   }
 
-  var pend = [], noMatch = 0, vistos = {};
+  var pend = [], noMatch = 0, vistos = {}, archivoUsado = {};
   files.forEach(function(f){
-    var prod = null;
+    var prods = null;
     var cands = candidatos(f);
-    for(var i = 0; i < cands.length; i++){ if(porCod[cands[i]]){ prod = porCod[cands[i]]; break; } }
-    if(prod){
-      // si un producto recibe varias fotos, nos quedamos con la primera (la más "limpia")
-      if(!vistos[prod._id]){ vistos[prod._id] = true; pend.push({ file: f, prod: prod }); }
+    for(var i = 0; i < cands.length; i++){ if(porCod[cands[i]]){ prods = porCod[cands[i]]; break; } }
+    if(prods && prods.length){
+      // Repartir esta foto a TODOS los productos de la familia que aún no
+      // tengan una asignada en esta sesión. Así una foto compartida cubre a
+      // todas las variantes (arandela nº0, nº1, nº2...), no solo a la primera.
+      prods.forEach(function(prod){
+        if(!vistos[prod._id]){ vistos[prod._id] = true; pend.push({ file: f, prod: prod }); }
+      });
     } else noMatch++;
   });
 
