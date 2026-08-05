@@ -7202,6 +7202,36 @@
               <p class="lp-form-help" style="margin-top:6px">Pasa los productos de este proveedor de precio de PACK a precio por UNIDAD (precio &divide; cantidad) y activa la venta por Unidad/Caja. <b>Es manual y te pide confirmaci&oacute;n</b>: no toca nada hasta que lo apret&aacute;s. Convien&eacute; revisar unos pocos productos despu&eacute;s de aplicar.</p>
             </div>
             <div class="lp-form-row">
+              <label>Venta fraccionada (rollo / bobina que se vende por medida)</label>
+              <p class="lp-form-help" style="margin-bottom:8px">Para productos que compr&aacute;s por <b>bulto</b> pero vend&eacute;s por <b>medida</b> (ej.: todos los cables vienen en rollo de 100 metros). El precio cargado sigue siendo el del bulto (el mayorista); el sistema calcula solo el precio por metro/kg. Eleg&iacute; una palabra para filtrar (ej. &laquo;CABLE&raquo;) as&iacute; solo afecta esos productos.</p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                  <label style="font-size:12px;color:var(--text-mute)">Filtro (palabra en la descripción)</label>
+                  <input type="text" class="search-input" id="lpFraccFiltro" placeholder="Ej: CABLE" style="max-width:160px">
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-mute)">Contenido del bulto</label>
+                  <input type="number" class="search-input" id="lpFraccContenido" placeholder="Ej: 100" min="0" step="0.01" style="max-width:120px">
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--text-mute)">Unidad</label>
+                  <select class="search-input" id="lpFraccUnidad" style="max-width:120px">
+                    <option value="metro">metro</option>
+                    <option value="cm">cm</option>
+                    <option value="kg">kg</option>
+                    <option value="gramo">gramo</option>
+                    <option value="litro">litro</option>
+                    <option value="unidad">unidad</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-sm btn-light" style="margin-top:8px" onclick="lpConfigFraccionMasiva((document.getElementById('lpModalNombre')||{}).value, document.getElementById('lpFraccFiltro').value, document.getElementById('lpFraccContenido').value, document.getElementById('lpFraccUnidad').value)">&#9986; Configurar venta fraccionada en estos productos</button>
+              <p class="lp-form-help" style="margin-top:6px">Te muestra cu&aacute;ntos productos matchean y te pide confirmaci&oacute;n antes de aplicar. No toca el precio, solo activa la venta por medida.</p>
+              <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+              <button class="btn btn-sm btn-primary" onclick="lpAutoDetectarPacks((document.getElementById('lpModalNombre')||{}).value)">&#128269; Detectar packs de unidades autom&aacute;ticamente</button>
+              <p class="lp-form-help" style="margin-top:6px">Lee las descripciones de este proveedor y detecta solo los <b>packs de unidades iguales</b> (&laquo;[5 UNID]&raquo;, &laquo;X10&raquo;, &laquo;(25 UNI)&raquo;) para venderse por unidad. <b>Los kits, juegos y sets NO se dividen</b> (traen piezas distintas). Te muestra cu&aacute;ntos detect&oacute; antes de aplicar.</p>
+            </div>
+            <div class="lp-form-row">
               <label>Tramos de ganancia por monto</label>
               <p class="lp-form-help">A productos más baratos podés sacarles más ganancia. A más caros, menos. Los tramos se aplican según el costo del producto.</p>
               <div id="lpModalTramos"></div>
@@ -30232,6 +30262,130 @@ function _lpContarProductosPorProv(){
     cuenta[n] = (cuenta[n] || 0) + 1;
   });
   return cuenta;
+}
+
+// ── DETECCIÓN DE PACK DE UNIDADES (para venta fraccionada por unidad) ──
+// Devuelve la cantidad de unidades IGUALES de un pack, o 0 si no aplica.
+// IMPORTANTE: excluye KITS/JUEGOS/SETS, que traen piezas distintas y NO se
+// dividen (no vendés un cuarto de juego). Reconoce varios formatos mezclados.
+function lpDetectarPackUnidades(desc){
+  var s = ' ' + String(desc||'').toLowerCase() + ' ';
+  // 1) Si es kit/juego/set/combo/surtido → NO se divide, cortar acá.
+  if(/\b(juego|jgo|juegos|kit|set|sets|combo|surtido|surtida|piezas|pzas|pcs|jg)\b/.test(s)) return 0;
+  var m;
+  // 2) [5 UNID] / [10 UNIDADES] entre corchetes
+  m = s.match(/\[\s*(\d{1,4})\s*(?:uni|unid|unidades|u)\s*\]/);
+  if(m) return parseInt(m[1],10);
+  // 3) (5 UNI) entre paréntesis
+  m = s.match(/\(\s*(\d{1,4})\s*(?:uni|unid|unidades|u)\b/);
+  if(m) return parseInt(m[1],10);
+  // 4) "X 5 UNID" / "POR 10 U"
+  m = s.match(/(?:x|por)\s*(\d{1,4})\s*(?:uni|unid|unidades|u)\b/);
+  if(m) return parseInt(m[1],10);
+  // 5) pack/blister/caja/bolsa/sobre/tira X N (NO set/juego, ya excluidos arriba)
+  m = s.match(/\b(?:pack|blister|caja|bolsa|sobre|tira|display)\s*(?:x|de|por)?\s*(\d{1,4})\b/);
+  if(m) return parseInt(m[1],10);
+  // 6) "X5" / "X 10" suelto, evitando medidas (x40mm, x2", x10kg, etc.)
+  m = s.match(/\bx\s*(\d{1,4})\b(?!\s*(?:mm|cm|mts?|m\b|"|pulg|pulgadas?|kg|grs?|g\b|lts?|l\b|cc|cm3|w|v|a\b|hp|rpm|psi))/);
+  if(m) return parseInt(m[1],10);
+  return 0;
+}
+
+// Detecta y configura automáticamente los PACKS de un proveedor para venta por
+// unidad. Lee la cantidad de cada descripción ([5 UNID], X10...), excluye kits,
+// y marca cada producto con su contenido. Unidad de venta = "unidad".
+async function lpAutoDetectarPacks(provNombre){
+  if(!provNombre){ toast('Elegí un proveedor', 'error'); return; }
+  var norm = function(s){ return (typeof iaNorm === 'function') ? iaNorm(s) : String(s||'').toLowerCase().trim(); };
+  var nN = norm(provNombre);
+  var candidatos = [];
+  var kits = 0;
+  (productos || []).forEach(function(p){
+    if(norm(p.proveedor) !== nN) return;
+    var texto = (p.descripcion||'') + ' ' + (p.nombre||'');
+    // contar kits excluidos (informativo)
+    if(/\b(juego|jgo|kit|set|combo|surtido|piezas|pzas|pcs)\b/i.test(texto)){ kits++; return; }
+    var n = lpDetectarPackUnidades(texto);
+    if(n > 1) candidatos.push({ p: p, n: n });
+  });
+  if(candidatos.length === 0){
+    toast('No se detectaron packs de unidades en "' + provNombre + '"' + (kits ? ' (' + kits + ' kits/juegos ignorados)' : ''), 'info');
+    return;
+  }
+  var msg = 'Se detectaron ' + candidatos.length + ' producto' + (candidatos.length!==1?'s':'') +
+    ' con cantidad de unidades en "' + provNombre + '" (ej.: [5 UNID], X10).\n\n' +
+    (kits ? kits + ' kit(s)/juego(s) se ignoran (esos NO se dividen).\n\n' : '') +
+    'Se van a configurar para poder venderse por unidad (el precio del pack ÷ la cantidad, redondeando arriba). El precio cargado NO se toca.\n\n¿Continuar?';
+  if(!await confirmComercia(msg)) return;
+  var nowIso = new Date().toISOString();
+  try{
+    var batchSize = 400;
+    for(var start = 0; start < candidatos.length; start += batchSize){
+      var slice = candidatos.slice(start, start + batchSize);
+      var batch = db.batch();
+      slice.forEach(function(it){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(it.p._id);
+        batch.set(ref, { fraccContenido: it.n, fraccUnidad: 'unidad', updatedAt: nowIso }, { merge: true });
+        it.p.fraccContenido = it.n; it.p.fraccUnidad = 'unidad'; it.p.updatedAt = nowIso;
+      });
+      await batch.commit();
+    }
+    toast('&#9989; ' + candidatos.length + ' pack(s) configurados para venta por unidad', 'success');
+    if(typeof renderProductos === 'function') renderProductos();
+  }catch(e){
+    console.error('auto packs', e);
+    toast('Error: ' + (e && e.message ? e.message : e), 'error');
+  }
+}
+
+// ── CONFIGURACIÓN FRACCIONADA MASIVA ──
+// Aplica "venta por medida" (contenido + unidad) a un grupo de productos de un
+// proveedor filtrados por una palabra. Ej: proveedor Nano, filtro "CABLE",
+// contenido 100, unidad metro → todos los cables de Nano se venden por metro.
+// El precio del producto NO se toca (sigue siendo el del bulto); solo se marca
+// cómo se fracciona. El precio por metro se deriva solo en el POS.
+async function lpConfigFraccionMasiva(provNombre, filtroTexto, contenido, unidad){
+  contenido = Number(contenido) || 0;
+  if(!provNombre){ toast('Elegí un proveedor', 'error'); return; }
+  if(contenido <= 0){ toast('El contenido del bulto debe ser mayor a 0', 'error'); return; }
+  if(!unidad){ toast('Elegí la unidad de venta', 'error'); return; }
+  var norm = function(s){ return (typeof iaNorm === 'function') ? iaNorm(s) : String(s||'').toLowerCase().trim(); };
+  var nN = norm(provNombre);
+  var filtro = norm(filtroTexto || '');
+  var afectados = (productos || []).filter(function(p){
+    if(norm(p.proveedor) !== nN) return false;
+    if(filtro && norm((p.descripcion||'') + ' ' + (p.nombre||'')).indexOf(filtro) < 0) return false;
+    return true;
+  });
+  if(afectados.length === 0){
+    toast('No hay productos de "' + provNombre + '"' + (filtro ? ' con "' + filtroTexto + '"' : ''), 'info');
+    return;
+  }
+  var msg = 'Vas a configurar ' + afectados.length + ' producto' + (afectados.length!==1?'s':'') +
+    ' de "' + provNombre + '"' + (filtroTexto ? ' que contengan "' + filtroTexto + '"' : '') +
+    ' para venderse por ' + unidad + '.\n\n' +
+    'El precio cargado (el del bulto) NO se toca. En el mostrador vas a poder vender el bulto entero o por ' + unidad +
+    ' (precio ÷ ' + contenido + ', redondeando para arriba).\n\n¿Continuar?';
+  if(!await confirmComercia(msg)) return;
+  var nowIso = new Date().toISOString();
+  try{
+    var batchSize = 400;
+    for(var start = 0; start < afectados.length; start += batchSize){
+      var slice = afectados.slice(start, start + batchSize);
+      var batch = db.batch();
+      slice.forEach(function(p){
+        var ref = db.collection('empresas').doc(currentEmpresaId).collection('productos').doc(p._id);
+        batch.set(ref, { fraccContenido: contenido, fraccUnidad: unidad, updatedAt: nowIso }, { merge: true });
+        p.fraccContenido = contenido; p.fraccUnidad = unidad; p.updatedAt = nowIso;
+      });
+      await batch.commit();
+    }
+    toast('&#9989; ' + afectados.length + ' producto(s) configurados para venta por ' + unidad, 'success');
+    if(typeof renderProductos === 'function') renderProductos();
+  }catch(e){
+    console.error('config fracc masiva', e);
+    toast('Error al configurar: ' + (e && e.message ? e.message : e), 'error');
+  }
 }
 
 function lpAbrirLimpieza(){
