@@ -3630,13 +3630,95 @@
     padding-top:8px;
     border-top:1px dashed var(--line);
   }
+  .vci-modo-row{
+    grid-column:1 / -1;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px dashed var(--line);
+  }
   .vci-price{font-family:var(--mono);font-size:12px;color:var(--text-soft)}
   .vci-price-input{width:74px;font-family:var(--mono);font-size:12px;color:var(--text);border:1px solid var(--line-2);border-radius:6px;padding:1px 5px;background:var(--bg);text-align:right;margin:0 2px}
   .vci-price-input:focus{outline:none;border-color:var(--accent)}
-  .vci-modo{display:inline-flex;gap:0;border:1px solid var(--line-2);border-radius:6px;overflow:hidden;margin-right:6px}
-  .vci-modo-btn{font-size:10px;padding:2px 7px;background:var(--bg);color:var(--text-mute);border:none;cursor:pointer;white-space:nowrap}
-  .vci-modo-btn.active{background:var(--accent);color:#fff;font-weight:600}
+  .vci-modo{display:flex;width:100%;gap:0;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+  .vci-modo-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;padding:5px 8px;background:var(--bg);color:var(--text-mute);border:none;cursor:pointer;white-space:nowrap;text-align:center;transition:background .12s}
+  .vci-modo-btn:not(.active):hover{background:var(--bg-soft,#f5f3f0)}
+  .vci-modo-btn.active{background:var(--accent);color:#fff}
+  .vci-modo-btn + .vci-modo-btn{border-left:1px solid var(--line-2)}
+  .vci-modo-lbl{font-size:10px;opacity:.85;line-height:1.1}
+  .vci-modo-val{font-family:var(--mono);font-size:12px;font-weight:700;line-height:1.1}
   .vci-subtotal{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--success);letter-spacing:-0.005em}
+
+  /* ── Carrito compacto (fila fina + panel expandible) ── */
+  .vci2{
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:var(--r-md);
+    margin-bottom:6px;
+    transition:border-color .12s;
+  }
+  .vci2-exp{border-color:var(--accent)}
+  .vci2:hover{border-color:var(--accent)}
+  .vci2-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:7px 10px;
+  }
+  .vci2-qty{display:flex;align-items:center;gap:3px;flex-shrink:0}
+  .vci2-qbtn{
+    width:22px;height:22px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--text);
+    border-radius:var(--r-sm);
+    font-size:13px;line-height:1;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .vci2-qbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .vci2-qinput{
+    width:40px;height:24px;
+    text-align:center;
+    border:1px solid var(--line);
+    border-radius:var(--r-sm);
+    font-family:var(--mono);font-size:12px;
+    background:var(--paper);color:var(--text);
+  }
+  .vci2-qinput:focus{outline:none;border-color:var(--accent)}
+  .vci2-mid{flex:1;min-width:0;cursor:pointer}
+  .vci2-desc{
+    font-size:13px;font-weight:600;color:var(--text);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    letter-spacing:-0.005em;
+  }
+  .vci2-sub{
+    font-size:10px;color:var(--text-mute);
+    font-family:var(--mono);margin-top:1px;
+  }
+  .vci2-caret{color:var(--accent);margin-left:2px}
+  .vci2-total{
+    font-family:var(--mono);font-size:13px;font-weight:800;
+    color:var(--success);flex-shrink:0;cursor:pointer;
+    letter-spacing:-0.005em;
+  }
+  .vci2-panel{
+    padding:0 10px 10px;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .vci2-modo-wrap{padding-top:8px;border-top:1px dashed var(--line)}
+  .vci2-actions{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+  }
+  .vci2-price{font-size:12px;color:var(--text-soft);font-family:var(--mono)}
+  .vci2-del{
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--danger,#c0392b);
+    border-radius:var(--r-sm);
+    font-size:12px;padding:4px 10px;
+    cursor:pointer;white-space:nowrap;
+  }
+  .vci2-del:hover{border-color:var(--danger,#c0392b);background:var(--danger-bg,#fdecea)}
   .vci-remove{
     background:transparent;
     border:none;
@@ -6416,8 +6498,30 @@
                 <span class="es-metodo-tit">Subir Excel</span>
                 <span class="es-metodo-desc">Un Excel con código y cantidad. Detecta las columnas solo.</span>
               </button>
+              <button class="es-metodo" onclick="esElegirMetodo('factura')">
+                <span class="es-metodo-icon">&#129534;</span>
+                <span class="es-metodo-tit">Subir factura</span>
+                <span class="es-metodo-desc">Arrastrá la factura del proveedor (PDF o foto). La leemos y te mostramos los productos para confirmar.</span>
+              </button>
             </div>
             <input type="file" id="esExcelInput" accept=".xlsx,.xls" style="display:none">
+            <input type="file" id="esFacturaInput" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none">
+
+            <!-- Dropzone de factura (oculto hasta elegir el método) -->
+            <div id="esFacturaZona" style="display:none;margin-top:18px">
+              <div class="lp-dropzone" id="esFacturaDrop" onclick="document.getElementById('esFacturaInput').click()">
+                <div class="lp-dropzone-icon">&#129534;</div>
+                <p class="lp-dropzone-title">Arrastrá la factura acá, o hacé clic para elegirla</p>
+                <p class="lp-dropzone-sub">PDF con texto o foto/escaneo (JPG, PNG). La leemos con IA y te mostramos los productos y cantidades para que confirmes antes de sumar al stock.</p>
+              </div>
+              <div id="esFacturaEstado" style="display:none;margin-top:14px;text-align:center">
+                <p class="lp-dropzone-title" id="esFacturaEstadoTxt">Leyendo la factura…</p>
+                <p class="lp-dropzone-sub" id="esFacturaEstadoSub">Esto puede tardar unos segundos.</p>
+              </div>
+              <div style="margin-top:14px">
+                <button class="btn btn-sm btn-light" onclick="esElegirMetodo('')">&#8592; Volver</button>
+              </div>
+            </div>
           </div>
 
           <!-- Vista de carga (lista editable) -->
@@ -13345,6 +13449,8 @@ function initEntradaStock(){
   // enganchar inputs de archivo una vez
   var ex = document.getElementById('esExcelInput');
   if(ex && !ex._wired){ ex._wired = true; ex.addEventListener('change', function(){ if(ex.files[0]) esProcesarExcel(ex.files[0]); }); }
+  // enganchar drag & drop de factura
+  if(typeof esInitFacturaDrop === 'function') esInitFacturaDrop();
 }
 
 function esVolverInicio(){
@@ -13361,6 +13467,21 @@ async function esCancelar(){
 
 function esElegirMetodo(metodo){
   esState.metodo = metodo;
+  // mostrar/ocultar el paso 1 base y la zona de factura
+  var metodos = document.querySelector('.es-metodos');
+  var zonaFact = document.getElementById('esFacturaZona');
+  if(metodo === 'factura'){
+    if(metodos) metodos.style.display = 'none';
+    if(zonaFact) zonaFact.style.display = 'block';
+    var drop = document.getElementById('esFacturaDrop');
+    var estado = document.getElementById('esFacturaEstado');
+    if(drop) drop.style.display = '';
+    if(estado) estado.style.display = 'none';
+    return;
+  }
+  // volver / otros métodos: restaurar vista base
+  if(metodos) metodos.style.display = '';
+  if(zonaFact) zonaFact.style.display = 'none';
   if(metodo === 'manual'){
     esState.filas = [];
     esIrAPaso2('Carga manual');
@@ -13368,6 +13489,123 @@ function esElegirMetodo(metodo){
   } else if(metodo === 'excel'){
     document.getElementById('esExcelInput').value = '';
     document.getElementById('esExcelInput').click();
+  }
+}
+
+// ── SUBIR FACTURA (leer con IA y mostrar para confirmar) ──
+function esInitFacturaDrop(){
+  var drop = document.getElementById('esFacturaDrop');
+  var input = document.getElementById('esFacturaInput');
+  if(!drop || drop._init) return;
+  drop._init = true;
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.add('lp-drag-over'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); e.stopPropagation(); drop.classList.remove('lp-drag-over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) esProcesarFactura(f);
+  });
+  if(input && !input._init){
+    input._init = true;
+    input.addEventListener('change', function(){ if(input.files && input.files[0]) esProcesarFactura(input.files[0]); });
+  }
+}
+
+async function esProcesarFactura(file){
+  if(!file){ return; }
+  var okTipos = ['application/pdf','image/jpeg','image/png','image/webp'];
+  var esImg = /^image\//.test(file.type);
+  var esPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if(!esPdf && !esImg){ toast('Subí un PDF o una imagen (foto) de la factura', 'error'); return; }
+  if(file.size > 12 * 1024 * 1024){ toast('El archivo es muy grande (máx 12 MB)', 'error'); return; }
+
+  var drop = document.getElementById('esFacturaDrop');
+  var estado = document.getElementById('esFacturaEstado');
+  var estadoTxt = document.getElementById('esFacturaEstadoTxt');
+  var estadoSub = document.getElementById('esFacturaEstadoSub');
+  if(drop) drop.style.display = 'none';
+  if(estado) estado.style.display = '';
+  if(estadoTxt) estadoTxt.textContent = 'Leyendo la factura…';
+  if(estadoSub) estadoSub.textContent = esImg ? 'Es una imagen, puede tardar un poco más.' : 'Extrayendo los productos.';
+
+  try{
+    // Convertir el archivo a base64 para mandarlo a la Function
+    var b64 = await esFileABase64(file);
+    var payload = { archivoBase64: b64, tipo: esPdf ? 'pdf' : 'imagen', nombre: file.name };
+    var fn = functions.httpsCallable('iaLeerFactura');
+    var res = await fn(payload);
+    var data = res && res.data ? res.data : {};
+    var items = data.items || [];
+    if(!items.length){
+      toast('No se detectaron productos en la factura. Probá con otra o cargala a mano.', 'error');
+      esElegirMetodo('factura');
+      return;
+    }
+    esCargarFilasDesdeFactura(items, data.proveedor || file.name);
+  }catch(e){
+    console.error('leer factura', e);
+    var msg = (e && e.message) ? e.message : 'No se pudo leer la factura';
+    if(/not-found|iaLeerFactura/.test(String(msg))){
+      toast('La lectura de facturas todavía no está activada en el servidor. Hay que deployar la función iaLeerFactura.', 'error');
+    } else {
+      toast('Error al leer la factura: ' + msg, 'error');
+    }
+    esElegirMetodo('factura');
+  }
+}
+
+function esFileABase64(file){
+  return new Promise(function(resolve, reject){
+    var r = new FileReader();
+    r.onload = function(){ resolve(String(r.result).split(',')[1]); };
+    r.onerror = function(){ reject(new Error('No se pudo leer el archivo')); };
+    r.readAsDataURL(file);
+  });
+}
+
+// Toma los items detectados por la IA y arma las filas de la tabla editable,
+// cruzando el código de la factura con tus productos (mismo cruce que el Excel).
+function esCargarFilasDesdeFactura(items, subtitulo){
+  esState.metodo = 'factura';
+  esState.filas = [];
+  var noEncontrados = 0;
+  items.forEach(function(it){
+    var codigo = String(it.codigo || '').trim();
+    var cant = Number(it.cantidad) || 0;
+    var costo = Number(it.costo) || 0;
+    var prod = codigo ? esBuscarProducto(codigo) : null;
+    if(!prod && it.descripcion){
+      var d = _sinAcento(it.descripcion);
+      prod = (productos || []).find(function(p){ return _sinAcento(p.descripcion) === d; }) || null;
+    }
+    if(prod){
+      // fila de reposición (mismo formato que Excel/manual)
+      esState.filas.push({
+        prod: prod,
+        codigo: prod.codigo || codigo,
+        descripcion: prod.descripcion || it.descripcion || '',
+        stockActual: Number(prod.stock) || 0,
+        cantidad: cant > 0 ? cant : 1,
+        precioUnit: costo > 0 ? costo : (Number(prod.precioCosto) || 0)
+      });
+    } else {
+      // sin match: fila editable para que corrijas el código o crees el producto
+      noEncontrados++;
+      esState.filas.push({
+        prod: null,
+        codigo: codigo,
+        descripcion: it.descripcion || '',
+        cantidad: cant > 0 ? cant : 1,
+        precioUnit: costo > 0 ? costo : 0
+      });
+    }
+  });
+  esIrAPaso2('Factura: ' + (subtitulo || '') + ' — ' + items.length + ' producto(s)' + (noEncontrados ? ', ' + noEncontrados + ' sin identificar' : ''));
+  if(noEncontrados){
+    toast(noEncontrados + ' producto(s) de la factura no se encontraron en tu catálogo. Revisalos en la tabla.', 'info');
   }
 }
 
@@ -20413,7 +20651,7 @@ function bindVentasSearch(){
       if(eraRafaga && t.length >= 3){
         var m = buscarProductoPorCodigo(t);
         if(m){
-          agregarAlCarrito(m._id);
+          agregarAlCarrito(m._id, true);
           inp.value = '';
           _vSearchQuery = '';
           _rafaga = 0;
@@ -20434,7 +20672,7 @@ function bindVentasSearch(){
       // 1) Escaneo: si el texto es un código (interno o de barras), se agrega solo al carrito
       var match = buscarProductoPorCodigo(texto);
       if(match){
-        agregarAlCarrito(match._id);
+        agregarAlCarrito(match._id, true);
         inp.value = '';
         _vSearchQuery = '';
         renderGridVentas();
@@ -20445,7 +20683,7 @@ function bindVentasSearch(){
       vGridPage = 0;
       renderGridVentas();
       if(_vGridResults.length === 1){
-        agregarAlCarrito(_vGridResults[0]._id);
+        agregarAlCarrito(_vGridResults[0]._id, true);
         inp.value = '';
         _vSearchQuery = '';
         renderGridVentas();
@@ -20654,7 +20892,7 @@ function vVerFicha(id){
   if(m) m.classList.add('show');
 }
 
-function agregarAlCarrito(id){
+function agregarAlCarrito(id, mantenerFoco){
   var p = productos.find(function(x){ return x._id===id; });
   if(!p) return;
   if(!p.precioVenta){
@@ -20678,10 +20916,14 @@ function agregarAlCarrito(id){
   guardarCarritoUsuario();
   // Solo actualizamos el badge de la card específica para evitar re-render completo
   refrescarBadgeCard(id);
-  setTimeout(function(){
-    var inp = document.getElementById('vSearch');
-    if(inp) inp.focus();
-  }, 50);
+  // Volvemos el foco al buscador SOLO cuando se escanea con pistola (para seguir
+  // escaneando). En clics manuales, el foco se queda donde está el usuario.
+  if(mantenerFoco){
+    setTimeout(function(){
+      var inp = document.getElementById('vSearch');
+      if(inp) inp.focus();
+    }, 50);
+  }
 }
 
 function refrescarBadgeCard(id){
@@ -20761,6 +21003,12 @@ async function limpiarCarrito(){
   guardarCarritoUsuario();
   // Re-render del grid para limpiar todos los badges
   renderGridVentas();
+}
+
+var _itemExpandido = -1;   // índice del ítem del carrito abierto (-1 = ninguno)
+function toggleItemExpandido(idx){
+  _itemExpandido = (_itemExpandido === idx) ? -1 : idx;
+  renderCarrito();
 }
 
 function renderCarrito(){
@@ -20857,14 +21105,24 @@ function renderCarrito(){
     if(esFracc){
       var uMed = p.fraccUnidad || 'unidad';
       var precioMetro = precioPorUnidadFracc(p);
+      var precioBulto = redondearPrecio(precioDe(p));
       modoSelHtml = '<div class="vci-modo">'+
-        '<button class="vci-modo-btn'+(item.modo!=='fracc'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">Bulto entero</button>'+
-        '<button class="vci-modo-btn'+(item.modo==='fracc'?' active':'')+'" onclick="setModoItem('+i+',\'fracc\')">Por '+eH(uMed)+' ($'+precioMetro+')</button>'+
+        '<button class="vci-modo-btn'+(item.modo!=='fracc'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">'+
+          '<span class="vci-modo-lbl">Bulto</span><span class="vci-modo-val">'+fmtPeso(precioBulto)+'</span>'+
+        '</button>'+
+        '<button class="vci-modo-btn'+(item.modo==='fracc'?' active':'')+'" onclick="setModoItem('+i+',\'fracc\')">'+
+          '<span class="vci-modo-lbl">Por '+eH(uMed)+'</span><span class="vci-modo-val">'+fmtPeso(precioMetro)+'</span>'+
+        '</button>'+
       '</div>';
     } else if(ubLinea > 1){
+      var precioU = redondearPrecio(precioDe(p));
       modoSelHtml = '<div class="vci-modo">'+
-        '<button class="vci-modo-btn'+(item.modo!=='caja'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">Unidad</button>'+
-        '<button class="vci-modo-btn'+(item.modo==='caja'?' active':'')+'" onclick="setModoItem('+i+',\'caja\')">Caja x'+ubLinea+'</button>'+
+        '<button class="vci-modo-btn'+(item.modo!=='caja'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">'+
+          '<span class="vci-modo-lbl">Unidad</span><span class="vci-modo-val">'+fmtPeso(precioU)+'</span>'+
+        '</button>'+
+        '<button class="vci-modo-btn'+(item.modo==='caja'?' active':'')+'" onclick="setModoItem('+i+',\'caja\')">'+
+          '<span class="vci-modo-lbl">Caja x'+ubLinea+'</span><span class="vci-modo-val">'+fmtPeso(precioU*ubLinea)+'</span>'+
+        '</button>'+
       '</div>';
     }
     var precioLabelLinea = (item.modo === 'caja') ? ' c/caja'
@@ -20881,29 +21139,40 @@ function renderCarrito(){
         pedBadge+
       '</div>';
 
-    html += '<div class="ventas-cart-item">'+
-      '<div class="vci-info">'+
-        '<div class="vci-desc" title="'+eH(p.descripcion||'')+'">'+eH(p.descripcion||'-')+'</div>'+
-        '<div class="vci-meta">'+
-          '<span class="vci-code">'+eH(p.codigo||'')+'</span>'+
+    var _exp = (typeof _itemExpandido !== 'undefined' && _itemExpandido === i);
+    // precio unitario mostrado en la línea fina (según modo)
+    var precioUnitLinea = precioItem(item);
+    var unidadLinea = (item.modo === 'fracc') ? (p.fraccUnidad || 'u')
+      : (item.modo === 'caja') ? 'caja' : 'u';
+    var stepQty = (item.modo === 'fracc') ? '0.01' : '1';
+    var minQty = (item.modo === 'fracc') ? '0.01' : '1';
+
+    html += '<div class="vci2'+(_exp?' vci2-exp':'')+'">'+
+      // ── Línea fina siempre visible ──
+      '<div class="vci2-line">'+
+        '<div class="vci2-qty" onclick="event.stopPropagation()">'+
+          '<button class="vci2-qbtn" onclick="decCarrito('+i+')">\u2212</button>'+
+          '<input class="vci2-qinput" type="number" min="'+minQty+'" step="'+stepQty+'" value="'+item.cantidad+'" onfocus="this.select()" onchange="cambiarCantidadCarrito('+i+',this.value)">'+
+          '<button class="vci2-qbtn" onclick="incCarrito('+i+')">+</button>'+
         '</div>'+
-      '</div>'+
-      '<div class="vci-controls">'+
-        '<button class="vci-qty-btn" onclick="decCarrito('+i+')">\u2212</button>'+
-        '<input class="vci-qty-input" type="number" min="'+(item.modo==='fracc'?'0.01':'1')+'" step="'+(item.modo==='fracc'?'0.01':'1')+'" value="'+item.cantidad+'" '+
-          'onchange="cambiarCantidadCarrito('+i+',this.value)">'+
-        '<button class="vci-qty-btn" onclick="incCarrito('+i+')">+</button>'+
-      '</div>'+
-      '<div class="vci-row2">'+
-        modoSelHtml+
-        '<span class="vci-price">$<input class="vci-price-input" type="number" min="0" step="1" value="'+precioItem(item)+'" onfocus="this.select()" onchange="setPrecioItem('+i+',this.value)" title="Precio (editable)">'+precioLabelLinea+'</span>'+
-        '<div style="display:flex;align-items:center;gap:6px">'+
-          '<span class="vci-subtotal">'+fmtPeso(subt)+'</span>'+
-          '<button class="vci-remove" onclick="quitarDelCarrito('+i+')" title="Quitar">&#128465;</button>'+
+        '<div class="vci2-mid" onclick="toggleItemExpandido('+i+')">'+
+          '<div class="vci2-desc" title="'+eH(p.descripcion||'')+'">'+eH(p.descripcion||'-')+'</div>'+
+          '<div class="vci2-sub">'+fmtPeso(precioUnitLinea)+'/'+eH(unidadLinea)+(modoSelHtml?' <span class="vci2-caret">'+(_exp?'&#9652;':'&#9662;')+'</span>':'')+'</div>'+
         '</div>'+
+        '<div class="vci2-total" onclick="toggleItemExpandido('+i+')">'+fmtPeso(subt)+'</div>'+
       '</div>'+
-      obraSelectorHtml+
-      pedActionHtml+
+      // ── Zona expandible (controles) ──
+      (_exp ?
+        '<div class="vci2-panel">'+
+          (modoSelHtml ? '<div class="vci2-modo-wrap">'+modoSelHtml+'</div>' : '')+
+          '<div class="vci2-actions">'+
+            '<span class="vci2-price">Precio: $<input class="vci-price-input" type="number" min="0" step="1" value="'+precioItem(item)+'" onfocus="this.select()" onchange="setPrecioItem('+i+',this.value)" title="Precio (editable)"></span>'+
+            '<button class="vci2-del" onclick="quitarDelCarrito('+i+')" title="Quitar">&#128465; Quitar</button>'+
+          '</div>'+
+          obraSelectorHtml+
+          pedActionHtml+
+        '</div>'
+      : '')+
     '</div>';
   });
   cont.innerHTML = html;
