@@ -8348,6 +8348,27 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
         </div>
       </div>
       <div class="prod-foto-hint">Si lo cargás (ej.: 100), en la venta vas a poder elegir vender <strong>por unidad</strong> o <strong>por caja</strong>. El precio de la caja es el unitario &times; las unidades, y descuenta del stock las unidades de la caja. Dejalo en 0 si este producto solo se vende por unidad.</div>
+
+      <div class="form-section-title" style="margin-top:16px">Venta fraccionada (rollo / bobina / bulto que se vende por medida)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Contenido del bulto <span style="color:var(--text-mute);font-weight:400">(opcional)</span></label>
+          <input class="form-input" type="number" id="prodFraccContenido" placeholder="0" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unidad de venta</label>
+          <select class="form-input" id="prodFraccUnidad">
+            <option value="">—</option>
+            <option value="metro">metro</option>
+            <option value="cm">cm</option>
+            <option value="kg">kg</option>
+            <option value="gramo">gramo</option>
+            <option value="litro">litro</option>
+            <option value="unidad">unidad</option>
+          </select>
+        </div>
+      </div>
+      <div class="prod-foto-hint">Para productos que <strong>comprás por bulto pero vendés por medida</strong> (ej.: rollo de cable de <strong>100</strong> metros). El precio cargado sigue siendo el del <strong>bulto entero</strong> (el mayorista de la lista), y el sistema calcula solo el <strong>precio por unidad</strong> (bulto &divide; contenido, redondeando para arriba). En la venta vas a poder vender el bulto entero o la cantidad de metros/kg que quieras. Dejalo en 0 si no aplica.</div>
     </div><!-- /prodTabStock -->
 
     <button class="btn-form" id="btnSaveProduct" onclick="saveProduct()">Guardar producto</button>
@@ -15876,6 +15897,8 @@ function openProductModal(){
   document.getElementById('prodStockMin').value = '';
   document.getElementById('prodStockIdeal').value = '';
   document.getElementById('prodUnidadesBulto').value = '';
+  document.getElementById('prodFraccContenido').value = '';
+  document.getElementById('prodFraccUnidad').value = '';
   _prodStockOriginal = null;
   prodFotoReset();
   prodBarcodeRender();
@@ -15914,6 +15937,8 @@ function editProduct(id){
   document.getElementById('prodStockMin').value = (p.stockMin != null ? p.stockMin : '');
   document.getElementById('prodStockIdeal').value = (p.stockIdeal != null ? p.stockIdeal : '');
   document.getElementById('prodUnidadesBulto').value = (p.unidadesPorBulto ? p.unidadesPorBulto : '');
+  document.getElementById('prodFraccContenido').value = (p.fraccContenido ? p.fraccContenido : '');
+  document.getElementById('prodFraccUnidad').value = (p.fraccUnidad || '');
   prodFotoReset();
   if(p.fotoUrl){
     prodFotoMostrar(p.fotoUrl);
@@ -16105,6 +16130,8 @@ async function saveProduct(){
     stockMin: Number(document.getElementById('prodStockMin').value) || 0,
     stockIdeal: Number(document.getElementById('prodStockIdeal').value) || 0,
     unidadesPorBulto: Number(document.getElementById('prodUnidadesBulto').value) || 0,
+    fraccContenido: Number(document.getElementById('prodFraccContenido').value) || 0,
+    fraccUnidad: document.getElementById('prodFraccUnidad').value || '',
     fotoUrl: document.getElementById('prodFotoUrlFinal').value || '',
     fotoPath: document.getElementById('prodFotoPath').value || '',
     nl: _sfNorm(descripcion),
@@ -19993,17 +20020,38 @@ function redondearPrecio(n){
   return Math.round(n / step) * step;
 }
 
+// ── VENTA FRACCIONADA (rollo/bobina/bulto vendido por medida) ──
+// El precio guardado (precioVenta/precioMayorista) es el del BULTO ENTERO.
+// El precio por unidad de venta (metro, kg...) se DERIVA: bulto ÷ contenido,
+// redondeando SIEMPRE hacia arriba. Así, al reimportar o aumentar el precio
+// del bulto, el precio por unidad se recalcula solo y nunca queda desfasado.
+function esFraccionado(p){
+  return !!(p && Number(p.fraccContenido) > 0 && p.fraccUnidad);
+}
+// Precio por 1 unidad de venta (1 metro, 1 kg), redondeado hacia arriba.
+function precioPorUnidadFracc(p){
+  if(!esFraccionado(p)) return 0;
+  var contenido = Number(p.fraccContenido) || 1;
+  var precioBulto = precioDe(p);            // respeta lista mayorista/minorista activa
+  if(contenido <= 0) return 0;
+  return Math.ceil(precioBulto / contenido); // redondeo SIEMPRE hacia arriba
+}
+
 // Precio unitario de un ítem del carrito: si el usuario lo editó usa ese valor,
 // si no, toma el precio de la lista activa redondeado según configuración.
 function precioItem(item){
   if(!item) return 0;
   if(item.precioOverride != null && item.precioOverride !== '') return Number(item.precioOverride) || 0;
+  // Modo fraccionado: precio por unidad de venta (metro, kg) = bulto ÷ contenido ↑
+  if(item.modo === 'fracc' && esFraccionado(item.producto)){
+    return precioPorUnidadFracc(item.producto);
+  }
   var base = redondearPrecio(precioDe(item.producto));
   if(item.modo === 'caja'){
     var n = Number(item.producto && item.producto.unidadesPorBulto) || 1;
     return base * n;   // precio de la caja = unitario × unidades por caja
   }
-  return base;
+  return base;   // modo unidad/bulto entero: precio del bulto tal cual
 }
 
 // Unidades de stock que representa una línea (cajas → unidades)
@@ -20014,6 +20062,12 @@ function unidadesItem(item){
     var n = Number(item.producto && item.producto.unidadesPorBulto) || 1;
     return cant * n;
   }
+  // Fraccionado: si el stock se lleva por BULTOS (rollos), vender X metros
+  // descuenta la fracción de rollo (30 metros de un rollo de 100 = 0,3 rollos).
+  if(item.modo === 'fracc' && esFraccionado(item.producto)){
+    var contenido = Number(item.producto.fraccContenido) || 1;
+    return contenido > 0 ? (cant / contenido) : cant;
+  }
   return cant;
 }
 
@@ -20021,8 +20075,9 @@ function unidadesItem(item){
 function setModoItem(idx, modo){
   var item = carritoVenta[idx];
   if(!item) return;
-  item.modo = (modo === 'caja') ? 'caja' : 'unidad';
+  item.modo = (modo === 'caja') ? 'caja' : (modo === 'fracc') ? 'fracc' : 'unidad';
   item.precioOverride = null;   // el precio se recalcula según el modo
+  // al pasar a fraccionado, arrancar con cantidad entera cómoda si venía en 1
   renderCarrito();
   recalcularVenta();
   guardarCarritoUsuario();
@@ -20630,10 +20685,15 @@ function quitarDelCarrito(idx){
 }
 
 function cambiarCantidadCarrito(idx, val){
-  var n = parseInt(val);
-  if(isNaN(n)||n<1) n=1;
-  carritoVenta[idx].cantidad = n;
-  var id = carritoVenta[idx].producto._id;
+  var item = carritoVenta[idx];
+  if(!item) return;
+  var esFraccLinea = (item.modo === 'fracc');
+  var n = esFraccLinea ? parseFloat(val) : parseInt(val);
+  if(isNaN(n) || n <= 0) n = esFraccLinea ? 0.01 : 1;
+  // en fraccionado permitimos decimales (30,5 metros); en el resto, enteros
+  if(!esFraccLinea) n = Math.max(1, Math.round(n));
+  item.cantidad = n;
+  var id = item.producto._id;
   renderCarrito();
   recalcularVenta();
   guardarCarritoUsuario();
@@ -20762,14 +20822,23 @@ function renderCarrito(){
     // Estado: ¿está en pedido?
     var enPedido = pedItems.find(function(x){ return x.producto._id === p._id; });
     var ubLinea = Number(p.unidadesPorBulto) || 0;
+    var esFracc = esFraccionado(p);
     var modoSelHtml = '';
-    if(ubLinea > 1){
+    if(esFracc){
+      var uMed = p.fraccUnidad || 'unidad';
+      var precioMetro = precioPorUnidadFracc(p);
+      modoSelHtml = '<div class="vci-modo">'+
+        '<button class="vci-modo-btn'+(item.modo!=='fracc'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">Bulto entero</button>'+
+        '<button class="vci-modo-btn'+(item.modo==='fracc'?' active':'')+'" onclick="setModoItem('+i+',\'fracc\')">Por '+eH(uMed)+' ($'+precioMetro+')</button>'+
+      '</div>';
+    } else if(ubLinea > 1){
       modoSelHtml = '<div class="vci-modo">'+
         '<button class="vci-modo-btn'+(item.modo!=='caja'?' active':'')+'" onclick="setModoItem('+i+',\'unidad\')">Unidad</button>'+
         '<button class="vci-modo-btn'+(item.modo==='caja'?' active':'')+'" onclick="setModoItem('+i+',\'caja\')">Caja x'+ubLinea+'</button>'+
       '</div>';
     }
-    var precioLabelLinea = (item.modo === 'caja') ? ' c/caja' : ' c/u';
+    var precioLabelLinea = (item.modo === 'caja') ? ' c/caja'
+      : (item.modo === 'fracc') ? (' /'+eH(p.fraccUnidad||'u')) : ' c/u';
     var enPedidoCant = enPedido ? enPedido.cantidad : 0;
     var pedBadge = enPedido
       ? '<span class="vci-ped-badge" title="Ya en pedido">&#128722; En pedido: '+enPedido.cantidad+'</span>'
@@ -20791,7 +20860,7 @@ function renderCarrito(){
       '</div>'+
       '<div class="vci-controls">'+
         '<button class="vci-qty-btn" onclick="decCarrito('+i+')">\u2212</button>'+
-        '<input class="vci-qty-input" type="number" min="1" value="'+item.cantidad+'" '+
+        '<input class="vci-qty-input" type="number" min="'+(item.modo==='fracc'?'0.01':'1')+'" step="'+(item.modo==='fracc'?'0.01':'1')+'" value="'+item.cantidad+'" '+
           'onchange="cambiarCantidadCarrito('+i+',this.value)">'+
         '<button class="vci-qty-btn" onclick="incCarrito('+i+')">+</button>'+
       '</div>'+
