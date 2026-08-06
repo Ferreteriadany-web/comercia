@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -8,7 +8,7 @@
 <meta name="description" content="Comercia es la plataforma todo-en-uno para gestionar compras, ventas, presupuestos y stock. Probá gratis 14 días.">
 <link rel="icon" type="image/svg+xml" href='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><defs><linearGradient id="g" x1="0%25" y1="0%25" x2="100%25" y2="100%25"><stop offset="0%25" stop-color="%23fbbf24"/><stop offset="100%25" stop-color="%23f97316"/></linearGradient></defs><rect x="2" y="2" width="36" height="36" rx="6" fill="url(%23g)"/><path d="M27 14a8 8 0 1 0 0 12" stroke="white" stroke-width="3.2" stroke-linecap="round" fill="none"/><circle cx="29" cy="20" r="2.4" fill="white"/></svg>'>
 
-<link rel="preconnect" href="https://fonts.googleapis.com"> 
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
 <!-- ── PWA: app instalable (Etapa 1) ── -->
@@ -8082,6 +8082,13 @@ Antes de recomendar, SIEMPRE preguntá para qué lo va a usar...
                   <option value="arriba">Siempre hacia arriba</option>
                   <option value="abajo">Siempre hacia abajo</option>
                 </select>
+              </div>
+            </div>
+            <div class="form-row" style="margin-top:12px">
+              <div class="form-group">
+                <label class="form-label">No redondear precios menores a</label>
+                <input class="form-input" type="number" id="empresaRedondeoMinimo" min="0" step="1" placeholder="0" onchange="actualizarPreviewRedondeo()">
+                <div style="font-size:11px;color:var(--text-mute);margin-top:4px">Los productos baratos (tornillos, arandelas) por debajo de este precio quedan <b>exactos</b>, sin redondear. Ej.: poné 500 y un tornillo de $12 no se toca. Dejalo en 0 para redondear todo.</div>
               </div>
             </div>
             <div style="font-size:12px;color:var(--text-soft);margin-top:4px;font-family:var(--mono)" id="redondeoPreview">Ejemplo: $5.472 &rarr; $5.472</div>
@@ -20315,6 +20322,10 @@ function redondearPrecio(n){
   n = Number(n) || 0;
   var step = (currentEmpresa && currentEmpresa.redondeoStep != null) ? Number(currentEmpresa.redondeoStep) : 1;
   if(!step || step <= 0) return n;              // sin redondeo → precio exacto
+  // Piso de redondeo: los productos baratos (tornillos, arandelas) quedan con
+  // precio EXACTO. Redondear un tornillo de $12 a múltiplos de $50 lo dispararía.
+  var minRed = (currentEmpresa && currentEmpresa.redondeoMinimo != null) ? Number(currentEmpresa.redondeoMinimo) : 0;
+  if(minRed > 0 && n < minRed) return Math.round(n); // por debajo del piso: precio exacto
   var modo = (currentEmpresa && currentEmpresa.redondeoModo) || 'cercano';
   if(modo === 'arriba') return Math.ceil(n / step) * step;
   if(modo === 'abajo') return Math.floor(n / step) * step;
@@ -21168,7 +21179,7 @@ function renderCarrito(){
         '<button class="vci-pedido-btn" onclick="agregarItemAPedidoDesdeCarrito('+i+')" title="Agregar este producto a la orden de compra">'+
           '&#43; '+ (enPedido ? 'sumar al pedido' : 'al pedido') +
         '</button>'+
-        '<input type="number" class="vci-pedido-qty" id="vciPedQty'+i+'" min="1" value="'+(enPedido ? 1 : item.cantidad)+'" title="Cantidad a agregar al pedido">'+
+        '<input type="number" class="vci-pedido-qty" id="vciPedQty'+i+'" min="1" value="'+(_pedQtyMem[item.producto._id] || 1)+'" title="Cantidad a agregar al pedido" onchange="_pedQtyMem[\''+item.producto._id+'\']=Math.max(1,parseInt(this.value)||1)">'+
         pedBadge+
       '</div>';
 
@@ -21212,6 +21223,11 @@ function renderCarrito(){
   if(typeof actualizarMobileCartFab === 'function') actualizarMobileCartFab();
 }
 
+// Recuerda la cantidad tipeada para "agregar al pedido" por producto, para que
+// no se pierda cuando el carrito se re-dibuja (ej. al cambiar cantidad de venta).
+// Es independiente de la cantidad del carrito: vender 13 y encargar 50 conviven.
+var _pedQtyMem = {};
+
 // Agregar item del carrito al pedido (desde el botón en el item)
 function agregarItemAPedidoDesdeCarrito(idx){
   var item = carritoVenta[idx];
@@ -21227,6 +21243,8 @@ function agregarItemAPedidoDesdeCarrito(idx){
     pedItems.push({ producto: item.producto, cantidad: cant });
     toast(item.producto.descripcion ? item.producto.descripcion.substring(0,30)+'... agregado al pedido ('+cant+')' : 'Agregado al pedido ('+cant+')', 'success');
   }
+  // Ya se aplicó: olvidar la cantidad tipeada (el input vuelve a 1)
+  delete _pedQtyMem[item.producto._id];
   // Re-render carrito para actualizar el badge
   renderCarrito();
   // Si hay vista de pedido visible, también
@@ -27986,20 +28004,31 @@ function initConfiguracion(){
   // Redondeo de precios
   document.getElementById('empresaRedondeoStep').value = (emp.redondeoStep != null ? String(emp.redondeoStep) : '1');
   document.getElementById('empresaRedondeoModo').value = emp.redondeoModo || 'cercano';
+  document.getElementById('empresaRedondeoMinimo').value = (emp.redondeoMinimo != null && emp.redondeoMinimo > 0 ? String(emp.redondeoMinimo) : '');
   actualizarPreviewRedondeo();
 }
 
 function actualizarPreviewRedondeo(){
   var step = Number(document.getElementById('empresaRedondeoStep').value) || 0;
   var modo = document.getElementById('empresaRedondeoModo').value;
-  var ejemplo = 5472;
-  var res;
-  if(step <= 0) res = ejemplo;
-  else if(modo === 'arriba') res = Math.ceil(ejemplo/step)*step;
-  else if(modo === 'abajo') res = Math.floor(ejemplo/step)*step;
-  else res = Math.round(ejemplo/step)*step;
+  var minEl = document.getElementById('empresaRedondeoMinimo');
+  var minRed = minEl ? (Number(minEl.value) || 0) : 0;
+  function redondear(v){
+    if(step <= 0) return v;
+    if(minRed > 0 && v < minRed) return Math.round(v);   // por debajo del piso: exacto
+    if(modo === 'arriba') return Math.ceil(v/step)*step;
+    if(modo === 'abajo') return Math.floor(v/step)*step;
+    return Math.round(v/step)*step;
+  }
   var el = document.getElementById('redondeoPreview');
-  if(el) el.innerHTML = 'Ejemplo: ' + fmtPeso(ejemplo) + ' &rarr; <strong style="color:var(--text)">' + fmtPeso(res) + '</strong>';
+  if(!el) return;
+  // Ejemplo caro (se redondea) + ejemplo barato (queda exacto si hay piso)
+  var caro = 5472, barato = 12;
+  var txt = 'Ejemplo: ' + fmtPeso(caro) + ' &rarr; <strong style="color:var(--text)">' + fmtPeso(redondear(caro)) + '</strong>';
+  if(minRed > 0){
+    txt += '  ·  tornillo ' + fmtPeso(barato) + ' &rarr; <strong style="color:var(--success)">' + fmtPeso(redondear(barato)) + '</strong> (exacto)';
+  }
+  el.innerHTML = txt;
 }
 
 // Pestañas de la pantalla de Configuración
@@ -28331,6 +28360,7 @@ async function guardarConfigEmpresa(){
       colorPrincipal: document.getElementById('empresaColor').value,
       redondeoStep: Number(document.getElementById('empresaRedondeoStep').value) || 0,
       redondeoModo: document.getElementById('empresaRedondeoModo').value,
+      redondeoMinimo: Number(document.getElementById('empresaRedondeoMinimo').value) || 0,
       updatedAt: new Date().toISOString()
     };
     if(!data.nombre){
